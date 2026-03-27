@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+:root {
+  --primary: #0D9488;
+  --primary-light: #14B8A6;
+  --navy: #0F172A;
+  --navy-light: #1E293B;
+  --accent: #F59E0B;
+  --success: #10B981;
+  --danger: #EF4444;
+}
+
+body {
+  font-family: 'Pretendard Variable', Pretendard, Inter, system-ui, sans-serif;
+  background: #F8FAFC;
+  color: #0F172A;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* Custom utilities */
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+}
