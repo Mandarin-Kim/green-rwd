@@ -23,7 +23,7 @@ export default function eConsentPage() {
     },
     {
       id: 2,
-      studyName: 'Entresto Phase III$,
+      studyName: 'Entresto Phase III',
       version: '2.0',
       language: 'English',
       status: 'Active',
