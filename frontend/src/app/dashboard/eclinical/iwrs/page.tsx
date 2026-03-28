@@ -26,9 +26,9 @@ export default function IWRSPage() {
       { arm: 'Placebo', available: 460, assigned: 412, expired: 2 },
     ],
     siteInventory: [
-      { site: '서울병원', available: 38, assigned: 45, expiring: 2 },
+      { site: '서울대병원', available: 38, assigned: 45, expiring: 2 },
       { site: '삼성서울병원', available: 52, assigned: 67, expiring: 4 },
-      { site: '脸브란스병원', available: 41, assigned: 52, expiring: 3 },
+      { site: '세브란스병원', available: 41, assigned: 52, expiring: 3 },
       { site: '아산병원', available: 28, assigned: 38, expiring: 2 },
     ],
   };
@@ -53,7 +53,7 @@ export default function IWRSPage() {
     {
       id: 3,
       subjectId: 'ENT-002-0008',
-      site: '脸브란스병원',
+      site: '세브란스병원',
       date: '2026-03-26',
       arm: 'Treatment B',
       kitNumber: 'KIT-B-0410',
@@ -66,7 +66,8 @@ export default function IWRSPage() {
       arm: 'Treatment A',
       kitNumber: 'KIT-A-0444',
     },
-    {      id: 5,
+    {
+      id: 5,
       subjectId: 'ENT-003-0005',
       site: '서울대병원',
       date: '2026-03-25',
@@ -84,7 +85,7 @@ export default function IWRSPage() {
     {
       id: 7,
       subjectId: 'ENT-001-0009',
-      site: '脸브란스병원',
+      site: '세브란스병원',
       date: '2026-03-24',
       arm: 'Treatment A',
       kitNumber: 'KIT-A-0443',
@@ -219,7 +220,7 @@ export default function IWRSPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
           <h2 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
             <Package size={20} />
-            중암H보관 약물 재고
+            중앙 보관 약물 재고
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {drugSupply.depotInventory.map((item, idx) => (
@@ -332,5 +333,5 @@ export default function IWRSPage() {
         </div>
       </div>
     </div>
-  +Kreate
+  );
 }
