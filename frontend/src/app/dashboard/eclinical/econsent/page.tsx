@@ -15,7 +15,7 @@ export default function eConsentPage() {
   const consentTemplates = [
     {
       id: 1,
-      studyName: 'Entresto Phase III",
+      studyName: 'Entresto Phase III',
       version: '2.1',
       language: 'Korean',
       status: 'Active',
@@ -39,7 +39,7 @@ export default function eConsentPage() {
     },
     {
       id: 4,
-      studyName: 'NSCLC Study",
+      studyName: 'NSCLC Study',
       version: '1.4',
       language: 'Korean',
       status: 'Archived',
@@ -60,7 +60,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-26',
       versionSigned: '2.1',
       method: 'Tablet',
-      witness: '간호사 박영철',
+      witness: 'ê°í¸ì¬ ë°ìì² ',
       status: 'Signed',
     },
     {
@@ -69,7 +69,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-26',
       versionSigned: '2.1',
       method: 'Web',
-      witness: '임상조정자 김민지',
+      witness: 'ììì¡°ì ì ê¹ë¯¼ì§',
       status: 'Signed',
     },
     {
@@ -78,7 +78,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-25',
       versionSigned: '2.1',
       method: 'Tablet',
-      witness: '간호사 박영철',
+      witness: 'ê°í¸ì¬ ë°ìì² ',
       status: 'Signed'
 ,
     },
@@ -88,7 +88,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-25',
       versionSigned: '2.1',
       method: 'Web',
-      witness: '임상조정자 이혜정',
+      witness: 'ììì¡°ì ì ì´íì ',
       status: 'Signed',
     },
     {
@@ -97,7 +97,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-24',
       versionSigned: '2.0',
       method: 'Tablet',
-      witness: '간호사 박영철',
+      witness: 'ê°í¸ì¬ ë°ìì² ',
       status: 'Signed',
     },
     {
@@ -106,7 +106,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-24',
       versionSigned: '2.1',
       method: 'Web',
-      witness: '임상조정자 김민지',
+      witness: 'ììì¡°ì ì ê¹ë¯¼ì§',
       status: 'Signed',
     },
     {
@@ -115,7 +115,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-23',
       versionSigned: '2.1',
       method: 'Tablet',
-      witness: '간호사 이소연',
+      witness: 'ê°í¸ì¬ ì´ìì°',
       status: 'Signed',
     },
     {
@@ -124,7 +124,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-23',
       versionSigned: '2.1',
       method: 'Web',
-      witness: '임상조정자 이혜정',
+      witness: 'ììì¡°ì ì ì´íì ',
       status: 'Signed',
     },
     {
@@ -133,7 +133,7 @@ export default function eConsentPage() {
       consentDate: '2026-03-22',
       versionSigned: '2.0',
       method: 'Tablet',
-      witness: '간호사 이소연',
+      witness: 'ê°í¸ì¬ ì´ìì°',
       status: 'Signed',
     },
     {
@@ -179,12 +179,12 @@ export default function eConsentPage() {
           <h1 className="text-3xl font-bold text-navy mb-2">
             eConsent (Electronic Consent)
           </h1>
-          <p className="text-slate-500">전자 동의서 관리</p>
+          <p className="text-slate-500">ì ì ëìì ê´ë¦¬</p>
         </div>
 
         {/* Study Selector */}
         <div className="mb-6 flex items-center gap-4">
-          <label className="text-sm font-semibold text-navy">임상시험 선택:</label>
+          <label className="text-sm font-semibold text-navy">ìììí ì í:</label>
           <select
             value={selectedStudy}
             onChange={(e) => setSelectedStudy(e.target.value)}
@@ -203,7 +203,7 @@ export default function eConsentPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-500 text-sm">동의함</p>
+                <p className="text-slate-500 text-sm">ëìí¨</p>
                 <p className="text-2xl font-bold text-navy mt-1">
                   {consentTracking.totalConsented}
                 </p>
@@ -214,7 +214,7 @@ export default function eConsentPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-500 text-sm">대기 중</p>
+                <p className="text-slate-500 text-sm">ëê¸° ì¤</p>
                 <p className="text-2xl font-bold text-yellow-600 mt-1">
                   {consentTracking.pending}
                 </p>
@@ -225,7 +225,7 @@ export default function eConsentPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-500 text-sm">동의 철회</p>
+                <p className="text-slate-500 text-sm">ëì ì² í</p>
                 <p className="text-2xl font-bold text-red-600 mt-1">
                   {consentTracking.withdrawn}
                 </p>
@@ -239,7 +239,7 @@ export default function eConsentPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-8">
           <h2 className="text-lg font-bold text-navy mb-4 flex items-center gap-2">
             <PenTool size={20} />
-            동의서 양식 템플릿
+            ëìì ìì ííë¦¿
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {consentTemplates.map((template) => (
@@ -263,11 +263,11 @@ export default function eConsentPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500">
-                  최종 수정: {template.lastUpdated}
+                  ìµì¢ ìì : {template.lastUpdated}
                 </p>
                 <button className="mt-3 w-full px-3 py-2 bg-slate-100 text-navy rounded-lg hover:bg-slate-200 transition text-sm font-medium flex items-center justify-center gap-2">
                   <Eye size={16} />
-                  미리보기
+                  ë¯¸ë¦¬ë³´ê¸°
                 </button>
               </div>
             ))}
@@ -279,7 +279,7 @@ export default function eConsentPage() {
           <div className="px-6 py-4 bg-gradient-to-r from-navy to-primary">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <ClipboardCheck size={20} />
-              피험자 동의 기록
+              í¼íì ëì ê¸°ë¡
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -287,22 +287,22 @@ export default function eConsentPage() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    피험자 ID
+                    í¼íì ID
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    동의 날짜
+                    ëì ë ì§
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    서명 버전
+                    ìëª ë²ì 
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    방식
+                    ë°©ì
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    증인
+                    ì¦ì¸
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-navy">
-                    상태
+                    ìí
                   </th>
                 </tr>
               </thead>
@@ -345,11 +345,11 @@ export default function eConsentPage() {
 
         {/* Consent Completion Rate */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mt-8">
-          <h2 className="text-lg font-bold text-navy mb-4">동의 완료율</h2>
+          <h2 className="text-lg font-bold text-navy mb-4">ëì ìë£ì¨</h2>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between mb-2">
-                <span className="text-sm font-medium text-navy">현재 진행률</span>
+                <span className="text-sm font-medium text-navy">íì¬ ì§íë¥ </span>
                 <span className="text-sm font-bold text-primary">
                   {Math.round(
                     (consentTracking.totalConsented /
@@ -381,7 +381,7 @@ export default function eConsentPage() {
               {consentTracking.totalConsented +
                 consentTracking.pending +
                 consentTracking.withdrawn}{' '}
-              피험자
+              í¼íì
             </div>
           </div>
         </div>
