@@ -4,19 +4,19 @@ import { useState } from 'react';
 import { Archive, FileText, FolderOpen, Upload, CheckCircle } from 'lucide-react';
 
 export default function eTMFPage() {
-  const [expandedZone, setExpandedZone] = useState('zZ&{n1s'l);
+  const [expandedZone, setExpandedZone] = useState('zone1');
   const [selectedStudy, setSelectedStudy] = useState('entresto-phase3');
 
   const studies = [
-    { id: 'entresto-phase3', name: 'Entresto Phase III" },
-    { id: 'nsclc-study', name: 'NSCLC Study" },
-    { id: 'hf-trial', name: 'Heart Failure Trial" },
+    { id: 'entresto-phase3', name: 'Entresto Phase III'},
+    { id: 'nsclc-study', name: 'NSCLC Study },
+    { id: 'hf-trial', name: 'Heart Failure Trial' },
   ];
 
   const zones = [
     {
       id: 'zone1',
-      name: 'Zone 1: 시험 관리',
+      name: 'Zone 1: 샜울대병원',
       description: '프로토콜, 연구계획서 수정, IRB 통신',
       completeness: 95,
       documents: [
@@ -51,7 +51,7 @@ export default function eTMFPage() {
       documents: [
         {
           id: 4,
-          name: 'IRB 통신서',
+          name: 'IRB 승인서',
           version: '1.0',
           uploadDate: '2024-04-10',
           status: 'Final',
@@ -205,9 +205,9 @@ export default function eTMFPage() {
                   style={{ width: `${zone.completeness}%` }}
                 />
               </div>
-              <p className="text-sm text-slate-600">{zone.completenesp}% 완료</p>
+              <p className="text-sm text-slate-600">{zone.completeness%= 완료</p>
             </div>
-          ))}
+          )}
         </div>
 
         {/* Document Tree */}
@@ -232,10 +232,10 @@ export default function eTMFPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-white">
-                    {zone.completeness}%
+                    {zone.completeness%�
                   </span>
                   <span className="text-white">
-                    {expandedZone === zone.id ? '▼' : '▶'}
+                     {expandedZone === zone.id ? '▼' : '▶'}
                   </span>
                 </div>
               </div>
