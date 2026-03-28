@@ -8,8 +8,8 @@ export default function eTMFPage() {
   const [selectedStudy, setSelectedStudy] = useState('entresto-phase3');
 
   const studies = [
-    { id: 'entresto-phase3', name: 'Entresto Phase III" },
-    { id: 'nsclc-study', name: 'NSCLC Study" },
+    { id: 'entresto-phase3', name: 'Entresto Phase III' },
+    { id: 'nsclc-study', name: 'NSCLC Study' },
     { id: 'hf-trial', name: 'Heart Failure Trial' },
   ];
 
