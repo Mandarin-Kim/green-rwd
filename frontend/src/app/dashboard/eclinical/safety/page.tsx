@@ -83,7 +83,7 @@ export default function SafetyPage() {
     {
       id: 7,
       subjectId: 'ENT-003-0022',
-      aeTerm: '저혈당증',
+      aeTerm: '저혈닛증',
       severity: 'Moderate',
       seriousness: 'Y',
       causality: 'Probable',
@@ -221,7 +221,7 @@ export default function SafetyPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-500 text-sm">예상치 못한 심각 이상반응</p>
+                <p className="text-slate-500 text-sm">예색치 못한 심각 이상반응</p>
                 <p className="text-2xl font-bold text-red-700 mt-1">
                   {safetyKPIs.totalSUSAR}
                 </p>
@@ -288,7 +288,7 @@ export default function SafetyPage() {
             </div>
             <div className="border border-orange-200 bg-orange-50 rounded-lg p-4">
               <p className="font-semibold text-orange-700">기타 심각한 이상반응</p>
-              <p className="text-2xl font-bold text-orange-600 mt-2">17</p>
+              <p className="text-2xl font-bold text-orange-600 mt-2">15일</p>
               <p className="text-sm text-orange-600 mt-2">초기 보고 후 추적 정보 제출</p>
             </div>
           </div>
@@ -374,6 +374,6 @@ export default function SafetyPage() {
           </div>
         </div>
       </div>
-  
-              );
+    </div>
+  );
 }
