@@ -96,7 +96,7 @@ export default function SendingPerformancePage() {
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex gap-4 items-end">
-            <dic>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
               <input
                 type="date"
@@ -218,7 +218,7 @@ export default function SendingPerformancePage() {
                 return (
                   <tr key={data.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{data.campaignName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{data.totalSend.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{data.totalSent.toLocaleString()}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{data.successCount.toLocaleString()}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{data.openCount.toLocaleString()}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{data.clickCount.toLocaleString()}</td>
