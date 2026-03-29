@@ -110,23 +110,38 @@ export default function CampaignsContentPage() {
 
   const handleDelete = (id: string) => {
     if (confirm('ì •ë§ ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?')) {
-      setTemplates(
-        templates.filter((t) => t.id !== id)
-      );
+      setTemplates(templates.filter((t) => t.id !== id));
     }
   };
+
+  const handleStatusChange = (id: string, newStatus: 'draft' | 'active' | 'archived') => {
+    setTemplates(
+      templates.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              status: newStatus,
+              updatedDate: new Date().toISOString().split('T')[0],
+            }
+          : t
+      )
+    );
+  };
+
+  const previewTemplate = templates.find((t) => t.id === previewId);
 
   return (
     <div className="min-h-screen p-8" style={{ backgroundColor: '#F9FAFB' }}>
       <div className="max-w-7xl mx-auto">
-        <h1  className="text-3xl font-bold" style={{ color: '#0F172A' }}>ìº í˜ì¸ contenz</h1>
-       <div className="flex justify-end mb-6" style={{ gap: '1re& }}>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold" style={{ color: '#0F172A' }}>ì½˜í…ì¸  ìƒì„±</h1>
           <button
-            className="px-4 py-2 text-white rounded-lg font-medium"
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 text-white px-4 py-2 rounded-lg font-medium"
             style={{ backgroundColor: '#0D9488' }}
-            conClick={() => handleOpenModal()}
           >
-            ìƒˆ content }
+            <Plus className="w-5 h-5" />
+            ìƒˆ í…œí”Œë¦¿
           </button>
         </div>
 
@@ -134,13 +149,12 @@ export default function CampaignsContentPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex gap-4 items-center">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="content õê²€ìƒ‰"
+                placeholder="í…œí”Œë¦¿ëª… ê²€ìƒ‰"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
               />
             </div>
             <select
@@ -148,86 +162,187 @@ export default function CampaignsContentPage() {
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
             >
-              <option value="all">ì„¸í: w </option>
-              <option value="draft"Gba'</option>
-              <option value="active"a4>active       /option>
-              <option value="archived">archived </option>
+              <option value="all">ì „ì²´ ìƒíƒœ</option>
+              <option value="draft">ì‘ì„±ì¤‘</option>
+              <option value="active">í™œì„±</option>
+              <option value="archived">ë³´ê´€ë¨</option>
             </select>
           </div>
         </div>
 
-        {/* Template List */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead style={{ backgroundColor: '#0D9488' }}>
-              <tr>
-                <th className="px-6 py-4 text-left text-white font-medium">contenz    /th>
-                <th className="px-6 py-4 text-left text-white font-medium">type Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'‚Ób’ÓBFW‡BÖÆVgBFW‡B×v†—FRföçBÖÖVF—VÒ#ç7FGW2Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'‚Ób’ÓBFW‡BÖÆVgBFW‡B×v†—FRföçBÖÖVF—VÒ#æ7&FVBÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'‚Ób’ÓBFW‡BÖÆVgBFW‡B×v†—FRföçBÖÖVF—VÒ#çWFFVBÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'‚Ób’ÓBFW‡BÖÆVgBFW‡B×v†—FRföçBÖÖVF—VÒ#ä7FŞ </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredTemplates m.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{t.title}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+        {/* Templates Grid */}
+        <div className="grid grid-cols-3 gap-6 mb-6">
+          {filteredTemplates.map((template) => (
+            <div key={template.id} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition-shadow">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-2">{template.title}</h3>
                     <span
-                      className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                      className="inline-block px-2 py-1 rounded text-xs font-semibold text-white mb-3"
                       style={{
                         backgroundColor:
-                          t.type === 'SMS'
-                           ? '#3B82F6'
-                           : t.type === 'Email'
-                            ? '#8B5CF6'
-                            : '#EC4899',
+                          template.type === 'SMS'
+                            ? '#3B82F6'
+                            : template.type === 'Email'
+                              ? '#8B5CF6'
+                              : '#EC4899',
                       }}
                     >
-                      {t.type}
+                      {template.type}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <span
-                      className={`p` rounded-full text!bss mob:i~ and-semibold text"rai` $ {
-                         t.status === 'draft'  ? 'bg-grey-100 text‡gray-800' : t.status === 'active'  ? 'bg-green-100 text„green-800' : 'bg-purple-100 text!purple-800' }``f`m}
-                    >
-                      {t.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-3">
-                      <button
-                       onClick={() => setPreviewId(dt.id)}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="preview" }
-                      >
-                      <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenModal(t)}
-                        className="text-gray-600 hover:text-gray-900"
-                        title="edit"  }
-                      >
-                      <Edit2 className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(t .id) }
-                        className="text-red-600 hover:text-red-900"
-                        title="delete" }
-                      >
-                      <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-semibold ${
+                      template.status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : template.status === 'draft'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {template.status === 'active' ? 'í™œì„±' : template.status === 'draft' ? 'ì‘ì„±ì¤‘' : 'ë³´ê´€ë¨'}
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-4 line-clamp-3">{template.content}</p>
+
+                <div className="flex gap-2 flex-wrap text-xs text-gray-500 mb-4">
+                  <span>ìƒì„±: {template.createdDate}</span>
+                  <span>â€¢</span>
+                  <span>ìˆ˜ì •: {template.updatedDate}</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPreviewId(template.id)}
+                    className="flex-1 px-3 py-2 rounded text-sm font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-1"
+                  >
+                    <Eye className="w-4 h-4" />
+                    ë³´ê¸°
+                  </button>
+                  <button
+                    onClick={() => handleOpenModal(template)}
+                    className="px-3 py-2 rounded text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(template.id)}
+                    className="px-3 py-2 rounded text-sm font-medium text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Modal */}
-        {previewId  && (
+        {/* Create/Edit Modal */}
+        {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg p -8 max-w-md w-full">
-              <h2  className="text-2xl font-bold mb-6" style={{ color: '#0F172A' }}>
-                {te×ÆFW2·&Wf–Wt–B•Óò$G&gB"¢%&Wf–WwĞ¢Âöƒ#à¢ÆF—b6Æ74æÖSÒ'76R×’ÓB#à¢·&Wf–Wt–Bbb€¢ÆWBBn= tmplates .find(t -> t.id "===  previewId);
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full max-h-screen overflow-y-auto">
+              <h2 className="text-2xl font-bold mb-6" style={{ color: '#0F172A' }}>
+                {editingId ? 'í…œí”Œë¦¿ ìˆ˜ì •' : 'ìƒˆ í…œí”Œë¦¿ ìƒì„±'}
+              </h2>
+              <div className="space-y-4">
                 <div>
-                <p className="text-s  =Iso            
+                  <label className="block text-sm font-medium text-gray-700 mb-1">í…œí”Œë¦¿ëª…</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ìœ í˜•</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                  >
+                    <option value="SMS">SMS</option>
+                    <option value="Email">Email</option>
+                    <option value="Push">Push</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ì½˜í…ì¸ </label>
+                  <textarea
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    rows={6}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  ì·¨ì†Œ
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="flex-1 px-4 py-2 text-white rounded-lg font-medium"
+                  style={{ backgroundColor: '#0D9488' }}
+                >
+                  ì €ì¥
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview Modal */}
+        {previewTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+              <h2 className="text-2xl font-bold mb-4" style={{ color: '#0F172A' }}>
+                {previewTemplate.title}
+              </h2>
+              <div className="mb-6">
+                <span
+                  className="inline-block px-3 py-1 rounded text-sm font-semibold text-white mb-4"
+                  style={{
+                    backgroundColor:
+                      previewTemplate.type === 'SMS'
+                        ? '#3B82F6'
+                        : previewTemplate.type === 'Email'
+                          ? '#8B5CF6'
+                          : '#EC4899',
+                  }}
+                >
+                  {previewTemplate.type}
+                </span>
+              </div>
+              <div className="bg-gray-50 p-6 rounded-lg mb-6 border border-gray-200 min-h-32">
+                <p className="text-gray-900 whitespace-pre-wrap">{previewTemplate.content}</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPreviewId(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  ë‹«ê¸°
+                </button>
+                <button
+                  onClick={() =>
+                    handleStatusChange(previewTemplate.id, previewTemplate.status === 'active' ? 'draft' : 'active')
+                  }
+                  className="flex-1 px-4 py-2 text-white rounded-lg font-medium"
+                  style={{ backgroundColor: '#0D9488' }}
+                >
+                  {previewTemplate.status === 'active' ? 'ë¹„í™œì„±í™”' : 'í™œì„±í™”'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
