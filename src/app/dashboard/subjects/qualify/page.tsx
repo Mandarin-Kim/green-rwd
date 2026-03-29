@@ -94,11 +94,10 @@ export default function SubjectsQualifyPage() {
               <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="대상자명 또는 ID 검색"
+                placeholder="대상자명 또는 ID 검샙"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ focusRingColor: '#0D9488' }}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0D9488]"
               />
             </div>
             <select
