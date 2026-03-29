@@ -56,7 +56,7 @@ export default function CampaignsMainPage() {
     },
   ]);
 
-  const [searChTerm, setSearChTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | '진행중' | '준비중' | '완료'>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export default function CampaignsMainPage() {
   });
 
   const filteredCampaigns = campaigns.filter((campaign) => {
-    const matchesSearch = campaign.name.includes(searChTerm) || campaign.segment.includes(searChTerm);
+    const matchesSearch = campaign.name.includes(searchTerm) || campaign.segment.includes(searchTerm);
     const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -128,25 +128,6 @@ export default function CampaignsMainPage() {
           <h1 className="text-3xl font-bold" style={{ color: '#0F172A' }}>캠페인 관리</h1>
           <button
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 text-white px%      };
-      setCampaigns([...campaigns, newCampaign]);
-    }
-    setShowModal(false);
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
-      setCampaigns(campaigns.filter((c) => c.id !== id));
-    }
-  };
-
-  return (
-    <div className="min-h-screen p-8" style={{ backgroundColor: '#F9FAFB' }}>
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold" style={{ color: '#0F172A' }}>캠페인 관리</h1>
-          <button
-            onClick={() => handleOpenModal()}
             className="flex items-center gap-2 text-white px-4 py-2 rounded-lg font-medium"
             style={{ backgroundColor: '#0D9488' }}
           >
@@ -162,9 +143,9 @@ export default function CampaignsMainPage() {
               <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="캠페인명 또는 대상 세그먼트 검색"
+                placeholder="캠페인명 또는 대상 세그먼트 가색"
                 value={searchTerm}
-                onChange={(e) => setSearChTerm(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
               />
             </div>
@@ -273,46 +254,46 @@ export default function CampaignsMainPage() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                   />
-              0 </div>
-              0 <div>
-             0    <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
-             0    <select
-              0     value={formData.type}
-               0    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-             0      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-             0    >
-               0    <option value="SMS">SMS</option>
-               0    <option value="Email">Email</option>
-               0    <option value="Push">Push</option>
-             0    </select>
-              0 </div>
-              0 <div>
-             0    <label className="block text-sm font-medium text-gray-700 mb-1">대상 세그먼트</label>
-             0    <input
-             0      type="text"
-              0     value={formData.segment}
-               0    onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
-             0      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-             0    />
-              0 </div>
-              0 <div>
-             0    <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
-             0    <input
-             0      type="date"
-              0     value={formData.startDate}
-               0    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-             0      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-             0    />
-              0 </div>
-              0 <div>
-             0    <label className="block text-sm font-medium text-gray-700 mb-1">종료일</label>
-             0    <input
-             0      type="date"
-              0     value={formData.endDate}
-               0    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-             0      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-             0    />
-              0 </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                  >
+                    <option value="SMS">SMS</option>
+                    <option value="Email">Email</option>
+                    <option value="Push">Push</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">대상 세그먼트</label>
+                  <input
+                    type="text"
+                    value={formData.segment}
+                    onChange={(e) => setFormData({ ...formData, segment: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">종료일</label>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                  />
+                </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button
