@@ -18,7 +18,7 @@ export default function CampaignsAnalyticsPage() {
   const [campaigns, setCampaigns] = useState<CampaignAnalytics[]>([
     {
       id: '1',
-      name: '고혈압 약뫼 임상시험 모집',
+      name: '고혈압 약물 임상시험 모집',
       sent: 15420,
       openRate: 42.5,
       clickRate: 28.3,
@@ -38,108 +38,8 @@ export default function CampaignsAnalyticsPage() {
     },
     {
       id: '3',
-      name: '장기 슴혈관 임상시험',
+      name: '장기 심혈관 임상시험',
       sent: 22340,
       openRate: 45.8,
       clickRate: 31.2,
-      conversionRate: 15.4,
-      startDate: '2025-12-01',
-      endDate: '2026-02-28',
-    },
-  ]);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateRangeStart, setDateRangeStart] = useState('2026-01-01');
-  const [dateRangeEnd, setDateRangeEnd] = useState('2026-03-31');
-
-  const filteredCampaigns = campaigns.filter((campaign) =>
-    campaign.name.includes(searchTerm)
-  );
-
-  const totalStats = filteredCampaigns.reduce(
-    (acc, c) => ({
-      sent: acc.sent + c.sent,
-      avgOpenRate: acc.avgOpenRate + c.openRate,
-      avgClickRate: acc.avgClickRate + c.clickRate,
-      avgConversionRate: acc.avgConversionRate + c.conversionRate,
-    }),
-    { sent: 0, avgOpenRate: 0, avgClickRate: 0, avgConversionRate: 0 }
-  );
-
-  const count = filteredCampaigns.length || 1;
-  const kpiData = [
-    { label: '총 발송건', value: totalStats.sent.toLocaleString(), color: 'bg-blue-100', textColor: 'text-blue-700' },
-    { label: '평균���b��R#�r����م�Ք聀��ѽх�Mх�̹�ٝ=���I�є�����չФ�ѽ�ᕐ�ĥ����������耝����ɕ���������ѕ������耝ѕ�е�ɕ����������(����쁱����耟�>'�ހ��Ӯ��������م�Ք聀��ѽх�Mх�̹�ٝ����I�є�����չФ�ѽ�ᕐ�ĥ����������耝����������������ѕ������耝ѕ�е��������������(����쁱����耟�>'�ހ����fc�r����م�Ք聀��ѽх�Mх�̹�ٝ��ٕ�ͥ��I�є�����չФ�ѽ�ᕐ�ĥ����������耝����Ʌ����������ѕ������耝ѕ�е�Ʌ�����������(��t�((��ɕ��ɸ��(�����؁�����9���􉵥����͍ɕ����������屔��쁉����ɽչ�����耜�������(�������؁�����9���􉵅�ܴ�ᰁ�൅�Ѽ��(���������ā�����9����ѕ�д�ᰁ���е�������������屔��쁍����耜�����������ꃶ:c�v�����t���((��������켨�-A$��ɑ̀���(���������؁�����9����ɥ���ɥ�����̴Ё����Ё������(���������������ф�������������ऀ����(�������������؁��������􁍱���9�������؁ɽչ����������������������(����������������������9����ѕ�еʹ����е����մ�ѕ�е�Ʌ��������Ȉ���������������(����������������������9�����ѕ�д�ᰁ���е�����������ѕ���������������م�Օ����(������������𽑥��(�������������(��������𽑥��((��������켨�M��ɍ��������ѕȀ���(���������؁�����9���􉉜�ݡ�є�ɽչ�������͡���܁��؁���؈�(�����������؁�����9���􉙱�������Ё�ѕ�̵���ѕȈ�(�������������؁�����9���􉙱��āɕ��ѥٔ��(���������������M��ɍ�������9���􉅉ͽ��є����д́ѽ��ܴ́ԁ��ԁѕ�е�Ʌ��������(������������������(���������������������ѕ�Ј(����������������������������ꃶ:c�v㮪����$�(����������������م�Ք��͕�ɍ�Q�ɵ�(������������������������졔�����͕�M��ɍ�Q�ɴ���хɝ�йم�Ք��(���������������������9����ܵ�ձ���������ȴЁ��ȁ��ɑ�ȁ��ɑ�ȵ�Ʌ�����ɽչ��������������ѱ���������������ɥ���Ȉ(����������������(������������𽑥��(���������������(��������������񱅉��������9���􉉱����ѕ�е�́���е����մ�ѕ�е�Ʌ��������Ĉ��.s�zG�v�𽱅����(������������������(��������������������􉑅є�(����������������م�Ք�푅ѕI����Mх���(������������������������졔�����͕��ѕI����Mх�С��хɝ�йم�Ք��(���������������������9������Ё��ȁ��ɑ�ȁ��ɑ�ȵ�Ʌ�����ɽչ��������������ѱ���������(����������������(������������𽑥��(���������������(��������������񱅉��������9���􉉱����ѕ�е�́���е����մ�ѕ�е�Ʌ��������Ĉ�����3�v�𽱅����(������������������(��������������������􉑅є�(����������������م�Ք�푅ѕI�������(������������������������졔�����͕��ѕI���������хɝ�йم�Ք��(���������������������9������Ё��ȁ��ɑ�ȁ��ɑ�ȵ�Ʌ�����ɽչ��������������ѱ���������(����������������(������������𽑥��(����������𽑥��(��������𽑥��((��������켨�����ѥ�́���ЁA���������Ȁ���(���������؁�����9���􉉜�ݡ�є�ɽչ�������͡���܁�������؈�(�����������؁�����9���􉙱����ѕ�̵���ѕȁ���ѥ�䵍��ѕȁ���Ё����Ʌ����ɽչ���������ɑ�ȴȁ��ɑ�ȵ��͡�����ɑ�ȵ�Ʌ������(�������������؁�����9����ѕ�е���ѕȈ�(���������������	������́�����9����ܴ�ȁ���ȁѕ�е�Ʌ������൅�Ѽ����Ȉ���(����������������������9����ѕ�е�Ʌ��������е����մ���ꃶ:c�v���Ǫ����£�*����(����������������������9����ѕ�е�́ѕ�е�Ʌ������дĈ��.��.s������t��6òvӶê� ��Fs�.s�B��.#�.����(������������𽑥��(����������𽑥��(��������𽑥��((��������켨�A�ə�ɵ�����Q��������(���������؁�����9���􉉜�ݡ�є�ɽչ�������͡���܁�ٕə��ܵ��������(�����������х���������9����ܵ�ձ���(�������������ѡ������屔��쁉����ɽչ�����耜�����������(������������������(�����������������Ѡ������9������؁��Ёѕ�е���Ёѕ�еݡ�є����е����մ���ꃶ:c�v㮪�Ѡ�(�����������������Ѡ������9������؁��Ёѕ�е���Ёѕ�еݡ�є����е����մ����s������Ѡ�(�����������������Ѡ������9������؁��Ёѕ�е���Ёѕ�еݡ�є����е����մ���b��R#�r��Ѡ�(�����������������Ѡ������9������؁��Ёѕ�е���Ёѕ�еݡ�є����е�dium">클릭률</th>
-                <th className="px-6 py-4 text-left text-white font-medium">전환율</th>
-                <th className="px-6 py-4 text-left text-white font-medium">기간</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredCampaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{campaign.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{campaign.sent.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full"
-                          style={{
-                            width: `${campaign.openRate}%`,
-                            backgroundColor: '#0D9488',
-                          }}
-                        ></div>
-                      </div>
-                      <span className="font-semibold">{campaign.openRate.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full"
-                          style={{
-                            width: `${campaign.clickRate}%`,
-                            backgroundColor: '#F59E0B',
-                          }}
-                        ></div>
-                      </div>
-                      <span className="font-semibold">{campaign.clickRate.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full"
-                          style={{
-                            width: `${campaign.conversionRate}%`,
-                            backgroundColor: '#10B981',
-                          }}
-                        ></div>
-                      </div>
-                      <span className="font-semibold">{campaign.conversionRate.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {campaign.startDate} ~ {campaign.endDate}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Export Button */}
-        <div className="mt-6 flex justify-end">
-          <button
-            className="px-6 py-2 text-white rounded-lg font-medium"
-            style={{ backgroundColor: '#0D9488' }}
-          >
-            결과 내보내기
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+      conversionRate: 1
