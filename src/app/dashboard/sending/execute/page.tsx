@@ -52,10 +52,10 @@ export default function SendingExecutePage() {
   const [showConfirmModal, setShowConfirmModal] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<SendingJob | null>(null);
 
-  const waitingJobs = jobs.filter((v -> j.status === '대기');
-  const sendingJobs = jobs.filter((v -> j.status === '발송중');
-  const completedJobs = jobs.filter((v -> j.status === '완료');
-  const failedJobs = jobs.filter((v -> j.status === '실패');
+  const waitingJobs = jobs.filter((j) => j.status === '대기');
+  const sendingJobs = jobs.filter((j) => j.status === '발송중');
+  const completedJobs = jobs.filter((j) => j.status === '완료');
+  const failedJobs = jobs.filter((j) => j.status === '실패');
 
   const kpiData = [
     { label: '대기', value: waitingJobs.length, color: 'bg-gray-100', textColor: 'text-gray-700' },
@@ -181,3 +181,165 @@ export default function SendingExecutePage() {
             </div>
           </div>
         )}
+
+        {/* Sending Jobs */}
+        {sendingJobs.length > 0 && (
+          <div className="bg-white rounded-lg shadow mb-8">
+            <div className="border-b border-gray-200 p-6">
+              <h2 className="text-xl font-bold" style={{ color: '#0F172A' }}>
+                발송 중 ({sendingJobs.length})
+              </h2>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {sendingJobs.map((job) => (
+                <div key={job.id} className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-gray-900">{job.campaignName}</h3>
+                      <p className="text-sm text-gray-600 mt-1">총 {job.sendCount.toLocaleString()}건</p>
+                    </div>
+                    <span
+                      className="px-2 py-1 rounded text-xs font-semibold text-white"
+                      style={{
+                        backgroundColor:
+                          job.type === 'SMS'
+                            ? '#3B82F6'
+                            : job.type === 'Email'
+                              ? '#8B5CF6'
+                              : '#EC4899',
+                      }}
+                    >
+                      {job.type}
+                    </span>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">진행률</span>
+                      <span className="text-sm font-semibold text-gray-900">{job.progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="h-3 rounded-full transition-all"
+                        style={{
+                          width: `${job.progress}%`,
+                          backgroundColor: '#0D9488',
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-gray-600 mb-4">
+                    <p>시작: {job.startTime}</p>
+                    <p>예상 완료: 약 30분</p>
+                  </div>
+
+                  <button
+                    onClick={() => handlePause(job.id)}
+                    className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Pause className="w-4 h-4" />
+                    일시정지
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Completed Jobs */}
+        {completedJobs.length > 0 && (
+          <div className="bg-white rounded-lg shadow mb-8">
+            <div className="border-b border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-0">
+                <Check className="w-5 h-5 text-green-600" />
+                <h2 className="text-xl font-bold" style={{ color: '#0F172A' }}>
+                  발송 완료 ({completedJobs.length})
+                </h2>
+              </div>
+            </div>
+            <div className="overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">캠페인명</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">유형</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">발송건</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">완료시간</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {completedJobs.map((job) => (
+                    <tr key={job.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{job.campaignName}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span
+                          className="px-2 py-1 rounded text-xs font-semibold text-white"
+                          style={{
+                            backgroundColor:
+                              job.type === 'SMS'
+                                ? '#3B82F6'
+                                : job.type === 'Email'
+                                  ? '#8B5CF6'
+                                  : '#EC4899',
+                          }}
+                        >
+                          {job.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{job.sendCount.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{job.endTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Modal */}
+        {showConfirmModal && selectedJob === null && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+              {(() => {
+                const job = jobs.find((j) => j.id === showConfirmModal);
+                return (
+                  <>
+                    <div className="flex items-start gap-3 mb-4">
+                      <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
+                      <div>
+                        <h2 className="text-2xl font-bold" style={{ color: '#0F172A' }}>
+                          발송 확인
+                        </h2>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 mb-6">
+                      <strong>{job?.campaignName}</strong>
+                      <br />
+                      {job?.sendCount.toLocaleString()}건을 발송하시겠습니까?
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowConfirmModal(null)}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={() => handleSendConfirm(showConfirmModal)}
+                        className="flex-1 px-4 py-2 text-white rounded-lg font-medium"
+                        style={{ backgroundColor: '#0D9488' }}
+                      >
+                        발송
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
