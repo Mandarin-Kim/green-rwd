@@ -13,8 +13,8 @@ const initialSubjects: Subject[] = [
   { id: 'SCR-0112', name: 'ìµœìˆ˜ì§„', age: 51, gender: 'ì—¬', site: 'ì‚¼ì„±ì„œìš¸ë³‘ì›', status: 'ë™ì˜ì² íšŒ', enrollDate: '2024-01-16', phone: '010-4567-8901', diagnosis: 'ìœ„ì•”' },
   { id: 'SCR-0134', name: 'ì •í•˜ëŠ˜', age: 39, gender: 'ë‚¨', site: 'ì•„ì‚°ë³‘ì›', status: 'ìŠ¤í¬ë¦¬ë‹', enrollDate: '2024-01-18', phone: '010-5678-9012', diagnosis: 'ê°„ì•”' },
   { id: 'SCR-0156', name: 'í•œì§€ì›', age: 55, gender: 'ì—¬', site: 'ì„œìš¸ëŒ€ë³‘ì›', status: 'ë“±ë¡ì™„ë£Œ', enrollDate: '2024-01-20', phone: '010-6789-0123', diagnosis: 'ë¹„ì†Œì„¸í¬íì•”' },
-  { id: 'SCR-0167', name: 'ê°•ë„ìœ¤', age: 48, gender: 'ë‚¨', site: 'ì„¸ë¸Œë€ìŠ¤ë³‘ì›', status: 'ë¶€ì ê²©', enrollDate: '2024-01-22', phone: '010-7890-1234', diagnosis: 'ì·¨ì¥ì•”' },
-  { id: 'SCR-0189', name: 'ìœ¤ì„œì—°', age: 43, gender: 'ì—¬', site: 'ì‚¼ì„±ì„œìš¸ë³‘ì›', status: 'ë“±ë¡ì™„ë£Œ', enrollDate: '2024-01-24', phone: '010-8901-2345', diagnosis: 'ë‚œì†Œì•”' },
+  { id: 'SCR-0167', name: 'ê°•ë„ìœ¤', age: 48, gender: 'ë‚¨', site: 'ì„¸ë¸Œëœ€ìŠ¤ë³‘ì›', status: 'ë¶€ì ê²©', enrollDate: '2024-01-22', phone: '010-7890-1234', diagnosis: 'ì·Œì¥ì•”' },
+  { id: 'SCR-0189', name: 'ìœ¤ì„œì—°', age: 43, gender: 'ì—¬', site: 'ì‚¼ì„±ì„œìš¸ë³‘ì›', status: 'ë“±ë¡ì™„ë£Œ', enrollDate: '2024-01-24', phone: '010-8901-2345', diagnosis: 'ë‚œì†¬È•”' },
 ]
 
 const statusColor: Record<string, string> = {
@@ -94,9 +94,13 @@ export default function SubjectsManagePage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
           { label: 'ì „ì²´ ëŒ€ìƒì', value: stats.total, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'ë“±ë¡ì™„ë£Œ', value: stats.enrolled, color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'ë“±ë¡ ì™„ë£Œ', value: stats.enrolled, color: 'text-green-600', bg: 'bg-green-50' },
           { label: 'ìŠ¤í¬ë¦¬ë‹ ì¤‘', value: stats.screening, color: 'text-[#0D9488]', bg: 'bg-teal-50' },
-          { label: 'ì² íšŒ>¿®Ú²‚ªÊ¤œ°Ù…±Õ”èÍÑ…ÑÌ¹İ¥Ñ¡‘É…İ¸°½±½Èè€Ñ•áĞµÉ•´ØÀÀœ°‰œè€‰œµÉ•´ÔÀœô°(€€€€€€€t¹µ…À¡Ì€ôø€ (€€€€€€€€€€ñ‘¥Ø­•äõíÌ¹±…‰•±ô±…ÍÍ9…µ”ô‰‰œµİ¡¥Ñ”É½Õ¹‘•µá°Í¡…‘½ÜµÍ´‰½É‘•È‰½É‘•ÈµÍ±…Ñ”´ÄÀÀÀ´Ôˆø(€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”õíÑ•áĞ´Éá°™½¹Ğµ‰½±€‘íÌ¹½±½ÉõôùíÌ¹Ù…±Õ•ôğ½Àø(€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµáÌÑ•áĞµÍ±…Ñ”´ÔÀÀµĞ-1">{s.label}</p>
+          { label: 'ì² íšŒ/ë¶€ì ê²©', value: stats.withdrawn, color: 'text-red-600', bg: 'bg-red-50' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
@@ -160,7 +164,7 @@ export default function SubjectsManagePage() {
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-slate-100 text-xs text-slate-500">ì´ {filtered.length}ëª… (ì „ì²´ {subjects.length}ëª…)</div>
+        <div className="p-4 border-t border-slate-100 text-xs text-slate-500">Ü„ {filtered.length}ëª… (ì „ì²´ {subjects.length}ëª…)</div>
       </div>
 
       {/* Create/Edit Modal */}
@@ -216,7 +220,7 @@ export default function SubjectsManagePage() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 p-5 border-t border-slate-100">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">ì·¨ì†Œ</button>
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50">Ü·¨ì†Œ</button>
               <button onClick={handleSave} className="flex items-center gap-1 px-4 py-2 text-sm bg-[#0D9488] text-white rounded-lg hover:bg-[#0B7C72]"><Save size={14} /> ì €ì¥</button>
             </div>
           </div>
