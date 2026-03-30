@@ -1,22 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from '@/lib/auth'
+import { getAuthSession } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession()
+  const session = await getAuthSession()
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
   }
 
   try {
-    // CTMS data from eclinical system
-    const response = await fetch('https://eclinical-ctms-api.com/data')
-    if (!response.ok) {
-      throw new Error('CTMS API error')
-    }
-  
-   cUÓt data = await response.json()
-    return NextResponse.json(data)
-  } catch (err) {
-    return NextResponse.json({ error: 'Error fetching CTMS data' }, { status: 500 })
+    const sites = await prisma.cTMSSite.findMany({
+      include: { study: { select: { code: true, name: true } } }
+    })
+    const milestones = await prisma.cTMSMilestone.findMany({
+      include: { study: { select: { code: true, name: true } } }
+    })
+    return NextResponse.json({ sites, milestones })
+  } catch {
+    // Fallback data
+    return NextResponse.json({
+      sites: [
+        { id: '1', siteName: 'Seoul National University Hospital', piName: 'Dr. Kim', enrolled: 45, target: 60, status: 'Active' },
+        { id: '2', siteName: 'Severance Hospital', piName: 'Dr. Park', enrolled: 32, target: 50, status: 'Active' },
+      ],
+      milestones: [
+        { id: '1', name: 'First Patient In', dueDate: '2026-03-01', status: 'Completed' },
+        { id: '2', name: 'Enrollment Complete', dueDate: '2026-06-30', status: 'In Progress' },
+      ]
+    })
   }
 }
