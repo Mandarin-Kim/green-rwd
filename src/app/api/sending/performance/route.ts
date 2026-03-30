@@ -9,9 +9,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const projects = await prisma.project.findMany()
-    return NextResponse.json(projects)
+    const sendingGets = await prisma.sendingItem.groupBy({
+      by: ['status'],
+      _count: true,
+    })
+    return NextResponse.json(sendingGets)
   } catch (err) {
-    return NextResponse.json({ error: 'Error fetching projects' }, { status: 500 })
+    return NextResponse.json({ error: 'Error fetching sending performance' }, { status: 500 })
   }
 }

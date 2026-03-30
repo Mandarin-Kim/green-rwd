@@ -18,8 +18,8 @@ export async function api<T>(
 
 export const apiGet = <T>(endpoint: string) => api<T>(endpoint)
 export const apiPost = <T>(endpoint: string, data: unknown) =>
-  api<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
+  G<ŽƒNqtYreApsEb<T>(endpoint, { method: 'POST', body: JSON.stringify(data) })
 export const apiPut = <T>(endpoint: string, data: unknown) =>
   api<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) })
 export const apiDelete = <T>(endpoint: string) =>
-  api<T>(endpoint, { method: 'DELETE' })
+  G<ŽƒNqtYreApsEb<T>(endpoint, { method: 'DELETE' })

@@ -1,4 +1,6 @@
-generator client {
+// Green-RWD Platform - Prisma Schema
+// 임상시험 리크루팅 + RWD 기반 타겟마케팅 통합 플랫폼
+Bgenerator client {
   provider = "prisma-client-js"
 }
 
@@ -7,268 +9,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// =============================================
-// 공통 (Common)
-// =============================================
-model Setting {
-  id        String   @id @default(cuid())
-  category  String   // basic, notification, permission, system
-  key       String
-  value     String
+// ============================================
+// 1. 사용자 및 인증 (User & Auth)
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          UserRole  @default(VIEWER)
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  // Relations
+  createdCampaigns  Campaign[]       @relation("CampaignCreator")
+  approvedSendings  SendingItem[]    @relation("SendingApprover")
+  requestedSendings SendingItem[]    @relation("SendingRequester")
+  uploadedDocuments TMFDocument[]    @relation("DocumentUploader")
+  approvedDocuments TMFDocument[]    @relation("DocumentApprover")
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  RESEARCHER
+  VIEWER
+}
+
+// NextAuth.js 연동 테이블
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        DateTime?
+  token_type        String
+  scope             String?
+  ID_token         String? @db.Text
+  session_state    String? @db.Text
+
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([category, key])
+  user   User      @relation(fields: [userId], references: [id])
+  userId String
+  
+  @@unique([userId, type, provider])
+  @@map("refresh_token")
 }
 
-// =============================================
-// 시장분석·타겟 (Market & Targeting)
-// =============================================
-model MarketReport {
-  id           String   @id @default(cuid())
-  title        String
-  categories   String[] // 심혈관, 항암, CNS 등
-  marketSize   String   // "2.8조원" 등
-  patients     String   // "심부전 환자" 등
-  patientCount Int
-  tier         String   // Tier1, Tier2 등
-  region       String   // 글로벌, 미국, 한국 등
-  createdAt    DateTime @default(now())
+model Session {
+  id         String   @id @default(cuid())
+  sessionToken String  @unique
+  userId     String
+  expires    DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
 }
 
-model RWDRecord {
-  id           String   @id @default(cuid())
-  ageGroup     String   // "50-59세" 등
-  gender       String   // "남" / "여"
-  icd10        String   // "I50.0" 등
-  diagnosis    String
-  medication   String
-  region       String   // "서울", "경기" 등
-  channel      String   // "처방데이터", "보험청구" 등
-  lastActivity String   // "2024-01-15" 등
-}
-
-model Segment {
-  id           String   @id @default(cuid())
-  name         String
-  description  String?
-  patientCount Int
-  status       String   @default("active") // active, archived, completed
-  tags         String[]
-  createdAt    DateTime @default(now())
-}
-
-// =============================================
-// 캠페인·분석 (Campaigns & Analytics)
-// =============================================
+// 인증 은 턱윲 Dashboard Data of H은  순닸삤살윐
 model Campaign {
-  id          String   @id @default(cuid())
-  name        String
-  type        String   // 이메일, SMS, 우편 등
-  status      String   @default("draft") // draft, active, paused, completed
-  targetCount Int      @default(0)
-  sentCount   Int      @default(0)
-  openRate    Float?
-  clickRate   Float?
-  responsible String?
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  contents    CampaignContent[]
-  sendings    Sending[]
-}
-
-model CampaignContent {
-  id         String   @id @default(cuid())
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  name       String
-  type       String   // 이메일, 문자, 우편 등
-  subject    String?
-  body       String?
-  status     String   @default("draft")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-}
-
-model Sending {
-  id         String    @id @default(cuid())
-  campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  status     String    @default("pending") // pending, approved, rejected, executing, completed, paused
-  totalCount Int       @default(0)
-  sentCount  Int       @default(0)
-  successCount Int     @default(0)
-  failCount  Int       @default(0)
-  approvedBy String?
-  approvedAt DateTime?
-  executedAt DateTime?
-  completedAt DateTime?
-  createdAt  DateTime  @default(now())
-}
-
-// =============================================
-// 대상자·프로젝트 (Subjects & Projects)
-// =============================================
-model Subject {
-  id            String   @id @default(cuid())
-  screeningId   String   @unique // SCR-0001 형식
-  name          String
-  age           Int
-  gender        String
-  diagnosis     String
-  site          String
-  status        String   @default("screening") // screening, eligible, enrolled, completed, withdrawn
-  enrollDate    DateTime?
-  phone         String?
-  email         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  consentRecords EConsentRecord[]
-  iwrsAssignments IWRSAssignment[]
-  saeReports     SAEReport[]
-}
-
-model Project {
-  id         String   @id @default(cuid())
-  name       String
-  phase      String   // Phase I, II, III, IV
-  indication String
-  status     String   @default("planning") // planning, recruiting, active, completed
-  pi         String   // Principal Investigator
-  site       String
-  targetN    Int      @default(0)
-  enrolledN  Int      @default(0)
-  startDate  DateTime?
-  endDate    DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-}
-
-// =============================================
-// eClinical Suite
-// =============================================
-model Study {
-  id         String   @id @default(cuid())
-  code       String   @unique // GR-ONC-2024-001
-  name       String
-  phase      String
-  indication String
-  status     String   @default("active")
-  createdAt  DateTime @default(now())
-
-  edcForms        EDCForm[]
-  ctmsSites       CTMSSite[]
-  ctmsMilestones  CTMSMilestone[]
-  iwrsAssignments IWRSAssignment[]
-  saeReports      SAEReport[]
-  aeSummaries     AESummary[]
-  etmfDocuments   ETMFDocument[]
-  econsentForms   EConsentForm[]
-  econsentRecords EConsentRecord[]
-}
-
-model EDCForm {
-  id           String   @id @default(cuid())
-  studyId      String
-  study        Study    @relation(fields: [studyId], references: [id])
-  formName     String
-  version      String
-  status       String   @default("active")
-  submissions  Int      @default(0)
-  queries      Int      @default(0)
-  lastUpdate   DateTime?
-}
-
-model CTMSSite {
-  id         String @id @default(cuid())
-  studyId    String
-  study      Study  @relation(fields: [studyId], references: [id])
-  siteName   String
-  pi         String
-  status     String @default("active")
-  enrolled   Int    @default(0)
-  target     Int    @default(0)
-}
-
-model CTMSMilestone {
-  id      String   @id @default(cuid())
-  studyId String
-  study   Study    @relation(fields: [studyId], references: [id])
-  name    String
-  dueDate DateTime
-  status  String   @default("pending") // pending, completed, overdue
-}
-
-model IWRSAssignment {
-  id        String   @id @default(cuid())
-  studyId   String
-  study     Study    @relation(fields: [studyId], references: [id])
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id])
-  group     String   // Treatment, Control
-  kit       String
-  date      DateTime
-  status    String   @default("active")
-}
-
-model SAEReport {
-  id        String   @id @default(cuid())
-  studyId   String
-  study     Study    @relation(fields: [studyId], references: [id])
-  subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id])
-  site      String
-  event     String
-  severity  String   // mild, moderate, severe, life-threatening, fatal
-  relatedness String? // related, possibly, unlikely, unrelated
-  reportDate DateTime
-  status    String   @default("open") // open, under-review, closed
-}
-
-model AESummary {
-  id       String @id @default(cuid())
-  studyId  String
-  study    Study  @relation(fields: [studyId], references: [id])
-  term     String // Preferred Term
-  total    Int
-  mild     Int    @default(0)
-  moderate Int    @default(0)
-  severe   Int    @default(0)
-}
-
-model ETMFDocument {
-  id       String   @id @default(cuid())
-  studyId  String
-  study    Study    @relation(fields: [studyId], references: [id])
-  name     String
-  zone     String   // Zone 01 ~ Zone 10
-  uploader String
-  date     DateTime
-  size     String   // "2.4MB" 등
-}
-
-model EConsentForm {
-  id          String @id @default(cuid())
-  studyId     String
-  study       Study  @relation(fields: [studyId], references: [id])
-  formName    String
-  version     String
-  status      String @default("active")
-  signedCount Int    @default(0)
-  totalCount  Int    @default(0)
-}
-
-model EConsentRecord {
-  id             String  @id @default(cuid())
-  studyId        String
-  study          Study   @relation(fields: [studyId], references: [id])
-  subjectId      String
-  subject        Subject @relation(fields: [subjectId], references: [id])
-  mainConsent    String  @default("pending") // pending, signed, declined
-  genomicConsent String  @default("pending")
-  biobankConsent String  @default("pending")
-  signedAt       DateTime?
-}
+  id                String    @id @default(cuid())
+  name              String
+  description       String?
+  targetName       String
+  targetCount       Int
+status           CampaignStatus  @default(DRAFT)
+  startDate        DateTime
+  endDate          DateTime?
+  type             CampaignType  

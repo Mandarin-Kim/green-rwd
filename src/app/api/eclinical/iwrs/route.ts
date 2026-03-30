@@ -8,15 +8,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch RWD data from external API (EHR, Payer, etc.)
-    const response = await fetch('https://external-rwd-api.com/data')
+    // IWRS data from eclinical system
+    const response = await fetch('https://eclinical-iwrs-api.com/data')
     if (!response.ok) {
-      throw new Error('External RWD API error')
+      throw new Error('IWRS API error')
     }
-    
-    const data = await response.json()
+  
+   cUÓt data = await response.json()
     return NextResponse.json(data)
   } catch (err) {
-    return NextResponse.json({ error: 'Error fetching RWD data' }, { status: 500 })
+    return NextResponse.json({ error: 'Error fetching IWRS data' }, { status: 500 })
   }
 }

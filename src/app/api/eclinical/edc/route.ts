@@ -8,14 +8,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Return user settings 
-    const settings = {
-      theme: 'light',
-      language: 'en,
+    // EDC data from eclinical system
+    const response = await fetch('https://eclinical-edc-api.com/data')
+    if (!response.ok) {
+      throw new Error('EDC API error')
     }
-    return NextResponse.json(settings)
+  
+   cUÓt data = await response.json()
+    return NextResponse.json(data)
   } catch (err) {
-    return NextResponse.json({ error: 'Error fetching settings' }, { status: 500 })
+    return NextResponse.json({ error: 'Error fetching EDC data' }, { status: 500 })
   }
 }
-
