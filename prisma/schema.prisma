@@ -1,6 +1,7 @@
 // Green-RWD Platform - Prisma Schema
 // 임상시험 리크루팅 + RWD 기반 타겟마케팅 통합 플랫폼
-Bgenerator client {
+
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -28,11 +29,11 @@ model User {
   sessions Session[]
 
   // Relations
-  createdCampaigns  Campaign[]       @relation("CampaignCreator")
-  approvedSendings  SendingItem[]    @relation("SendingApprover")
-  requestedSendings SendingItem[]    @relation("SendingRequester")
-  uploadedDocuments TMFDocument[]    @relation("DocumentUploader")
-  approvedDocuments TMFDocument[]    @relation("DocumentApprover")
+  createdCampaigns  Campaign[]    @relation("CampaignCreator")
+  approvedSendings  SendingItem[] @relation("SendingApprover")
+  requestedSendings SendingItem[] @relation("SendingRequester")
+  uploadedDocuments TMFDocument[] @relation("DocumentUploader")
+  approvedDocuments TMFDocument[] @relation("DocumentApprover")
   auditLogs         AuditLog[]
 
   @@map("users")
@@ -54,42 +55,364 @@ model Account {
   providerAccountId String
   refresh_token     String? @db.Text
   access_token      String? @db.Text
-  expires_at        DateTime?
-  token_type        String
+  expires_at        Int?
+  token_type        String?
   scope             String?
-  ID_token         String? @db.Text
-  session_state    String? @db.Text
+  id_token          String? @db.Text
+  session_state     String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User      @relation(fields: [userId], references: [id])
-  userId String
-  
-  @@unique([userId, type, provider])
-  @@map("refresh_token")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  sessionToken String  @unique
-  userId     String
-  expires    DateTime
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user      User     @relation(fields: [userId], references: [id])
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
 
-// 인증 은 턱윲 Dashboard Data of H은  순닸삤살윐
+// ============================================
+// 2. 캠페인 및 발송 (Campaign & Sending)
+// ============================================
+
 model Campaign {
-  id                String    @id @default(cuid())
-  name              String
-  description       String?
-  targetName       String
-  targetCount       Int
-status           CampaignStatus  @default(DRAFT)
-  startDate        DateTime
-  endDate          DateTime?
-  type             CampaignType  
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  targetName  String
+  targetCount Int
+  status      CampaignStatus @default(DRAFT)
+  startDate   DateTime
+  endDate     DateTime?
+  type        CampaignType
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  createdBy User      @relation("CampaignCreator", fields: [createdById], references: [id])
+  sendings  Sending[]
+
+  @@map("campaigns")
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum CampaignType {
+  SMS
+  EMAIL
+  KAKAO
+  PUSH
+  MIXED
+}
+
+model Sending {
+  id          String        @id @default(cuid())
+  campaignId  String
+  totalCount  Int
+  status      SendingStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  approvedAt  DateTime?
+  approvedBy  String?
+  executedAt  DateTime?
+  completedAt DateTime?
+  updatedAt   DateTime      @updatedAt
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id])
+  items    SendingItem[]
+
+  @@map("sendings")
+}
+
+enum SendingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTING
+  PAUSED
+  COMPLETED
+}
+
+model SendingItem {
+  id           String            @id @default(cuid())
+  sendingId    String
+  subjectId    String?
+  status       SendingItemStatus @default(PENDING)
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  approverId   String?
+  requesterId  String?
+
+  sending   Sending  @relation(fields: [sendingId], references: [id])
+  approver  User?    @relation("SendingApprover", fields: [approverId], references: [id])
+  requester User?    @relation("SendingRequester", fields: [requesterId], references: [id])
+
+  @@map("sending_items")
+}
+
+enum SendingItemStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  FAILED
+}
+
+// ============================================
+// 3. 대상자 및 세그먼트 (Subject & Segment)
+// ============================================
+
+model Subject {
+  id             String    @id @default(cuid())
+  screeningId    String    @unique
+  name           String
+  age            Int?
+  gender         String?
+  phone          String?
+  email          String?
+  diagnosis      String?
+  hospital       String?
+  consentStatus  String?
+  enrolledAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  iwrsAssignments  IWRSAssignment[]
+  saeReports       SAEReport[]
+  eConsentRecords  EConsentRecord[]
+
+  @@map("subjects")
+}
+
+model Segment {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  criteria    String?  @db.Text
+  count       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("segments")
+}
+
+// ============================================
+// 4. 임상시험 프로젝트 (Project & Study)
+// ============================================
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  sponsor     String?
+  phase       String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+  TERMINATED
+}
+
+model Study {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  phase     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  edcForms        EDCForm[]
+  ctmsSites       CTMSSite[]
+  ctmsMilestones  CTMSMilestone[]
+  iwrsAssignments IWRSAssignment[]
+  saeReports      SAEReport[]
+  aeSummaries     AESummary[]
+  etmfDocuments   ETMFDocument[]
+  eConsentForms   EConsentForm[]
+  eConsentRecords EConsentRecord[]
+
+  @@map("studies")
+}
+
+// ============================================
+// 5. eClinical 모듈
+// ============================================
+
+model EDCForm {
+  id       String @id @default(cuid())
+  studyId  String
+  formName String
+  study    Study  @relation(fields: [studyId], references: [id])
+  @@map("edc_forms")
+}
+
+model CTMSSite {
+  id        String  @id @default(cuid())
+  studyId   String
+  siteName  String?
+  status    String?
+  piName    String?
+  enrolled  Int     @default(0)
+  target    Int     @default(0)
+  study     Study   @relation(fields: [studyId], references: [id])
+  @@map("ctms_sites")
+}
+
+model CTMSMilestone {
+  id       String    @id @default(cuid())
+  studyId  String
+  name     String?
+  dueDate  DateTime?
+  status   String?
+  study    Study     @relation(fields: [studyId], references: [id])
+  @@map("ctms_milestones")
+}
+
+model IWRSAssignment {
+  id        String   @id @default(cuid())
+  studyId   String
+  subjectId String
+  date      DateTime
+  treatment String?
+  kit       String?
+  study     Study    @relation(fields: [studyId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  @@map("iwrs_assignments")
+}
+
+model SAEReport {
+  id          String   @id @default(cuid())
+  studyId     String
+  subjectId   String
+  site        String?
+  event       String
+  severity    String
+  relatedness String?
+  reportDate  DateTime
+  status      String   @default("open")
+  study       Study    @relation(fields: [studyId], references: [id])
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  @@map("sae_reports")
+}
+
+model AESummary {
+  id      String @id @default(cuid())
+  studyId String
+  event   String?
+  total   Int    @default(0)
+  serious Int    @default(0)
+  related Int    @default(0)
+  study   Study  @relation(fields: [studyId], references: [id])
+  @@map("ae_summaries")
+}
+
+model ETMFDocument {
+  id       String    @id @default(cuid())
+  studyId  String
+  name     String
+  zone     String?
+  uploader String?
+  date     DateTime?
+  size     String?
+  study    Study     @relation(fields: [studyId], references: [id])
+  @@map("etmf_documents")
+}
+
+model EConsentForm {
+  id      String  @id @default(cuid())
+  studyId String
+  title   String?
+  version String?
+  status  String?
+  study   Study   @relation(fields: [studyId], references: [id])
+  @@map("econsent_forms")
+}
+
+model EConsentRecord {
+  id              String  @id @default(cuid())
+  studyId         String
+  subjectId       String
+  mainConsent     String  @default("pending")
+  genomicConsent  String  @default("pending")
+  biobankConsent  String  @default("pending")
+  study           Study   @relation(fields: [studyId], references: [id])
+  subject         Subject @relation(fields: [subjectId], references: [id])
+  @@map("econsent_records")
+}
+
+// ============================================
+// 6. TMF 문서 관리
+// ============================================
+
+model TMFDocument {
+  id         String         @id @default(cuid())
+  title      String
+  category   String?
+  status     DocumentStatus @default(DRAFT)
+  version    String?
+  filePath   String?
+  uploaderId String
+  approverId String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  uploader   User           @relation("DocumentUploader", fields: [uploaderId], references: [id])
+  approver   User?          @relation("DocumentApprover", fields: [approverId], references: [id])
+  @@map("tmf_documents")
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+// ============================================
+// 7. 감사 로그 (Audit Log)
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  @@map("audit_logs")
+}
