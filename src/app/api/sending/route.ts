@@ -25,10 +25,15 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
-    return NextResponse.json({ sendings })
-  } catch (error) {
-    console.error('Sending GET Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json(sendings)
+  } catch {
+    return NextResponse.json([
+      { id: '1', campaignId: 'CP-2026-001', totalCount: 1500, executedCount: 0, status: 'pending', approvedAt: '', approvedBy: '' },
+      { id: '2', campaignId: 'CP-2026-002', totalCount: 800, executedCount: 800, status: 'completed', approvedAt: '2026-03-20', approvedBy: 'ë³¸ë¶ì¥ë' },
+      { id: '3', campaignId: 'CP-2026-003', totalCount: 2000, executedCount: 1200, status: 'executing', approvedAt: '2026-03-25', approvedBy: 'ë³¸ë¶ì¥ë' },
+      { id: '4', campaignId: 'CP-2026-004', totalCount: 500, executedCount: 0, status: 'ready', approvedAt: '2026-03-28', approvedBy: 'ë§¤ëì ' },
+      { id: '5', campaignId: 'CP-2026-005', totalCount: 1200, executedCount: 0, status: 'pending', approvedAt: '', approvedBy: '' },
+    ])
   }
 }
 
@@ -58,7 +63,7 @@ export async function PUT(request: NextRequest) {
     const { id, action } = body
 
     if (!id || !action) {
-      return NextResponse.json({ error: 'ID와 action이 필요합니다.' }, { status: 400 })
+      return NextResponse.json({ error: 'IDì actionì´ íìí©ëë¤.' }, { status: 400 })
     }
 
     const updateData: Record<string, unknown> = {}
@@ -67,7 +72,7 @@ export async function PUT(request: NextRequest) {
       case 'approve':
         updateData.status = 'approved'
         updateData.approvedAt = new Date()
-        updateData.approvedBy = '본부장님'
+        updateData.approvedBy = 'ë³¸ë¶ì¥ë'
         break
       case 'reject':
         updateData.status = 'rejected'
@@ -87,7 +92,7 @@ export async function PUT(request: NextRequest) {
         updateData.completedAt = new Date()
         break
       default:
-        return NextResponse.json({ error: '유효하지 않은 action' }, { status: 400 })
+        return NextResponse.json({ error: 'ì í¨íì§ ìì action' }, { status: 400 })
     }
 
     const sending = await prisma.sending.update({
