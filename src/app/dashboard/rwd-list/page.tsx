@@ -66,7 +66,7 @@ export default function RWDListPage() {
             age: 71,
             gender: 'ë¨',
             lastVisit: '2026-03-15',
-            medication: ['ë¦¬ìë¸íë¦´', 'ìë¡ëí'],
+            medication: ['ë¦¬ìë¸íë¦´', 'ìë¡ëí'],
           },
           {
             id: '4',
@@ -76,7 +76,7 @@ export default function RWDListPage() {
             age: 55,
             gender: 'ì¬',
             lastVisit: '2026-03-21',
-            medication: ['ì¹¸ììì±ëì°¨ë¨ì '],
+            medication: ['ì¹¼ììì±ëì°¨ë¨ì '],
           },
           {
             id: '5',
@@ -230,21 +230,3 @@ export default function RWDListPage() {
     </div>
   )
 }
-'use client'
-
-import { useEffect, useState, useMemo } from 'react'
-import {
-  Database,
-  Filter,
-  Download,
-  Search,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Users,
-  Activity,
-  MapPin,
-  FileText,
-  BarChart3,
-} from 'lucide-react'
-import { apiGet } from '@/lib/api'
