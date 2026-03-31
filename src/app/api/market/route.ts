@@ -9,46 +9,26 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Prismaë¥¼ íµí ë§ì¼í ìº íì¸ ë°ì´í° ì¡°í
-    const marketData = await prisma.campaign.findMany({
+    // Prisma를 통한 캔페인 데이터 조회
+    const campaigns = await prisma.campaign.findMany({
       select: {
         id: true,
         name: true,
-        targetAudience: true,
+        targetName: true,
+        targetCount: true,
         status: true,
-        performanceMetrics: true,
+        type: true,
+        startDate: true,
         createdAt: true,
       },
       take: 20,
+      orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({
-      success: true,
-      data: marketData,
-      count: marketData.length,
-    })
+    // 배열로 직접 반환 (프론트엔드에서 .map() 사용)
+    return NextResponse.json(campaigns)
   } catch (err) {
-    // ìë¬ ë°ì ì fallback ë°ì´í° ë°í
-    return NextResponse.json({
-      success: false,
-      error: 'Error fetching market data',
-      fallbackData: {
-        data: [
-          {
-            id: 'campaign-001',
-            name: 'ë§ì¼í ìº íì¸ 001',
-            targetAudience: 'Healthcare Professionals',
-            status: 'ACTIVE',
-            performanceMetrics: {
-              impressions: 15000,
-              clicks: 850,
-              conversions: 42,
-            },
-            createdAt: new Date().toISOString(),
-          },
-        ],
-        message: 'Using fallback data',
-      },
-    }, { status: 200 })
+    // 에러 발생 시 빈 배열 반환 (프론트엔드 fallback 처리)
+    return NextResponse.json([])
   }
 }
