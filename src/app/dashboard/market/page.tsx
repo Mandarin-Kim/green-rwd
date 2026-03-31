@@ -28,11 +28,17 @@ export default function MarketPage() {
         setLoading(true)
         setError(null)
         const data = await apiGet('/api/market')
-        setMarketData(data || [])
-        setFilteredData(data || [])
+        // API 데이터가 MarketData 형식인지 검증
+        if (Array.isArray(data) && data.length > 0 && data[0].disease) {
+          setMarketData(data)
+          setFilteredData(data)
+        } else {
+          // API 데이터가 다른 형식이면 fallback 사용
+          throw new Error('시장 분석 데이터 형식이 일치하지 않습니다.')
+        }
       } catch (err) {
         console.error('Failed to fetch market data:', err)
-        setError('시장 데이터를 불러올는데 실패했습니다.')
+        setError('시장 데이터를 불러오는데 실패했습니다.')
         // Fallback data
         const fallbackData: MarketData[] = [
           {
@@ -140,7 +146,7 @@ export default function MarketPage() {
                   <tr key={item.id} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-900 font-medium">{item.disease}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{item.prevalence}%</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{item.potentialSubjects.toLocaleString()}명</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{(item.potentialSubjects || 0).toLocaleString()}명</td>
                     <td className="px-6 py-4 text-sm">
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">
                         {item.activeTrials}건
@@ -162,7 +168,7 @@ export default function MarketPage() {
 
         {!loading && filteredData.length > 0 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-            전 체 {filteredData.length}개 질환 | 이 예상 대상자: {filteredData.reduce((sum, d) => sum + d.potentialSubjects, 0).toLocaleString()}명
+            전체 {filteredData.length}개 질환 | 총 예상 대상자: {filteredData.reduce((sum, d) => sum + (d.potentialSubjects || 0), 0).toLocaleString()}명
           </div>
         )}
       </div>
