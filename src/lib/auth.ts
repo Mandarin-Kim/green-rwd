@@ -9,12 +9,12 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'ì´ë©ì¼', type: 'email', placeholder: 'user@green-ribbon.co.kr' },
-        password: { label: 'ë¹ë°ë²í¸', type: 'password' },
+        email: { label: '이메일', type: 'email', placeholder: 'user@green-ribbon.co.kr' },
+        password: { label: '비밀번호', type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('ì´ë©ì¼ê³¼ ë¹ë°ë²í¸ë¥¼ ìë ¥í´ì£¼ì¸ì.')
+          throw new Error('이메일과 비밀번호를 입력해주세요.')
         }
 
         const user = await prisma.user.findUnique({
@@ -22,12 +22,12 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user) {
-          throw new Error('ë±ë¡ëì§ ìì ì´ë©ì¼ìëë¤.')
+          throw new Error('등록되지 않은 이메일입니다.')
         }
 
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
         if (!isPasswordValid) {
-          throw new Error('ë¹ë°ë²í¸ê° ì¬ë°ë¥´ì§ ììµëë¤.')
+          throw new Error('비밀번호가 올바르지 않습니다.')
         }
 
         return {
@@ -42,7 +42,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24ìê°
+    maxAge: 24 * 60 * 60, // 24시간
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -67,10 +67,10 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 }
 
-// ìë² ì¸ì ì¡°í
+// 서버 세션 조회
 export const getAuthSession = () => getServerSession(authOptions)
 
-// ê¶í ê²ì¦
+// 권한 검증
 export async function requireAuth() {
   const session = await getAuthSession()
   if (!session?.user) {
@@ -79,7 +79,7 @@ export async function requireAuth() {
   return session
 }
 
-// í¹ì  ê¶í íì¸
+// 특정 권한 확인
 export function hasPermission(userRole: string, requiredRole: string): boolean {
   const roleHierarchy: Record<string, number> = {
     USER: 1,
@@ -89,7 +89,7 @@ export function hasPermission(userRole: string, requiredRole: string): boolean {
   return (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0)
 }
 
-// RBAC ê¶í ì¤ì 
+// RBAC 권한 설정
 export const MENU_PERMISSIONS = {
   DASHBOARD: ['ADMIN', 'MANAGER', 'USER'],
   MARKET: ['ADMIN', 'MANAGER'],
