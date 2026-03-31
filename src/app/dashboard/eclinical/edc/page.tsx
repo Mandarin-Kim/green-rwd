@@ -54,15 +54,15 @@ export default function EDCPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">EDC (ì ììììíë°ì´í°)</h1>
-        <p className="text-gray-600 mt-2">ìì ë°ì´í° ìë ¥ íí©</p>
+        <h1 className="text-3xl font-bold text-gray-900">EDC (전자임상시험데이터)</h1>
+        <p className="text-gray-600 mt-2">시험 데이터 입력 현황</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
           <div>
-            <p className="font-semibold text-red-900">ì¤ë¥ ë°ì</p>
+            <p className="font-semibold text-red-900">오류 발생</p>
             <p className="text-red-700">{error}</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function EDCPage() {
             <Search className="w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="ììëª ëë ì°êµ¬ì½ë ê²ì..."
+              placeholder="양식명 또는 연구코드 검색..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent flex-1 outline-none text-gray-900"
@@ -96,7 +96,7 @@ export default function EDCPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ë°ì´í°ê° ììµëë¤.</p>
+            <p className="text-gray-500">데이터가 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -104,19 +104,19 @@ export default function EDCPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ììëª
+                    양식명
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì°êµ¬ì½ë
+                    연구코드
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìë ¥ ìë£
+                    입력 완료
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìì±ë
+                    작성된
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ë§ì§ë§ ìë°ì´í¸
+                    마지막 업데이트
                   </th>
                 </tr>
               </thead>
