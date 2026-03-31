@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Prisma를 통한 캔페인 데이터 조회
+    // Prismaë¥¼ íµí ìº íì¸ ë°ì´í° ì¡°í
     const campaigns = await prisma.campaign.findMany({
       select: {
         id: true,
@@ -25,10 +25,10 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     })
 
-    // 배열로 직접 반환 (프론트엔드에서 .map() 사용)
+    // ë°°ì´ë¡ ì§ì  ë°í (íë¡ í¸ìëìì .map() ì¬ì©)
     return NextResponse.json(campaigns)
   } catch (err) {
-    // 에러 발생 시 빈 배열 반환 (프론트엔드 fallback 처리)
+    // ìë¬ ë°ì ì ë¹ ë°°ì´ ë°í (íë¡ í¸ìë fallback ì²ë¦¬)
     return NextResponse.json([])
   }
 }
