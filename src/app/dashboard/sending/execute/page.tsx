@@ -57,9 +57,9 @@ export default function SendingExecutePage() {
 
   const getStatusLabel = (status: string) => {
     const labels: { [key: string]: string } = {
-      ready: 'ì¤í ì¤ë¹',
-      executing: 'ì¤íì¤',
-      completed: 'ìë£',
+      ready: '실행 준비',
+      executing: '실행중',
+      completed: '완료',
     };
     return labels[status] || status;
   };
@@ -75,15 +75,15 @@ export default function SendingExecutePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ë°ì¡ ì¤í ê´ë¦¬</h1>
-        <p className="text-gray-600 mt-2">ì¹ì¸ë ë°ì¡ ìº íì¸ ì¤í</p>
+        <h1 className="text-3xl font-bold text-gray-900">발송 실행 관리</h1>
+        <p className="text-gray-600 mt-2">승인된 발송 캠페인 실행</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
           <div>
-            <p className="font-semibold text-red-900">ì¤ë¥ ë°ì</p>
+            <p className="font-semibold text-red-900">오류 발생</p>
             <p className="text-red-700">{error}</p>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function SendingExecutePage() {
             <Search className="w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="ìº íì¸ID ëë ì¹ì¸ì ê²ì..."
+              placeholder="캠페인ID 또는 승인자 검색..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent flex-1 outline-none text-gray-900"
@@ -117,7 +117,7 @@ export default function SendingExecutePage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ì¤í ì¤ë¹ë ë°ì¡ì´ ììµëë¤.</p>
+            <p className="text-gray-500">실행 준비된 발송이 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -125,22 +125,22 @@ export default function SendingExecutePage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìº íì¸ID
+                    캠페인ID
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì§íìí©
+                    진행상황
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì§íë
+                    진행률
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì¹ì¸ì
+                    승인자
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì¹ì¸ì¼
+                    승인일
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìí
+                    상태
                   </th>
                 </tr>
               </thead>
