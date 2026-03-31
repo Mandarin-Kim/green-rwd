@@ -51,9 +51,9 @@ export default function SendingApprovePage() {
 
   const getStatusLabel = (status: string) => {
     const labels: { [key: string]: string } = {
-      pending: 'ì¹ì¸ ëê¸°ì¤',
-      approved: 'ì¹ì¸ë¨',
-      rejected: 'ê±°ì ë¨',
+      pending: '승인 대기중',
+      approved: '승인됨',
+      rejected: '거절됨',
     };
     return labels[status] || status;
   };
@@ -61,15 +61,15 @@ export default function SendingApprovePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ë°ì¡ ì¹ì¸ ê´ë¦¬</h1>
-        <p className="text-gray-600 mt-2">ì¹ì¸ ëê¸° ì¤ì¸ ë°ì¡ ìº íì¸</p>
+        <h1 className="text-3xl font-bold text-gray-900">발송 승인 관리</h1>
+        <p className="text-gray-600 mt-2">승인 대기 중인 발송 캠페인</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
           <div>
-            <p className="font-semibold text-red-900">ì¤ë¥ ë°ì</p>
+            <p className="font-semibold text-red-900">오류 발생</p>
             <p className="text-red-700">{error}</p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export default function SendingApprovePage() {
             <Search className="w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="ìº íì¸ID ëë ìì±ì ê²ì..."
+              placeholder="캠페인ID 또는 작성자 검색..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent flex-1 outline-none text-gray-900"
@@ -103,7 +103,7 @@ export default function SendingApprovePage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ì¹ì¸ ëê¸°ì¤ì¸ ë°ì¡ì´ ììµëë¤.</p>
+            <p className="text-gray-500">승인 대기중인 발송이 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -111,19 +111,19 @@ export default function SendingApprovePage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìº íì¸ID
+                    캠페인ID
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì´ ë°ì¡ê±´ì
+                    이 발송건수
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìì±ì
+                    작성자
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìì±ì¼
+                    작성일
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìí
+                    상태
                   </th>
                 </tr>
               </thead>
@@ -133,7 +133,7 @@ export default function SendingApprovePage() {
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.campaignId}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">
                       <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                        {item.totalCount}ê±´
+                        {item.totalCount}건
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{item.createdBy}</td>
