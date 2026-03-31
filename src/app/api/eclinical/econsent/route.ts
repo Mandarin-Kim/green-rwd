@@ -12,23 +12,13 @@ export async function GET(req: NextRequest) {
     const forms = await prisma.eConsentForm.findMany({
       include: { study: { select: { code: true, name: true } } },
     })
-    const records = await prisma.eConsentRecord.findMany({
-      include: {
-        study: { select: { code: true, name: true } },
-        subject: { select: { screeningId: true, name: true } },
-      },
-    })
-    return NextResponse.json({ forms, records })
+    return NextResponse.json(forms)
   } catch {
-    return NextResponse.json({
-      forms: [
-        { id: '1', title: 'Main Consent Form v2.0', version: '2.0', status: 'Active', studyCode: 'GR-DM-301' },
-        { id: '2', title: 'Genomic Data Consent', version: '1.0', status: 'Active', studyCode: 'GR-DM-301' },
-      ],
-      records: [
-        { id: '1', subjectId: 'SCR-001', mainConsent: 'signed', genomicConsent: 'signed', biobankConsent: 'pending' },
-        { id: '2', subjectId: 'SCR-002', mainConsent: 'signed', genomicConsent: 'pending', biobankConsent: 'pending' },
-      ],
-    })
+    return NextResponse.json([
+      { id: '1', title: 'Main Consent Form v2.0', version: '2.0', status: 'active', subjectConsentCount: 38, totalSubjects: 60, createdAt: '2026-01-15' },
+      { id: '2', title: 'Genomic Data Consent', version: '1.0', status: 'active', subjectConsentCount: 25, totalSubjects: 60, createdAt: '2026-02-01' },
+      { id: '3', title: 'Biobank Consent', version: '1.1', status: 'draft', subjectConsentCount: 0, totalSubjects: 40, createdAt: '2026-03-01' },
+      { id: '4', title: 'Pharmacogenomics Consent', version: '1.0', status: 'approved', subjectConsentCount: 12, totalSubjects: 40, createdAt: '2026-03-10' },
+    ])
   }
 }
