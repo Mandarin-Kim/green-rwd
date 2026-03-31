@@ -14,7 +14,7 @@ interface QualificationStatus {
   exclusion: boolean
   labTests: boolean
   clinicalEvaluation: boolean
-  status: 'ì ê²©' | 'ë¶ì ê²©' | 'ê²í¨ì¤'
+  status: 'ì ê²©' | 'ë¶ì ê²©' | 'ê²í ì¤'
   notes?: string
   lastUpdated: string
 }
@@ -25,7 +25,7 @@ export default function SubjectsQualifyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'ì ì²´' | 'ì ê²©' | 'ë¶ì ê²©' | 'ê²í¨ì¤'>('ì ì²´')
+  const [statusFilter, setStatusFilter] = useState<'ì ì²´' | 'ì ê²©' | 'ë¶ì ê²©' | 'ê²í ì¤'>('ì ì²´')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
 
@@ -92,7 +92,7 @@ export default function SubjectsQualifyPage() {
             exclusion: false,
             labTests: true,
             clinicalEvaluation: null,
-            status: 'ê²í¨ì¤',
+            status: 'ê²í ì¤',
             lastUpdated: '2026-03-19',
           },
           {
@@ -106,7 +106,7 @@ export default function SubjectsQualifyPage() {
             labTests: false,
             clinicalEvaluation: false,
             status: 'ë¶ì ê²©',
-            notes: 'í¨í¨ê¸°ì¤ ë¯¸ì¶©ì¡±',
+            notes: 'í¬í¨ê¸°ì¤ ë¯¸ì¶©ì¡±',
             lastUpdated: '2026-03-16',
           },
           {
@@ -119,7 +119,7 @@ export default function SubjectsQualifyPage() {
             exclusion: false,
             labTests: null,
             clinicalEvaluation: null,
-            status: 'ê°í ì¤',
+            status: 'ê²í ì¤',
             lastUpdated: '2026-03-21',
           },
         ]
@@ -159,7 +159,7 @@ export default function SubjectsQualifyPage() {
         return 'bg-green-100 text-green-800'
       case 'ë¶ì ê²©':
         return 'bg-red-100 text-red-800'
-      case 'ê²í¨ì¤':
+      case 'ê²í ì¤':
         return 'bg-yellow-100 text-yellow-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -172,7 +172,7 @@ export default function SubjectsQualifyPage() {
         return <CheckCircle className="w-4 h-4" />
       case 'ë¶ì ê²©':
         return <XCircle className="w-4 h-4" />
-      case 'ê²í¨ì¤':
+      case 'ê²í ì¤':
         return <Clock className="w-4 h-4" />
       default:
         return null
@@ -182,7 +182,7 @@ export default function SubjectsQualifyPage() {
   const statsData = {
     qualified: qualifications.filter((q) => q.status === 'ì ê²©').length,
     disqualified: qualifications.filter((q) => q.status === 'ë¶ì ê²©').length,
-    reviewing: qualifications.filter((q) => q.status === 'ê²í¨ì¤').length,
+    reviewing: qualifications.filter((q) => q.status === 'ê²í ì¤').length,
   }
 
   return (
@@ -225,7 +225,7 @@ export default function SubjectsQualifyPage() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-yellow-700 font-medium">ê²í¨ì¤</p>
+                <p className="text-sm text-yellow-700 font-medium">ê²í ì¤</p>
                 <p className="text-2xl font-bold text-yellow-900">{statsData.reviewing}</p>
               </div>
               <Clock className="w-8 h-8 text-yellow-600" />
@@ -248,7 +248,7 @@ export default function SubjectsQualifyPage() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {(['ì ì²´', 'ì ê²©', 'ë¶ì ê²©', 'ê°í ì¤'] as const).map((status) => (
+            {(['ì ì²´', 'ì ê²©', 'ë¶ì ê²©', 'ê²í ì¤'] as const).map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
@@ -282,7 +282,7 @@ export default function SubjectsQualifyPage() {
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ëì´</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì§ë¨</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">í¬í¨/ì ì¸</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ê°ì¬</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ê²ì¬</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">íê°</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìµì¢ìí</th>
                 </tr>
@@ -381,18 +381,3 @@ export default function SubjectsQualifyPage() {
     </div>
   )
 }
-'use client'
-
-import { useState, useEffect, useMemo } from 'react'
-import {
-  CheckCircle,
-  XCircle,
-  Users,
-  X,
-  AlertTriangle,
-  ClipboardCheck,
-  Clock,
-  FileText,
-  ChevronRight,
-} from 'lucide-react'
-import { apiGet, apiPut } from '@/lib/api'
