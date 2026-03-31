@@ -154,7 +154,7 @@ export default function ProjectsPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">íë¡ì í¸ëª</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì¤í°ì</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ììë¨ê³</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìì¡ë¨ê³</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìí</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ììì¼</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ë±ë¡ì</th>
@@ -193,8 +193,3 @@ export default function ProjectsPage() {
     </div>
   )
 }
-'use client'
-
-import { useEffect, useState } from 'react'
-import { Plus, Edit2, Trash2, X, ChevronRight, Search, Users, Building2, Calendar, Target, FlaskConical } from 'lucide-react'
-import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
