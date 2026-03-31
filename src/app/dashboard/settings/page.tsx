@@ -44,7 +44,7 @@ export default function SettingsPage() {
         }
       } catch (err) {
         console.error('Failed to fetch settings:', err)
-        setError('ì¤ì ì ë¶ë¬ì¤ëë° ì¤í¨íìµëë¤.')
+        setError('설정을 불러오는데 실패했습니다.')
       } finally {
         setLoading(false)
       }
@@ -72,7 +72,7 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       console.error('Failed to save settings:', err)
-      setError('ì¤ì  ì ì¥ì ì¤í¨íìµëë¤.')
+      setError('설정 저장에 실패했습니다.')
     } finally {
       setSaving(false)
     }
@@ -91,15 +91,15 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ì¤ì </h1>
-        <p className="text-gray-600 mt-2">ìì¤í ì¤ì  ë° ê°ì¸ ì í¸ë ê´ë¦¬</p>
+        <h1 className="text-3xl font-bold text-gray-900">설정</h1>
+        <p className="text-gray-600 mt-2">시스템 설정 및 개인 선호도 관리</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-red-800 font-medium">ì¤ë¥</p>
+            <p className="text-red-800 font-medium">오류</p>
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function SettingsPage() {
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex gap-3">
-          <div className="text-green-800 font-medium">ì¤ì ì´ ì ì¥ëììµëë¤.</div>
+          <div className="text-green-800 font-medium">설정이 저장되었습니다.</div>
         </div>
       )}
 
@@ -115,48 +115,48 @@ export default function SettingsPage() {
         <div className="p-6 space-y-8">
           {/* Display Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">íë©´ ì¤ì  </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">화면 설정 </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">íë§</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">테마</label>
                 <select
                   value={settings.theme}
                   onChange={(e) => handleChange('theme', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="light">ë°ì ëª¨ë</option>
-                  <option value="dark">ì´ëì´ ëª¨ë</option>
+                  <option value="light">밝은 모드</option>
+                  <option value="dark">어두운 모드</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ì¸ì´</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">언어</label>
                 <select
                   value={settings.language}
                   onChange={(e) => handleChange('language', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="ko">íêµ­ì´</option>
+                  <option value="ko">한국어</option>
                   <option value="en">English</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ìê°ë</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">시간대</label>
                 <select
                   value={settings.timezone}
                   onChange={(e) => handleChange('timezone', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="Asia/Seoul">ìì¸ (UTC+9)</option>
-                  <option value="Asia/Tokyo">ëì¿ (UTC+9)</option>
-                  <option value="America/New_York">ë´ì (UTC-5)</option>
-                  <option value="Europe/London">ë°ëX (UTC+0)</option>
+                  <option value="Asia/Seoul">서울 (UTC+9)</option>
+                  <option value="Asia/Tokyo">도쿄 (UTC+9)</option>
+                  <option value="America/New_York">뉴욕 (UTC-5)</option>
+                  <option value="Europe/London">런던 (UTC+0)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ìë ë¡ê·¸ìì (ë¶)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">자동 로그아웃 (분)</label>
                 <input
                   type="number"
                   min="5"
@@ -173,7 +173,7 @@ export default function SettingsPage() {
 
           {/* Notification Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">ìë¦¼ ì¤ì  </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">알림 설정 </h2>
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -182,7 +182,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('notificationsEmail', e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">ì´ë©ì¼ ìë¦¼</span>
+                <span className="text-sm text-gray-700">이메일 알림</span>
               </label>
 
               <label className="flex items-center gap-3 cursor-pointer">
@@ -192,7 +192,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('notificationsSms', e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">SMS ìë¦¼</span>
+                <span className="text-sm text-gray-700">SMS 알림</span>
               </label>
 
               <label className="flex items-center gap-3 cursor-pointer">
@@ -202,7 +202,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('notificationsPush', e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">í¸ì ìë¦¼</span>
+                <span className="text-sm text-gray-700">푸시 알림</span>
               </label>
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function SettingsPage() {
 
           {/* Security Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">ë³´ì ì¤ì  </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">보안 설정 </h2>
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -220,7 +220,7 @@ export default function SettingsPage() {
                   onChange={(e) => handleChange('twoFactorAuth', e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">2ë¨ê³ ì¸ì¦ íì±í</span>
+                <span className="text-sm text-gray-700">2단계 인증 활성화</span>
               </label>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function SettingsPage() {
             disabled={!hasChanges}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            ì´ê¸°í
+            초기화
           </button>
           <button
             onClick={handleSave}
@@ -247,12 +247,12 @@ export default function SettingsPage() {
             {saving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                ì ì¥ì¤...
+                저장중...
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                ì ì¥
+                저장
               </>
             )}
           </button>
