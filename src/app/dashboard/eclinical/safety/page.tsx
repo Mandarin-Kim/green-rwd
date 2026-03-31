@@ -142,7 +142,7 @@ export default function SafetyPage() {
                     ì¬ê±´
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìê°ë
+                    ì¬ê°ë
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
                     ê´ë ¨ì±
@@ -190,17 +190,4 @@ export default function SafetyPage() {
       </div>
     </div>
   );
-    }'use client'
-
-import { useEffect, useState, useMemo } from 'react'
-import {
-  AlertCircle,
-  FileText,
-  Search,
-  X,
-  BarChart3,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
-import { apiGet, apiPost } from 'A/lib/api'
+}
