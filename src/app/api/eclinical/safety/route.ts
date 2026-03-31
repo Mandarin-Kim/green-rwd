@@ -15,23 +15,14 @@ export async function GET(req: NextRequest) {
         subject: { select: { screeningId: true, name: true } },
       },
     })
-    const aeSummaries = await prisma.aESummary.findMany({
-      include: {
-        study: { select: { code: true, name: true } },
-      },
-    })
-    return NextResponse.json({ saeReports, aeSummaries })
+    return NextResponse.json(saeReports)
   } catch {
-    return NextResponse.json({
-      saeReports: [
-        { id: '1', subjectId: 'SCR-001', site: 'Seoul National University Hospital', event: 'Headache', severity: 'Mild', relatedness: 'Unlikely', reportDate: '2026-03-10', status: 'closed' },
-        { id: '2', subjectId: 'SCR-002', site: 'Severance Hospital', event: 'Nausea', severity: 'Moderate', relatedness: 'Possible', reportDate: '2026-03-15', status: 'open' },
-      ],
-      aeSummaries: [
-        { id: '1', event: 'Headache', total: 12, serious: 1, related: 3 },
-        { id: '2', event: 'Nausea', total: 8, serious: 2, related: 5 },
-        { id: '3', event: 'Fatigue', total: 15, serious: 0, related: 7 },
-      ],
-    })
+    return NextResponse.json([
+      { id: '1', subjectId: 'SCR-001', event: 'Headache', severity: 'mild', relatedness: 'unrelated', reportDate: '2026-03-10', status: 'closed' },
+      { id: '2', subjectId: 'SCR-002', event: 'Nausea', severity: 'moderate', relatedness: 'probably_related', reportDate: '2026-03-15', status: 'open' },
+      { id: '3', subjectId: 'SCR-003', event: 'Fatigue', severity: 'mild', relatedness: 'related', reportDate: '2026-03-18', status: 'closed' },
+      { id: '4', subjectId: 'SCR-001', event: 'Dizziness', severity: 'severe', relatedness: 'probably_related', reportDate: '2026-03-20', status: 'pending' },
+      { id: '5', subjectId: 'SCR-004', event: 'Rash', severity: 'moderate', relatedness: 'related', reportDate: '2026-03-22', status: 'open' },
+    ])
   }
 }
