@@ -86,7 +86,7 @@ export default function MarketPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ìì¥ ë¶ì­</h1>
+        <h1 className="text-3xl font-bold text-gray-900">ìì¥ ë¶ì</h1>
         <p className="text-gray-600 mt-2">ìììí ëì ì§íë³ ìì¥ ê·ëª¨ ë° ê¸°í ë¶ì</p>
       </div>
 
@@ -169,20 +169,3 @@ export default function MarketPage() {
     </div>
   )
 }
-'use client'
-
-import { useEffect, useState, useMemo } from 'react'
-import {
-  Search,
-  FileText,
-  Filter,
-  Download,
-  X,
-  BarChart3,
-  TrendingUp,
-  Globe,
-  BookOpen,
-  Calendar,
-  ArrowRight,
-} from 'lucide-react'
-import { apiGet } from '@/lib/api'
