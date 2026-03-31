@@ -52,18 +52,18 @@ export default function SafetyPage() {
 
   const getSeverityLabel = (severity: string) => {
     const labels: { [key: string]: string } = {
-      mild: 'ê²½ì¦',
-      moderate: 'ì¤ë±ì¦',
-      severe: 'ì¤ì¦',
+      mild: '경증',
+      moderate: '중등증',
+      severe: '중증',
     };
     return labels[severity] || severity;
   };
 
   const getRelatednessLabel = (relatedness: string) => {
     const labels: { [key: string]: string } = {
-      related: 'ê´ë ¨',
-      probably_related: 'ìë§ë ê´ë ¨',
-      unrelated: 'ë¬´ê´',
+      related: '관련',
+      probably_related: '아마도 관련',
+      unrelated: '무관',
     };
     return labels[relatedness] || relatedness;
   };
@@ -76,9 +76,9 @@ export default function SafetyPage() {
 
   const getStatusLabel = (status: string) => {
     const labels: { [key: string]: string } = {
-      open: 'ì§íì¤',
-      closed: 'ì¢ë£',
-      pending: 'ëê¸°ì¤',
+      open: '진행중',
+      closed: '종료',
+      pending: '대기중',
     };
     return labels[status] || status;
   };
@@ -86,15 +86,15 @@ export default function SafetyPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ìì ì± (SAE ë³´ê³ )</h1>
-        <p className="text-gray-600 mt-2">ì¤ëí ì´ìë°ì ë° ìì ì± ë³´ê³  íí©</p>
+        <h1 className="text-3xl font-bold text-gray-900">안전성 (SAE 보고)</h1>
+        <p className="text-gray-600 mt-2">중대한 이상반응 및 안전성 보고 현황</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
           <div>
-            <p className="font-semibold text-red-900">ì¤ë¥ ë°ì</p>
+            <p className="font-semibold text-red-900">오류 발생</p>
             <p className="text-red-700">{error}</p>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function SafetyPage() {
             <Search className="w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="í¼íìID ëë ì¬ê±´ ê²ì..."
+              placeholder="피험자ID 또는 사건 검색..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent flex-1 outline-none text-gray-900"
@@ -128,7 +128,7 @@ export default function SafetyPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ë°ì´í°ê° ììµëë¤.</p>
+            <p className="text-gray-500">데이터가 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -136,22 +136,22 @@ export default function SafetyPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    í¼íìID
+                    피험자ID
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì¬ê±´
+                    사건
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ì¬ê°ë
+                    사건도
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ê´ë ¨ì±
+                    관련성
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ë³´ê³ ì¼
+                    보고일
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    ìí
+                    상태
                   </th>
                 </tr>
               </thead>
