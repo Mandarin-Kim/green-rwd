@@ -115,7 +115,7 @@ export default function SettingsPage() {
         <div className="p-6 space-y-8">
           {/* Display Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">íë©´ ì¤ì </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">íë©´ ì¤ì  </h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">íë§</label>
@@ -151,7 +151,7 @@ export default function SettingsPage() {
                   <option value="Asia/Seoul">ìì¸ (UTC+9)</option>
                   <option value="Asia/Tokyo">ëì¿ (UTC+9)</option>
                   <option value="America/New_York">ë´ì (UTC-5)</option>
-                  <option value="Europe/London">ë°ë (UTC+0)</option>
+                  <option value="Europe/London">ë°ëX (UTC+0)</option>
                 </select>
               </div>
 
@@ -173,7 +173,7 @@ export default function SettingsPage() {
 
           {/* Notification Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">ìë¦¼ ì¤ì </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">ìë¦¼ ì¤ì  </h2>
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -211,7 +211,7 @@ export default function SettingsPage() {
 
           {/* Security Settings */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">ë³´ì ì¤ì </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">ë³´ì ì¤ì  </h2>
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
