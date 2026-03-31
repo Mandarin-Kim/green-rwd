@@ -10,7 +10,7 @@ interface RWDRecord {
   diagnosis: string
   hospital: string
   age: number
-  gender: 'ë¨' | 'ì¬'
+  gender: '남' | '여'
   lastVisit: string
   medication?: string[]
   notes?: string
@@ -35,58 +35,58 @@ export default function RWDListPage() {
         setFilteredData(data || [])
       } catch (err) {
         console.error('Failed to fetch RWD data:', err)
-        setError('RWD ë°ì´í°ë¥¼ ë¶ë¬ì¤ëë° ì¤í¨íìµëë¤.')
+        setError('RWD 데이터를 불러오는데 실패했습니다.')
         // Fallback data
         const fallbackData: RWDRecord[] = [
           {
             id: '1',
             patientId: 'P001',
-            diagnosis: 'ì 2í ë¹ë¨ë³',
-            hospital: 'ìì¸ìë£ì',
+            diagnosis: '제2형 당뇨병',
+            hospital: '서울의료원',
             age: 62,
-            gender: 'ë¨',
+            gender: '남',
             lastVisit: '2026-03-20',
-            medication: ['ë©í¸í¬ë¥´ë¯¼', 'ê¸ë¦½í°ìì´ë'],
+            medication: ['메트포르민', '글립티아이드'],
           },
           {
             id: '2',
             patientId: 'P002',
-            diagnosis: 'ì 2í ë¹ë¨ë³',
-            hospital: 'ê²½ë¶ìë£ì',
+            diagnosis: '제2형 당뇨병',
+            hospital: '경북의료원',
             age: 58,
-            gender: 'ì¬',
+            gender: '여',
             lastVisit: '2026-03-18',
-            medication: ['ë©í¸í¬ë¥´ë¯¼'],
+            medication: ['메트포르민'],
           },
           {
             id: '3',
             patientId: 'P003',
-            diagnosis: 'ê³ íì',
-            hospital: 'ì¢ë¡ìë£ì',
+            diagnosis: '고혈압',
+            hospital: '종로의료원',
             age: 71,
-            gender: 'ë¨',
+            gender: '남',
             lastVisit: '2026-03-15',
-            medication: ['ë¦¬ì íë¦´', 'ìë¡ë¡¤'],
+            medication: ['리신프릴', '알로롤'],
           },
           {
             id: '4',
             patientId: 'P004',
-            diagnosis: 'ê³ íì',
-            hospital: 'ìì¸ìë£ì',
+            diagnosis: '고혈압',
+            hospital: '서울의료원',
             age: 55,
-            gender: 'ì¬',
+            gender: '여',
             lastVisit: '2026-03-21',
-            medication: ['ì¹¼ìì±ëì°¨ë¨ì '],
+            medication: ['칸슈채널차단제'],
           },
           {
             id: '5',
             patientId: 'P005',
-            diagnosis: 'ê³ ì½ë ì¤íë¡¤íì¦',
-            hospital: 'ê²½ë¶ìë£ì',
+            diagnosis: '고콜레스테롤혈증',
+            hospital: '경북의료원',
             age: 67,
-            gender: 'ë¨',
+            gender: '남',
             lastVisit: '2026-03-19',
-            medication: ['ì¤íí´'],
+            medication: ['스타틴'],
           },
         ]
         setRwdData(fallbackData)
@@ -118,15 +118,15 @@ export default function RWDListPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">RWD ë°ì´í° ëª©ë¡</h1>
-        <p className="text-gray-600 mt-2">ì¤ì  íì ë°ì´í° ì¡°í</p>
+        <h1 className="text-3xl font-bold text-gray-900">RWD 데이터 목록</h1>
+        <p className="text-gray-600 mt-2">실제 환자 데이터 조회</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-red-800 font-medium">ì¤ë¥</p>
+            <p className="text-red-800 font-medium">오류</p>
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function RWDListPage() {
             <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="íìID, ì§ë¨ëª, ë³ìì¼ë¡ ê²ì..."
+              placeholder="환자ID, 진단명, 병원으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -152,19 +152,19 @@ export default function RWDListPage() {
           </div>
         ) : filteredData.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ë°ì´í°ê° ììµëë¤.</p>
+            <p className="text-gray-500">데이터가 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">íìID</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì§ë¨ëª</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ë³ì</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ëì´</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì±ë³</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ë§ì§ë§ ë°©ë¬¸</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">환자ID</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">진단명</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">병원</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">나이</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">성별</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">마지막 방문</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,11 +178,11 @@ export default function RWDListPage() {
                         {record.hospital}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{record.age}ì¸</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{record.age}세</td>
                     <td className="px-6 py-4 text-sm">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.gender === 'ë¨'
+                          record.gender === '남'
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-pink-100 text-pink-800'
                         }`}
@@ -202,7 +202,7 @@ export default function RWDListPage() {
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                ì ì²´ {filteredData.length}ëª | {startIndex + 1}-{Math.min(endIndex, filteredData.length)}ëª íì
+                전체 {filteredData.length}명 | {startIndex + 1}-{Math.min(endIndex, filteredData.length)}명 표시
               </div>
               <div className="flex gap-2">
                 <button
@@ -210,7 +210,7 @@ export default function RWDListPage() {
                   disabled={currentPage === 1}
                   className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ì´ì 
+                  이전
                 </button>
                 <span className="px-3 py-1 text-sm text-gray-600">
                   {currentPage} / {totalPages}
@@ -220,7 +220,7 @@ export default function RWDListPage() {
                   disabled={currentPage === totalPages}
                   className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ë¤ì
+                  다음
                 </button>
               </div>
             </div>
