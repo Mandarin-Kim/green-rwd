@@ -36,7 +36,7 @@ export default function SegmentsPage() {
         const fallbackData: Segment[] = [
           {
             id: '1',
-            name: 'ë´ë¨ë³ íìêµ°',
+            name: 'ë¹ë¨ë³ íìêµ°',
             description: 'ì 2í ë¹ë¨ë³ì¼ë¡ ì§ë¨ë°ì íì',
             criteria: 'ëì´ 40-70, HbA1c > 7%',
             count: 2350,
@@ -45,8 +45,8 @@ export default function SegmentsPage() {
           },
           {
             id: '2',
-            name: 'ê³ íì¥ íìêµ°',
-            description: 'íì í ì  ë¯¸í¥í íì',
+            name: 'ê³ íì íìêµ°',
+            description: 'íì ì¡°ì  ë¯¸í¡í íì',
             criteria: 'ëì´ 30-80, ìì¶ê¸° > 130mmHg',
             count: 1850,
             createdDate: '2025-11-15',
@@ -170,19 +170,3 @@ export default function SegmentsPage() {
     </div>
   )
 }
-'use client'
-
-import { useEffect, useState, useMemo } from 'react'
-import {
-  Users,
-  Plus,
-  Target,
-  Search,
-  X,
-  Edit2,
-  Trash2,
-  Copy,
-  Hask,
-  Layers,
-} from 'lucide-react'
-import { apiGet, apiPost, apiDelete } from '@/lib/api'
