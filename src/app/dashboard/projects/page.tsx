@@ -186,7 +186,7 @@ export default function ProjectsPage() {
 
         {!loading && filteredProjects.length > 0 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-            전 체 {filteredProjects.length}건
+            전체 {filteredProjects.length}건
           </div>
         )}
       </div>
