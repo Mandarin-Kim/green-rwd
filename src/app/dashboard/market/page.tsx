@@ -43,7 +43,7 @@ export default function MarketPage() {
         const fallbackData: MarketData[] = [
           {
             id: '1',
-            disease: '제 2형 당뇨병',
+            disease: '제2형 당뇨병',
             prevalence: 8.5,
             potentialSubjects: 5200,
             activeTrials: 12,
@@ -63,7 +63,7 @@ export default function MarketPage() {
           },
           {
             id: '3',
-            disease: '고 콜레 스트롤혈증',
+            disease: '고콜레스테롤혈증',
             prevalence: 9.7,
             potentialSubjects: 2100,
             activeTrials: 5,
@@ -134,7 +134,7 @@ export default function MarketPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">질환</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">유 병률 (%)</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">유병률 (%)</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">예상 대상자</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">진행중 상태</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">시장규모</th>
