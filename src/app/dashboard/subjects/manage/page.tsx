@@ -125,7 +125,7 @@ export default function SubjectsManagePage() {
     switch (status) {
       case 'ëì':
         return 'bg-green-100 text-green-800'
-      case 'ë¯¼ëì':
+      case 'ë¯¸ëì':
         return 'bg-red-100 text-red-800'
       case 'ëê¸°ì¤':
         return 'bg-yellow-100 text-yellow-800'
@@ -266,25 +266,3 @@ export default function SubjectsManagePage() {
     </div>
   )
 }
-'use client'
-
-import { useState, useEffect, useMemo } from 'react'
-import {
-  Users,
-  Plus,
-  Search,
-  Filter,
-  Edit2,
-  Trash2,
-  X,
-  Save,
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  Calendar,
-  MapPin,
-  ClipboardCheck,
-  Activity,
-} from 'lucide-react'
-import { apiPost, apiPut, apiDelete, apiGet } from '@/lib/api'
