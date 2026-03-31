@@ -9,7 +9,7 @@ interface Project {
   name: string
   sponsor: string
   phase: 'Phase 1' | 'Phase 2' | 'Phase 3' | 'Phase 4'
-  status: 'ì§íì¤' | 'ì¤ë¹ì¤' | 'ìë£' | 'ì¤ë¨'
+  status: '진행중' | '준비중' | '완료' | '중단'
   startDate: string
   endDate?: string
   description?: string
@@ -35,15 +35,15 @@ export default function ProjectsPage() {
         setFilteredProjects(data || [])
       } catch (err) {
         console.error('Failed to fetch projects:', err)
-        setError('íë¡ì í¸ ë°ì´í°ë¥¼ ë¶ë¬ì¤ëë° ì¤í¨íìµëë¤.')
+        setError('프로젝트 데이터를 불러오는데 실패했습니다.')
         // Fallback data
         const fallbackData: Project[] = [
           {
             id: '1',
-            name: 'ë¹ë¨ë³ ì ì½ ìììí',
+            name: '당뇨병 신 약 임상시험',
             sponsor: 'Pharma Corp',
             phase: 'Phase 3',
-            status: 'ì§íì¤',
+            status: '진행중',
             startDate: '2026-01-15',
             endDate: '2026-12-31',
             sites: 15,
@@ -51,10 +51,10 @@ export default function ProjectsPage() {
           },
           {
             id: '2',
-            name: 'ê³ íì ì¹ë£ì  ì°êµ¬',
+            name: '고혈압 치료약 연구',
             sponsor: 'MediLab Inc',
             phase: 'Phase 2',
-            status: 'ì§íì¤',
+            status: '진행중',
             startDate: '2026-02-01',
             sites: 8,
             subjects: 150,
@@ -80,13 +80,13 @@ export default function ProjectsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ì§íì¤':
+      case '진행중':
         return 'bg-blue-100 text-blue-800'
-      case 'ì¤ë¹ì¤':
+      case '준비중':
         return 'bg-yellow-100 text-yellow-800'
-      case 'ìë£':
+      case '완료':
         return 'bg-green-100 text-green-800'
-      case 'ì¤ë¨':
+      case '중단':
         return 'bg-red-100 text-red-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -111,15 +111,15 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ìììí íë¡ì í¸</h1>
-        <p className="text-gray-600 mt-2">ì§íì¤ì¸ ìììí íë¡ì í¸ ëª©ë¡</p>
+        <h1 className="text-3xl font-bold text-gray-900">임상시험 프로젝트</h1>
+        <p className="text-gray-600 mt-2">진행중인 임상시험 프로젝트 목록</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-red-800 font-medium">ì¤ë¥</p>
+            <p className="text-red-800 font-medium">오류</p>
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function ProjectsPage() {
             <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="íë¡ì í¸ëª, ì¤í°ìë¡ ê²ì..."
+              placeholder="프로젝트명, 스폰서로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -145,19 +145,19 @@ export default function ProjectsPage() {
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">íë¡ì í¸ê° ììµëë¤.</p>
+            <p className="text-gray-500">프로젝트가 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">íë¡ì í¸ëª</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì¤í°ì</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìì¡ë¨ê³</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìí</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ììì¼</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ë±ë¡ì</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">프로젝트명</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">스폰서</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">임상단계</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">상태</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">시작일</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">등록자</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,7 +186,7 @@ export default function ProjectsPage() {
 
         {!loading && filteredProjects.length > 0 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-            ì ì²´ {filteredProjects.length}ê±´
+            전 체 {filteredProjects.length}건
           </div>
         )}
       </div>
