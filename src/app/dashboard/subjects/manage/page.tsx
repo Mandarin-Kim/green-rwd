@@ -12,7 +12,7 @@ interface Subject {
   gender: 'ë¨' | 'ì¬'
   diagnosis: string
   hospital: string
-  consentStatus: 'ëì' | 'ë¯¸ëì' | 'ëê¸°ì¤'
+  consentStatus: 'ëì' | 'ë¯¸ëì' | 'ëê¸°ì¤'
   enrollmentDate: string
   notes?: string
 }
@@ -53,29 +53,29 @@ export default function SubjectsManagePage() {
           {
             id: '2',
             screeningId: 'SCR-2026-002',
-            name: 'ì´ìí¬',
+            name: 'ì´ìë¯¸',
             age: 58,
             gender: 'ì¬',
             diagnosis: 'ì 2í ë¹ë¨ë³',
-            hospital: 'ê²½í¬ìë£ì',
+            hospital: 'ê²½ë¶ìë£ì',
             consentStatus: 'ëì',
             enrollmentDate: '2026-03-02',
           },
           {
             id: '3',
             screeningId: 'SCR-2026-003',
-            name: 'ë°ì ë¯¼',
+            name: 'ë°ì ë¯¼',
             age: 71,
             gender: 'ë¨',
             diagnosis: 'ê³ íì',
             hospital: 'ì¢ë¡ìë£ì',
-            consentStatus: 'ëê¸°ì¤',
+            consentStatus: 'ëê¸°ì¤',
             enrollmentDate: '2026-03-10',
           },
           {
             id: '4',
             screeningId: 'SCR-2026-004',
-            name: 'ìµìì§',
+            name: 'ì ìì§',
             age: 55,
             gender: 'ì¬',
             diagnosis: 'ê³ íì',
@@ -86,11 +86,11 @@ export default function SubjectsManagePage() {
           {
             id: '5',
             screeningId: 'SCR-2026-005',
-            name: 'ì¡°ìí¸',
+            name: 'ì¡°ì±í¸',
             age: 67,
             gender: 'ë¨',
-            diagnosis: 'ê³ ì½ë ì¤íë¡¤íì¦',
-            hospital: 'ê²½í¬ìë£ì',
+            diagnosis: 'ê³ ì½ë ì¤íë¡¤íì¦',
+            hospital: 'ê²½ë¶ìë£ì',
             consentStatus: 'ë¯¸ëì',
             enrollmentDate: '2026-03-12',
           },
@@ -127,7 +127,7 @@ export default function SubjectsManagePage() {
         return 'bg-green-100 text-green-800'
       case 'ë¯¸ëì':
         return 'bg-red-100 text-red-800'
-      case 'ëê¸°ì¤':
+      case 'ëê¸°ì¤':
         return 'bg-yellow-100 text-yellow-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -138,7 +138,7 @@ export default function SubjectsManagePage() {
     switch (status) {
       case 'ëì':
         return <CheckCircle className="w-4 h-4" />
-      case 'ëê¸°ì¤':
+      case 'ëê¸°ì¤':
         return <Clock className="w-4 h-4" />
       default:
         return null
