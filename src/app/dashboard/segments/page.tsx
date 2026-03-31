@@ -11,7 +11,7 @@ interface Segment {
   criteria: string
   count: number
   createdDate: string
-  status: 'íì±' | 'ë¹íì±'
+  status: '활성' | '비활성'
 }
 
 export default function SegmentsPage() {
@@ -31,35 +31,35 @@ export default function SegmentsPage() {
         setFilteredSegments(data || [])
       } catch (err) {
         console.error('Failed to fetch segments:', err)
-        setError('ì¸ê·¸ë¨¼í¸ ë°ì´í°ë¥¼ ë¶ë¬ì¤ëë° ì¤í¨íìµëë¤.')
+        setError('세그먼트 데이터를 불러오는데 실패했습니다.')
         // Fallback data
         const fallbackData: Segment[] = [
           {
             id: '1',
-            name: 'ë¹ë¨ë° íìêµ°',
-            description: 'ì 2í ë¹ë¨ë³ì¼ë¡ ì§ë¨ë°ì íì',
-            criteria: 'ëì´ 40-70, HbA1c > 7%',
+            name: '당뇨밑 환자군',
+            description: '제2형 당뇨병으로 진단받은 환자',
+            criteria: '나이 40-70, HbA1c > 7%',
             count: 2350,
             createdDate: '2025-12-01',
-            status: 'íì±',
+            status: '활성',
           },
           {
             id: '2',
-            name: 'ê³ íì íìêµ°',
-            description: 'íì ì¡°ì  ë¯¸í¡í íì',
-            criteria: 'ëì´ 30-80, ìì¶±ê¸° > 130mmHg',
+            name: '고혈압 환자군',
+            description: '혈압 조절 미흡한 환자',
+            criteria: '나이 30-80, 수춱기 > 130mmHg',
             count: 1850,
             createdDate: '2025-11-15',
-            status: 'íì±',
+            status: '활성',
           },
           {
             id: '3',
-            name: 'ì½ë ì¤íë¡¤ íìêµ°',
-            description: 'ê³ ì½ë ì¤íë¡¤íì¦ íì',
+            name: '콜레스테롤 환자군',
+            description: '고콜레스테롤혈증 환자',
             criteria: 'LDL > 160mg/dL',
             count: 950,
             createdDate: '2025-10-20',
-            status: 'íì±',
+            status: '활성',
           },
         ]
         setSegments(fallbackData)
@@ -83,15 +83,15 @@ export default function SegmentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ì¸ê·¸ë¨¼í¸ ê´ë¦¬</h1>
-        <p className="text-gray-600 mt-2">ëìì ì¸ê·¸ë¨¼í¸ ëª©ë¡ ë° ì¡°ê±´ ê´ë¦¬</p>
+        <h1 className="text-3xl font-bold text-gray-900">세그먼트 관리</h1>
+        <p className="text-gray-600 mt-2">대상자 세그먼트 목록 및 조건 관리</p>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-red-800 font-medium">ì¤ë¥</p>
+            <p className="text-red-800 font-medium">오류</p>
             <p className="text-red-700 text-sm">{error}</p>
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function SegmentsPage() {
             <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="ì¸ê·¸ë¨¼í¸ëª, ì¤ëªì¼ë¡ ê²ì..."
+              placeholder="세그먼트명, 설명으로 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -117,18 +117,18 @@ export default function SegmentsPage() {
           </div>
         ) : filteredSegments.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">ì¸ê·¸ë¨¼í¸ê° ììµëë¤.</p>
+            <p className="text-gray-500">세그먼트가 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì¸ê·¸ë¨¼í¸ëª</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì¤ëª</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ì¡°ê±´</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ëìì</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ìí</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">세그먼트명</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">설명</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">조건</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">대상자</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,7 +146,7 @@ export default function SegmentsPage() {
                     <td className="px-6 py-4 text-sm">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          segment.status === 'íì±'
+                          segment.status === '활성'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}
@@ -163,7 +163,7 @@ export default function SegmentsPage() {
 
         {!loading && filteredSegments.length > 0 && (
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-            ì ì²´ {filteredSegments.length}ê±´ | ì´ ëìì: {filteredSegments.reduce((sum, s) => sum + s.count, 0).toLocaleString()}
+            전체 {filteredSegments.length}건 | 이 대상자: {filteredSegments.reduce((sum, s) => sum + s.count, 0).toLocaleString()}
           </div>
         )}
       </div>
