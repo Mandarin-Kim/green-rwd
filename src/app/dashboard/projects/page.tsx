@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Search, Loader2, AlertCircle } from 'lucide-react'
 import { apiGet } from '@/lib/api'
+import { formatDate } from '@/lib/utils'
 
 interface Project {
   id: string
@@ -36,11 +37,10 @@ export default function ProjectsPage() {
       } catch (err) {
         console.error('Failed to fetch projects:', err)
         setError('프로젝트 데이터를 불러오는데 실패했습니다.')
-        // Fallback data
         const fallbackData: Project[] = [
           {
             id: '1',
-            name: '당뇨병 신 약 임상시험',
+            name: '당뇨병 신약 임상시험',
             sponsor: 'Pharma Corp',
             phase: 'Phase 3',
             status: '진행중',
@@ -80,31 +80,21 @@ export default function ProjectsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case '진행중':
-        return 'bg-blue-100 text-blue-800'
-      case '준비중':
-        return 'bg-yellow-100 text-yellow-800'
-      case '완료':
-        return 'bg-green-100 text-green-800'
-      case '중단':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+      case '진행중': return 'bg-blue-100 text-blue-800'
+      case '준비중': return 'bg-yellow-100 text-yellow-800'
+      case '완료': return 'bg-green-100 text-green-800'
+      case '중단': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
   const getPhaseColor = (phase: string) => {
     switch (phase) {
-      case 'Phase 1':
-        return 'bg-purple-100 text-purple-800'
-      case 'Phase 2':
-        return 'bg-indigo-100 text-indigo-800'
-      case 'Phase 3':
-        return 'bg-blue-100 text-blue-800'
-      case 'Phase 4':
-        return 'bg-cyan-100 text-cyan-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+      case 'Phase 1': return 'bg-purple-100 text-purple-800'
+      case 'Phase 2': return 'bg-indigo-100 text-indigo-800'
+      case 'Phase 3': return 'bg-blue-100 text-blue-800'
+      case 'Phase 4': return 'bg-cyan-100 text-cyan-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
@@ -175,8 +165,8 @@ export default function ProjectsPage() {
                         {project.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{project.startDate}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{project.subjects || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{formatDate(project.startDate)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{project.subjects ? project.subjects + '명' : '-'}</td>
                   </tr>
                 ))}
               </tbody>
