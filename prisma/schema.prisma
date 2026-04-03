@@ -1,52 +1,27 @@
-// Green-RWD Platform - Prisma Schema
-// 임상시험 리크루팅 + RWD 기반 타겟마케팅 통합 플랫폼
+// Green-RWD v2 Database Schema
+// PostgreSQL on Neon, managed via Prisma ORM
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// ============================================
-// 1. 사용자 및 인증 (User & Auth)
-// ============================================
+// ──────────────────────────────────────
+// 1. AUTH & USER
+// ──────────────────────────────────────
 
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  password      String
-  role          UserRole  @default(VIEWER)
-  image         String?
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  accounts Account[]
-  sessions Session[]
-
-  // Relations
-  createdCampaigns  Campaign[]    @relation("CampaignCreator")
-  approvedSendings  SendingItem[] @relation("SendingApprover")
-  requestedSendings SendingItem[] @relation("SendingRequester")
-  uploadedDocuments TMFDocument[] @relation("DocumentUploader")
-  approvedDocuments TMFDocument[] @relation("DocumentApprover")
-  auditLogs         AuditLog[]
-
-  @@map("users")
-}
-
-enum UserRole {
+enum Role {
   ADMIN
-  MANAGER
-  RESEARCHER
-  VIEWER
+  SPONSOR
+  CRA
+  USER
 }
 
-// NextAuth.js 연동 테이블
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -59,15 +34,10 @@ model Account {
   token_type        String?
   scope             String?
   id_token          String? @db.Text
-  session_state     String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("accounts")
 }
 
 model Session {
@@ -75,344 +45,455 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
 }
 
-// ============================================
-// 2. 캠페인 및 발송 (Campaign & Sending)
-// ============================================
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String?    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role       @default(USER)
+  orgId         String?
+  phone         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  org           Organization? @relation(fields: [orgId], references: [id])
+  campaigns     Campaign[]
+  reportOrders  ReportOrder[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+}
 
-model Campaign {
-  id          String         @id @default(cuid())
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ──────────────────────────────────────
+// 2. ORGANIZATION
+// ──────────────────────────────────────
+
+model Organization {
+  id          String    @id @default(cuid())
   name        String
-  description String?
-  targetName  String
-  targetCount Int
-  status      CampaignStatus @default(DRAFT)
-  startDate   DateTime
-  endDate     DateTime?
-  type        CampaignType
-  createdById String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  createdBy User      @relation("CampaignCreator", fields: [createdById], references: [id])
-  sendings  Sending[]
-
-  @@map("campaigns")
+  bizNumber   String?   @unique
+  plan        String    @default("FREE")
+  creditBalance Int     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  campaigns   Campaign[]
+  reportOrders ReportOrder[]
 }
+
+// ──────────────────────────────────────
+// 3. CAMPAIGN
+// ──────────────────────────────────────
 
 enum CampaignStatus {
   DRAFT
-  ACTIVE
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SCHEDULED
+  EXECUTING
   PAUSED
   COMPLETED
   CANCELLED
 }
 
-enum CampaignType {
+enum ChannelType {
   SMS
-  EMAIL
+  LMS
   KAKAO
+  EMAIL
   PUSH
-  MIXED
 }
 
-model Sending {
-  id          String        @id @default(cuid())
-  campaignId  String
-  totalCount  Int
-  status      SendingStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-  approvedAt  DateTime?
-  approvedBy  String?
-  executedAt  DateTime?
-  completedAt DateTime?
-  updatedAt   DateTime      @updatedAt
+model Campaign {
+  id              String         @id @default(cuid())
+  name            String
+  description     String?        @db.Text
+  status          CampaignStatus @default(DRAFT)
+  channelType     ChannelType    @default(SMS)
 
-  campaign Campaign      @relation(fields: [campaignId], references: [id])
-  items    SendingItem[]
+  // Step 1: 목표
+  objective       String?
+  kpiTarget       Json?
 
-  @@map("sendings")
+  // Step 2: 타겟
+  segmentId       String?
+  segment         Segment?       @relation(fields: [segmentId], references: [id])
+  targetCount     Int            @default(0)
+
+  // Step 3: 콘텐츠
+  contentTitle    String?
+  contentBody     String?        @db.Text
+  contentJson     Json?
+  templateId      String?
+
+  // Step 4: 일정
+  scheduledAt     DateTime?
+  sendingDays     Json?
+  sendingTime     String?
+
+  // Step 5: 검수/승인
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // A/B Testing
+  abTestEnabled   Boolean        @default(false)
+  abVariants      Json?
+
+  // Relations
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  orgId           String?
+  org             Organization?  @relation(fields: [orgId], references: [id])
+  sendings        Sending[]
+  analytics       CampaignAnalytics?
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
+
+// ──────────────────────────────────────
+// 4. SEGMENT
+// ──────────────────────────────────────
+
+model Segment {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?    @db.Text
+  filterJson    Json
+  patientCount  Int        @default(0)
+  tags          String[]
+  status        String     @default("active")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  campaigns     Campaign[]
+  patients      PatientSegment[]
+}
+
+model Patient {
+  id            String     @id @default(cuid())
+  externalId    String?    @unique
+  gender        String?
+  ageGroup      String?
+  region        String?
+  diagnosisCodes String[]
+  drugCodes     String[]
+  consentStatus String     @default("PENDING")
+  consentDate   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  segments      PatientSegment[]
+}
+
+model PatientSegment {
+  id         String   @id @default(cuid())
+  patientId  String
+  segmentId  String
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  segment    Segment  @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  matchScore Float?
+  matchedAt  DateTime @default(now())
+
+  @@unique([patientId, segmentId])
+}
+
+// ──────────────────────────────────────
+// 5. SENDING
+// ──────────────────────────────────────
 
 enum SendingStatus {
   PENDING
   APPROVED
   REJECTED
+  READY
   EXECUTING
   PAUSED
   COMPLETED
-}
-
-model SendingItem {
-  id           String            @id @default(cuid())
-  sendingId    String
-  subjectId    String?
-  status       SendingItemStatus @default(PENDING)
-  sentAt       DateTime?
-  deliveredAt  DateTime?
-  openedAt     DateTime?
-  clickedAt    DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  approverId   String?
-  requesterId  String?
-
-  sending   Sending  @relation(fields: [sendingId], references: [id])
-  approver  User?    @relation("SendingApprover", fields: [approverId], references: [id])
-  requester User?    @relation("SendingRequester", fields: [requesterId], references: [id])
-
-  @@map("sending_items")
-}
-
-enum SendingItemStatus {
-  PENDING
-  APPROVED
-  PROCESSING
-  SENT
-  DELIVERED
-  OPENED
-  CLICKED
   FAILED
 }
 
-// ============================================
-// 3. 대상자 및 세그먼트 (Subject & Segment)
-// ============================================
-
-model Subject {
-  id             String    @id @default(cuid())
-  screeningId    String    @unique
-  name           String
-  age            Int?
-  gender         String?
-  phone          String?
-  email          String?
-  diagnosis      String?
-  hospital       String?
-  consentStatus  String?
-  enrolledAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  iwrsAssignments  IWRSAssignment[]
-  saeReports       SAEReport[]
-  eConsentRecords  EConsentRecord[]
-
-  @@map("subjects")
+model Sending {
+  id            String        @id @default(cuid())
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  totalCount    Int           @default(0)
+  successCount  Int           @default(0)
+  failCount     Int           @default(0)
+  status        SendingStatus @default(PENDING)
+  channel       ChannelType   @default(SMS)
+  costPerUnit   Float         @default(0)
+  totalCost     Float         @default(0)
+  approvedBy    String?
+  approvedAt    DateTime?
+  executedAt    DateTime?
+  completedAt   DateTime?
+  errorLog      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
-model Segment {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  criteria    String?  @db.Text
-  count       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ──────────────────────────────────────
+// 6. CAMPAIGN ANALYTICS
+// ──────────────────────────────────────
 
-  @@map("segments")
+model CampaignAnalytics {
+  id              String   @id @default(cuid())
+  campaignId      String   @unique
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  totalSent       Int      @default(0)
+  delivered       Int      @default(0)
+  opened          Int      @default(0)
+  clicked         Int      @default(0)
+  converted       Int      @default(0)
+  bounced         Int      @default(0)
+  unsubscribed    Int      @default(0)
+  deliveryRate    Float    @default(0)
+  openRate        Float    @default(0)
+  clickRate       Float    @default(0)
+  conversionRate  Float    @default(0)
+  totalCost       Float    @default(0)
+  costPerConvert  Float    @default(0)
+  dailyStats      Json?
+  hourlyStats     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
-// ============================================
-// 4. 임상시험 프로젝트 (Project & Study)
-// ============================================
+// ──────────────────────────────────────
+// 7. AI REPORT
+// ──────────────────────────────────────
 
-model Project {
-  id          String        @id @default(cuid())
-  name        String
-  sponsor     String?
-  phase       String?
-  status      ProjectStatus @default(PLANNING)
-  startDate   DateTime?
-  endDate     DateTime?
-  description String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  @@map("projects")
+enum ReportTier {
+  BASIC
+  PRO
+  PREMIUM
 }
 
-enum ProjectStatus {
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ReportCatalog {
+  id              String        @id @default(cuid())
+  title           String
+  slug            String        @unique
+  description     String?       @db.Text
+  categories      String[]
+  therapeuticArea String?
+  drugName        String?
+  indication      String?
+  region          String        @default("KR")
+  marketSizeKrw   BigInt?
+  patientPool     Int?
+  availableTiers  ReportTier[]
+  priceBasic      Int           @default(500000)
+  pricePro        Int           @default(1500000)
+  pricePremium    Int           @default(3000000)
+  sampleUrl       String?
+  thumbnailUrl    String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orders          ReportOrder[]
+}
+
+model ReportOrder {
+  id              String       @id @default(cuid())
+  catalogId       String
+  catalog         ReportCatalog @relation(fields: [catalogId], references: [id])
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  orgId           String?
+  org             Organization? @relation(fields: [orgId], references: [id])
+  tier            ReportTier
+  price           Int
+  status          ReportStatus @default(PENDING)
+  progress        Int          @default(0)
+  customPrompt    String?      @db.Text
+  sections        Json?
+  generatedUrl    String?
+  errorMessage    String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+// ──────────────────────────────────────
+// 8. DATA SOURCE (스크래핑/API 연동)
+// ──────────────────────────────────────
+
+enum DataSourceType {
+  API
+  SCRAPING
+  CSV
+  INTERNAL
+}
+
+model DataSource {
+  id            String         @id @default(cuid())
+  name          String
+  type          DataSourceType
+  endpoint      String?
+  apiKey        String?
+  schedule      String?
+  lastSyncAt    DateTime?
+  lastSyncStatus String?
+  recordCount   Int            @default(0)
+  isActive      Boolean        @default(true)
+  config        Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  cacheEntries  DataCache[]
+}
+
+model DataCache {
+  id           String     @id @default(cuid())
+  sourceId     String
+  source       DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  cacheKey     String
+  data         Json
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+
+  @@unique([sourceId, cacheKey])
+  @@index([expiresAt])
+}
+
+// ──────────────────────────────────────
+// 9. eClinical (CTMS / EDC)
+// ──────────────────────────────────────
+
+enum StudyStatus {
   PLANNING
   ACTIVE
+  PAUSED
   COMPLETED
-  SUSPENDED
   TERMINATED
 }
 
 model Study {
+  id              String       @id @default(cuid())
+  protocolNumber  String       @unique
+  title           String
+  phase           String?
+  status          StudyStatus  @default(PLANNING)
+  sponsorName     String?
+  indication      String?
+  targetEnrollment Int         @default(0)
+  currentEnrollment Int        @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+  sites           Site[]
+  ecrfTemplates   EcrfTemplate[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Site {
+  id            String   @id @default(cuid())
+  studyId       String
+  study         Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  name          String
+  code          String
+  piName        String?
+  address       String?
+  targetCount   Int      @default(0)
+  enrolledCount Int      @default(0)
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model EcrfTemplate {
+  id         String   @id @default(cuid())
+  studyId    String
+  study      Study    @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  name       String
+  version    String   @default("1.0")
+  schema     Json
+  isPublished Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+// 10. NOTIFICATION & AUDIT
+// ──────────────────────────────────────
+
+model Notification {
   id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  phase     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  message   String   @db.Text
+  link      String?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  edcForms        EDCForm[]
-  ctmsSites       CTMSSite[]
-  ctmsMilestones  CTMSMilestone[]
-  iwrsAssignments IWRSAssignment[]
-  saeReports      SAEReport[]
-  aeSummaries     AESummary[]
-  etmfDocuments   ETMFDocument[]
-  eConsentForms   EConsentForm[]
-  eConsentRecords EConsentRecord[]
-
-  @@map("studies")
 }
-
-// ============================================
-// 5. eClinical 모듈
-// ============================================
-
-model EDCForm {
-  id       String @id @default(cuid())
-  studyId  String
-  formName String
-  study    Study  @relation(fields: [studyId], references: [id])
-  @@map("edc_forms")
-}
-
-model CTMSSite {
-  id        String  @id @default(cuid())
-  studyId   String
-  siteName  String?
-  status    String?
-  piName    String?
-  enrolled  Int     @default(0)
-  target    Int     @default(0)
-  study     Study   @relation(fields: [studyId], references: [id])
-  @@map("ctms_sites")
-}
-
-model CTMSMilestone {
-  id       String    @id @default(cuid())
-  studyId  String
-  name     String?
-  dueDate  DateTime?
-  status   String?
-  study    Study     @relation(fields: [studyId], references: [id])
-  @@map("ctms_milestones")
-}
-
-model IWRSAssignment {
-  id        String   @id @default(cuid())
-  studyId   String
-  subjectId String
-  date      DateTime
-  treatment String?
-  kit       String?
-  study     Study    @relation(fields: [studyId], references: [id])
-  subject   Subject  @relation(fields: [subjectId], references: [id])
-  @@map("iwrs_assignments")
-}
-
-model SAEReport {
-  id          String   @id @default(cuid())
-  studyId     String
-  subjectId   String
-  site        String?
-  event       String
-  severity    String
-  relatedness String?
-  reportDate  DateTime
-  status      String   @default("open")
-  study       Study    @relation(fields: [studyId], references: [id])
-  subject     Subject  @relation(fields: [subjectId], references: [id])
-  @@map("sae_reports")
-}
-
-model AESummary {
-  id      String @id @default(cuid())
-  studyId String
-  event   String?
-  total   Int    @default(0)
-  serious Int    @default(0)
-  related Int    @default(0)
-  study   Study  @relation(fields: [studyId], references: [id])
-  @@map("ae_summaries")
-}
-
-model ETMFDocument {
-  id       String    @id @default(cuid())
-  studyId  String
-  name     String
-  zone     String?
-  uploader String?
-  date     DateTime?
-  size     String?
-  study    Study     @relation(fields: [studyId], references: [id])
-  @@map("etmf_documents")
-}
-
-model EConsentForm {
-  id      String  @id @default(cuid())
-  studyId String
-  title   String?
-  version String?
-  status  String?
-  study   Study   @relation(fields: [studyId], references: [id])
-  @@map("econsent_forms")
-}
-
-model EConsentRecord {
-  id              String  @id @default(cuid())
-  studyId         String
-  subjectId       String
-  mainConsent     String  @default("pending")
-  genomicConsent  String  @default("pending")
-  biobankConsent  String  @default("pending")
-  study           Study   @relation(fields: [studyId], references: [id])
-  subject         Subject @relation(fields: [subjectId], references: [id])
-  @@map("econsent_records")
-}
-
-// ============================================
-// 6. TMF 문서 관리
-// ============================================
-
-model TMFDocument {
-  id         String         @id @default(cuid())
-  title      String
-  category   String?
-  status     DocumentStatus @default(DRAFT)
-  version    String?
-  filePath   String?
-  uploaderId String
-  approverId String?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  uploader   User           @relation("DocumentUploader", fields: [uploaderId], references: [id])
-  approver   User?          @relation("DocumentApprover", fields: [approverId], references: [id])
-  @@map("tmf_documents")
-}
-
-enum DocumentStatus {
-  DRAFT
-  REVIEW
-  APPROVED
-  ARCHIVED
-}
-
-// ============================================
-// 7. 감사 로그 (Audit Log)
-// ============================================
 
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   action    String
   entity    String
   entityId  String?
-  details   String?  @db.Text
+  detail    Json?
   ipAddress String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  @@map("audit_logs")
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+}
+
+// ──────────────────────────────────────
+// 11. TEMPLATE (캠페인 콘텐츠 템플릿)
+// ──────────────────────────────────────
+
+model ContentTemplate {
+  id          String      @id @default(cuid())
+  name        String
+  channel     ChannelType
+  category    String?
+  subject     String?
+  body        String      @db.Text
+  variables   String[]
+  thumbnailUrl String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// ──────────────────────────────────────
+// 12. CREDIT & BILLING
+// ──────────────────────────────────────
+
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  orgId       String
+  type        String   // CHARGE, SPEND, REFUND
+  amount      Int
+  balance     Int
+  description String?
+  reference   String?
+  createdAt   DateTime @default(now())
 }

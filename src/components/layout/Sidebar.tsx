@@ -4,8 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  BarChart3, Target, Megaphone, Rocket, Users, FlaskConical,
-  Settings, ChevronDown, ChevronRight, LayoutDashboard
+  BarChart3, Target, Megaphone, Rocket, FlaskConical,
+  Settings, ChevronDown, ChevronRight, LayoutDashboard, Shield
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,65 +13,57 @@ interface NavItem {
   label: string
   href?: string
   icon: React.ReactNode
+  permission?: string
   children?: { label: string; href: string }[]
 }
 
 const navItems: NavItem[] = [
   { label: '대시보드', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
   {
-    label: '시장분석·타겟', icon: <BarChart3 size={18} />,
+    label: '시장분석·보고서', icon: <BarChart3 size={18} />,
     children: [
-      { label: '시장보고서', href: '/dashboard/market' },
-      { label: 'RWD 리스트', href: '/dashboard/rwd-list' },
-      { label: '세그먼트', href: '/dashboard/segments' },
+      { label: 'AI 시장보고서', href: '/market' },
+      { label: '세그먼트', href: '/segments' },
     ]
   },
   {
-    label: '캠페인·분석', icon: <Megaphone size={18} />,
+    label: '캠페인', icon: <Megaphone size={18} />,
     children: [
-      { label: '캠페인 관리', href: '/dashboard/campaigns' },
-      { label: '콘텐츠 생성', href: '/dashboard/campaigns/content' },
-      { label: '분석 설정', href: '/dashboard/campaigns/analytics' },
+      { label: '캠페인 목록', href: '/campaigns' },
+      { label: '새 캠페인', href: '/campaigns/new' },
     ]
   },
   {
     label: '발송·성과', icon: <Rocket size={18} />,
     children: [
-      { label: '승인/충전', href: '/dashboard/sending/approve' },
-      { label: '발송', href: '/dashboard/sending/execute' },
-      { label: '성과 분석', href: '/dashboard/sending/performance' },
+      { label: '발송 관리', href: '/sending' },
     ]
   },
   {
-    label: '대상자·프로젝트', icon: <Users size={18} />,
+    label: 'eClinical', icon: <FlaskConical size={18} />,
     children: [
-      { label: '적격 분류', href: '/dashboard/subjects/qualify' },
-      { label: '대상자 관리', href: '/dashboard/subjects/manage' },
-      { label: '프로젝트', href: '/dashboard/projects' },
+      { label: '임상시험 관리', href: '/eclinical' },
     ]
   },
   {
-    label: 'eClinical Suite', icon: <FlaskConical size={18} />,
+    label: '관리자', icon: <Shield size={18} />, permission: 'ADMIN',
     children: [
-      { label: 'EDC', href: '/dashboard/eclinical/edc' },
-      { label: 'CTMS', href: '/dashboard/eclinical/ctms' },
-      { label: 'IWRS', href: '/dashboard/eclinical/iwrs' },
-      { label: 'Safety', href: '/dashboard/eclinical/safety' },
-      { label: 'eTMF', href: '/dashboard/eclinical/etmf' },
-      { label: 'eConsent', href: '/dashboard/eclinical/econsent' },
+      { label: '사용자 관리', href: '/admin/users' },
+      { label: '데이터소스', href: '/admin/datasources' },
+      { label: '주문 관리', href: '/admin/orders' },
     ]
   },
-  { label: '설정', href: '/dashboard/settings', icon: <Settings size={18} /> },
+  { label: '설정', href: '/settings', icon: <Settings size={18} /> },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
-    '시장분석·타겟': true,
-    '캠페인·분석': false,
+    '시장분석·보고서': true,
+    '캠페인': false,
     '발송·성과': false,
-    '대상자·프로젝트': false,
-    'eClinical Suite': false,
+    'eClinical': false,
+    '관리자': false,
   })
 
   const toggleMenu = (label: string) => {
@@ -92,7 +84,7 @@ export default function Sidebar() {
           </div>
           <div>
             <h1 className="text-white font-bold text-[15px] leading-tight">Green-RWD</h1>
-            <p className="text-[10px] text-slate-400 leading-tight">Real-World Data Platform</p>
+            <p className="text-[10px] text-slate-400 leading-tight">Clinical Platform v2</p>
           </div>
         </Link>
       </div>

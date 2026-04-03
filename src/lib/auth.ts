@@ -1,99 +1,62 @@
-import { type NextAuthOptions } from 'next-auth'
+import { NextAuthOptions, getServerSession } from 'next-auth'
+import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
-import { getServerSession } from 'next-auth/next'
+import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    }),
     CredentialsProvider({
-      name: 'Credentials',
+      name: 'Demo Login',
       credentials: {
-        email: { label: '이메일', type: 'email', placeholder: 'user@green-ribbon.co.kr' },
-        password: { label: '비밀번호', type: 'password' },
+        email: { label: 'Email', type: 'email' },
+        role: { label: 'Role', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('이메일과 비밀번호를 입력해주세요.')
-        }
-
-        const user = await prisma.user.findUnique({
+        if (!credentials?.email) return null
+        // Demo mode: create or find user
+        const user = await prisma.user.upsert({
           where: { email: credentials.email },
+          update: {},
+          create: {
+            email: credentials.email,
+            name: credentials.email.split('@')[0],
+            role: (credentials.role as 'ADMIN' | 'SPONSOR' | 'CRA' | 'USER') || 'USER',
+          },
         })
-
-        if (!user) {
-          throw new Error('등록되지 않은 이메일입니다.')
-        }
-
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
-        if (!isPasswordValid) {
-          throw new Error('비밀번호가 올바르지 않습니다.')
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          image: user.image,
-        }
+        return { id: String(user.id), name: String(user.name || ''), email: String(user.email || ''), role: String(user.role || 'USER') }
       },
     }),
   ],
-  session: {
-    strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24시간
-  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id
-        token.role = (user as { role: string }).role
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.role = (user as any).role
+        token.userId = user.id
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { id: string }).id = token.id as string
-        ;(session.user as { role: string }).role = token.role as string
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (session.user as any).role = token.role
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(session.user as any).id = token.userId
       }
       return session
     },
   },
   pages: {
     signIn: '/login',
-    error: '/login',
   },
+  session: { strategy: 'jwt' },
   secret: process.env.NEXTAUTH_SECRET,
 }
 
-// 서버 세션 조회
-export const getAuthSession = () => getServerSession(authOptions)
-
-// 권한 검증
-export async function requireAuth() {
-  const session = await getAuthSession()
-  if (!session?.user) {
-    throw new Error('Unauthenticated')
-  }
-  return session
-}
-
-// 특정 권한 확인
-export function hasPermission(userRole: string, requiredRole: string): boolean {
-  const roleHierarchy: Record<string, number> = {
-    USER: 1,
-    MANAGER: 2,
-    ADMIN: 3,
-  }
-  return (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0)
-}
-
-// RBAC 권한 설정
-export const MENU_PERMISSIONS = {
-  DASHBOARD: ['ADMIN', 'MANAGER', 'USER'],
-  MARKET: ['ADMIN', 'MANAGER'],
-  ECLINICAL: ['ADMIN', 'MANAGER'],
-  SENDING: ['ADMIN'],
-  SETTINGS: ['ADMIN'],
+export async function getAuthSession() {
+  return getServerSession(authOptions)
 }

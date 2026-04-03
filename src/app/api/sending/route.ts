@@ -1,108 +1,208 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/api-guard'
+import {
+  success,
+  unauthorized,
+  forbidden,
+  badRequest,
+  notFound,
+  serverError,
+  paginate,
+} from '@/lib/api-response'
 
-export async function GET(request: NextRequest) {
+interface SendingListItem {
+  id: string
+  campaignId: string
+  campaignName: string
+  totalCount: number
+  successCount: number
+  failCount: number
+  status: string
+  channel: string
+  totalCost: number
+  createdAt: string
+  updatedAt: string
+}
+
+interface CreateSendingRequest {
+  campaignId: string
+}
+
+/**
+ * GET /api/sending
+ * 발송 목록 조회 (필터, 페이지네이션, 역할별 접근)
+ */
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') || 'all'
-    const campaignId = searchParams.get('campaignId') || ''
+    const user = await getSessionUser(req)
+    if (!user) {
+      return unauthorized('로그인이 필요합니다.')
+    }
+
+    const searchParams = Object.fromEntries(req.nextUrl.searchParams)
+    const { page, pageSize, skip, take } = paginate(searchParams)
+
+    // 필터 파라미터
+    const status = Array.isArray(searchParams.status)
+      ? searchParams.status[0]
+      : searchParams.status
+    const campaignId = Array.isArray(searchParams.campaignId)
+      ? searchParams.campaignId[0]
+      : searchParams.campaignId
 
     const where: Record<string, unknown> = {}
 
-    if (type === 'approve') {
-      where.status = 'pending'
-    } else if (type === 'execute') {
-      where.status = { in: ['approved', 'executing', 'paused'] }
-    } else if (type === 'performance') {
-      where.status = 'completed'
+    // 역할별 접근 제어
+    if (user.role === 'SPONSOR') {
+      // SPONSOR는 자신의 캠페인의 발송만 조회 가능
+      where.campaign = {
+        userId: user.id,
+      }
+    }
+    // ADMIN은 모든 발송 조회 가능
+
+    if (status) {
+      where.status = status
     }
 
-    if (campaignId) where.campaignId = campaignId
+    if (campaignId) {
+      where.campaignId = campaignId
+    }
 
-    const sendings = await prisma.sending.findMany({
-      where,
-      include: { campaign: { select: { name: true, type: true, targetCount: true } } },
-      orderBy: { createdAt: 'desc' }
-    })
-
-    return NextResponse.json(sendings)
-  } catch {
-    return NextResponse.json([
-      { id: '1', campaignId: 'CP-2026-001', totalCount: 1500, executedCount: 0, status: 'pending', approvedAt: '', approvedBy: '' },
-      { id: '2', campaignId: 'CP-2026-002', totalCount: 800, executedCount: 800, status: 'completed', approvedAt: '2026-03-20', approvedBy: '본부장님' },
-      { id: '3', campaignId: 'CP-2026-003', totalCount: 2000, executedCount: 1200, status: 'executing', approvedAt: '2026-03-25', approvedBy: '본부장님' },
-      { id: '4', campaignId: 'CP-2026-004', totalCount: 500, executedCount: 0, status: 'ready', approvedAt: '2026-03-28', approvedBy: '매니저' },
-      { id: '5', campaignId: 'CP-2026-005', totalCount: 1200, executedCount: 0, status: 'pending', approvedAt: '', approvedBy: '' },
+    const [sendings, total] = await Promise.all([
+      prisma.sending.findMany({
+        where,
+        select: {
+          id: true,
+          campaignId: true,
+          campaign: { select: { name: true } },
+          totalCount: true,
+          successCount: true,
+          failCount: true,
+          status: true,
+          channel: true,
+          totalCost: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.sending.count({ where }),
     ])
+
+    const data: SendingListItem[] = sendings.map((s) => ({
+      id: s.id,
+      campaignId: s.campaignId,
+      campaignName: s.campaign.name,
+      totalCount: s.totalCount,
+      successCount: s.successCount,
+      failCount: s.failCount,
+      status: s.status,
+      channel: s.channel,
+      totalCost: s.totalCost,
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+    }))
+
+    return success(data, { page, pageSize, total })
+  } catch (error) {
+    console.error('[GET /api/sending] Error:', error)
+    return serverError('발송 목록 조회 중 오류가 발생했습니다.')
   }
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/sending
+ * 새로운 발송 요청 생성 (캠페인 연결)
+ */
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
-    const { campaignId, totalCount } = body
+    const user = await getSessionUser(req)
+    if (!user) {
+      return unauthorized('로그인이 필요합니다.')
+    }
 
+    // SPONSOR와 ADMIN만 발송 생성 가능
+    if (!['SPONSOR', 'ADMIN'].includes(user.role)) {
+      return forbidden('발송을 생성할 수 있는 권한이 없습니다.')
+    }
+
+    const body: CreateSendingRequest = await req.json()
+
+    if (!body.campaignId) {
+      return badRequest('campaignId는 필수입니다.')
+    }
+
+    // 캠페인 확인
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: body.campaignId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        userId: true,
+        targetCount: true,
+        channelType: true,
+      },
+    })
+
+    if (!campaign) {
+      return notFound('캠페인을 찾을 수 없습니다.')
+    }
+
+    // 권한 확인: SPONSOR는 자신의 캠페인만 발송 가능
+    if (user.role === 'SPONSOR' && campaign.userId !== user.id) {
+      return forbidden('다른 사용자의 캠페인에 발송할 수 없습니다.')
+    }
+
+    // 캠페인 상태 확인: APPROVED 이상 상태일 때만 발송 가능
+    if (!['APPROVED', 'SCHEDULED', 'EXECUTING'].includes(campaign.status)) {
+      return badRequest('승인된 캠페인에서만 발송을 생성할 수 있습니다.')
+    }
+
+    // 발송 생성
     const sending = await prisma.sending.create({
       data: {
-        campaignId,
-        totalCount: totalCount || 0,
-        status: 'pending'
-      }
+        campaignId: body.campaignId,
+        totalCount: campaign.targetCount,
+        channel: campaign.channelType,
+        status: 'PENDING',
+      },
+      select: {
+        id: true,
+        campaignId: true,
+        campaign: { select: { name: true } },
+        totalCount: true,
+        successCount: true,
+        failCount: true,
+        status: true,
+        channel: true,
+        totalCost: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     })
 
-    return NextResponse.json(sending, { status: 201 })
-  } catch (error) {
-    console.error('Sending POST Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { id, action } = body
-
-    if (!id || !action) {
-      return NextResponse.json({ error: 'ID와 action이 필요합니다.' }, { status: 400 })
+    const data: SendingListItem = {
+      id: sending.id,
+      campaignId: sending.campaignId,
+      campaignName: sending.campaign.name,
+      totalCount: sending.totalCount,
+      successCount: sending.successCount,
+      failCount: sending.failCount,
+      status: sending.status,
+      channel: sending.channel,
+      totalCost: sending.totalCost,
+      createdAt: sending.createdAt.toISOString(),
+      updatedAt: sending.updatedAt.toISOString(),
     }
 
-    const updateData: Record<string, unknown> = {}
-
-    switch (action) {
-      case 'approve':
-        updateData.status = 'approved'
-        updateData.approvedAt = new Date()
-        updateData.approvedBy = '본부장님'
-        break
-      case 'reject':
-        updateData.status = 'rejected'
-        break
-      case 'execute':
-        updateData.status = 'executing'
-        updateData.executedAt = new Date()
-        break
-      case 'pause':
-        updateData.status = 'paused'
-        break
-      case 'resume':
-        updateData.status = 'executing'
-        break
-      case 'complete':
-        updateData.status = 'completed'
-        updateData.completedAt = new Date()
-        break
-      default:
-        return NextResponse.json({ error: '유효하지 않은 action' }, { status: 400 })
-    }
-
-    const sending = await prisma.sending.update({
-      where: { id },
-      data: updateData
-    })
-
-    return NextResponse.json(sending)
+    return success(data, undefined, 201)
   } catch (error) {
-    console.error('Sending PUT Error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    console.error('[POST /api/sending] Error:', error)
+    return serverError('발송 생성 중 오류가 발생했습니다.')
   }
 }
