@@ -1,23 +1,39 @@
 'use client'
 
 import { useState } from 'react'
+import { signIn } from 'next-auth/react'
 import { Target } from 'lucide-react'
 
 const demoAccounts = [
   { email: 'admin@greenribbon.co.kr', role: 'ADMIN', label: '관리자', desc: '전체 시스템 관리 권한' },
-  { email: 'sponsor@pharma.co.kr', role: 'SPONSOR', label: '스폰서', desc: '캠페인 생성/보고서 주문' },
+  { email: 'sponsor@pharma.co.kr', role: 'SPONSOR', label: '스폰서', desc: '캔페인 생성/보고서 주문' },
   { email: 'cra@greenribbon.co.kr', role: 'CRA', label: 'CRA/CRC', desc: '발송 승인/임상 관리' },
   { email: 'user@hospital.co.kr', role: 'USER', label: '일반 사용자', desc: '데이터 조회' },
 ]
 
 export default function LoginPage() {
   const [loading, setLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDemoLogin = async (account: typeof demoAccounts[0]) => {
     setLoading(account.role)
-    // In production, this would call signIn('credentials', {...})
-    // For now, redirect to dashboard
-    window.location.href = '/dashboard'
+    setError(null)
+    try {
+      const result = await signIn('credentials', {
+        email: account.email,
+        role: account.role,
+        redirect: false,
+      })
+      if (result?.error) {
+        setError('로그인 실패: ' + result.error)
+        setLoading(null)
+      } else {
+        window.location.href = '/dashboard'
+      }
+    } catch {
+      setError('로그인 중 오류가 발생했습니다')
+      setLoading(null)
+    }
   }
 
   return (
@@ -35,6 +51,11 @@ export default function LoginPage() {
         {/* Demo Login Cards */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-6">
           <p className="text-sm text-slate-300 mb-4 text-center">데모 계정으로 로그인</p>
+          {error && (
+            <div className="mb-3 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-xs text-center">
+              {error}
+            </div>
+          )}
           <div className="space-y-3">
             {demoAccounts.map(account => (
               <button
