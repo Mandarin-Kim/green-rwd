@@ -30,17 +30,17 @@ export async function POST(request: Request) {
       )
     }
 
-    // DB에서 실제 유저 조회 (세션 ID가 DB 리셋 후 불일치할 수 있음)
-    const dbUser = await prisma.user.findFirst({
+    // DB에서 유저 조회, 없으면 세션 정보로 자동 생성 (DB 리셋 대응)
+    const dbUser = await prisma.user.upsert({
       where: { email: sessionUser.email || '' },
+      update: {},
+      create: {
+        email: sessionUser.email || '',
+        name: sessionUser.name || 'Unknown',
+        role: sessionUser.role || 'ADMIN',
+        passwordHash: '',
+      },
     })
-
-    if (!dbUser) {
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: '사용자 정보를 찾을 수 없습니다. 다시 로그인해 주세요.' },
-        { status: 401 }
-      )
-    }
 
     const body = await request.json()
     const { studyId } = body
@@ -68,26 +68,20 @@ export async function POST(request: Request) {
     const remaining = study.targetEnrollment - study.currentEnrollment
     const siteNames = study.sites.map(s => s.name).join(', ')
 
-    // 캠페인 자동 생성 (DB 유저의 실제 ID 사용)
-    const campaignData: Record<string, unknown> = {
-      name: `[리크루팅] ${study.title}`,
-      description: `임상시험 ${study.protocolNumber} 기반 자동 생성 캠페인`,
-      status: 'DRAFT',
-      channelType: 'SMS',
-      objective: `${study.indication} 환자 대상 ${study.phase || ''} 임상시험 참여자 모집. 현재 ${study.currentEnrollment}/${study.targetEnrollment}명 등록 완료, 추가 ${remaining}명 모집 필요.`,
-      targetCount: remaining,
-      contentTitle: `${study.indication} 임상시험 참여 안내`,
-      contentBody: `안녕하세요, {이름}님.\n\n현재 ${study.sponsorName || ''}에서 진행 중인 "${study.title}" 임상시험에 참여하실 수 있습니다.\n\n■ 대상: ${study.indication} 환자\n■ 연구 단계: ${study.phase || '-'}\n■ 참여 기관: ${siteNames}\n■ 프로토콜: ${study.protocolNumber}\n\n참여를 원하시면 가까운 참여 기관에 문의해 주세요.\n\n감사합니다.\n그린리본 eClinical`,
-      userId: dbUser.id,
-    }
-
-    // orgId가 있으면 추가
-    if (dbUser.orgId) {
-      campaignData.orgId = dbUser.orgId
-    }
-
+    // 캠페인 자동 생성
     const campaign = await prisma.campaign.create({
-      data: campaignData as any,
+      data: {
+        name: `[리크루팅] ${study.title}`,
+        description: `임상시험 ${study.protocolNumber} 기반 자동 생성 캠페인`,
+        status: 'DRAFT',
+        channelType: 'SMS',
+        objective: `${study.indication} 환자 대상 ${study.phase || ''} 임상시험 참여자 모집. 현재 ${study.currentEnrollment}/${study.targetEnrollment}명 등록 완료, 추가 ${remaining}명 모집 필요.`,
+        targetCount: remaining,
+        contentTitle: `${study.indication} 임상시험 참여 안내`,
+        contentBody: `안녕하세요, {이름}님.\n\n현재 ${study.sponsorName || ''}에서 진행 중인 "${study.title}" 임상시험에 참여하실 수 있습니다.\n\n■ 대상: ${study.indication} 환자\n■ 연구 단계: ${study.phase || '-'}\n■ 참여 기관: ${siteNames}\n■ 프로토콜: ${study.protocolNumber}\n\n참여를 원하시면 가까운 참여 기관에 문의해 주세요.\n\n감사합니다.\n그린리본 eClinical`,
+        userId: dbUser.id,
+        orgId: dbUser.orgId || undefined,
+      } as any,
     })
 
     return NextResponse.json<ApiResponse>(
