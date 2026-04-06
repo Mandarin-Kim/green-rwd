@@ -9,7 +9,8 @@ import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Select from '@/components/ui/Select'
 import Stepper from '@/components/ui/Stepper'
-import { ArrowLeft, ArrowRight, Check, Megaphone, Target, FileText, Calendar, ClipboardCheck, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Megaphone, Target, FileText, Calendar, ClipboardCheck, Loader2, Sparkles, Plus } from 'lucide-react'
+import Link from 'next/link'
 import { useApi, useMutation } from '@/hooks/use-api'
 
 const steps = [
@@ -116,9 +117,38 @@ export default function NewCampaignPage() {
                 <div><h2 className="font-semibold text-navy">타겟 세그먼트 선택</h2><p className="text-sm text-slate-500">캠페인 대상 세그먼트를 선택하세요</p></div>
               </div>
               {segmentList.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <p>등록된 세그먼트가 없습니다.</p>
-                  <p className="text-sm mt-1">먼저 세그먼트를 생성해주세요.</p>
+                <div className="space-y-6">
+                  {/* 추천 세그먼트 */}
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles size={16} className="text-amber-500" />
+                      <p className="font-medium text-amber-800">추천 세그먼트</p>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { name: '심부전 HFrEF 40~80세', desc: '연령 40-80, ICD-10: I50.x', count: '약 4,200명' },
+                        { name: '제2형 당뇨 메트포르민 복용', desc: '진단: E11, ATC: A10BA02', count: '약 8,500명' },
+                        { name: '고혈압 50세 이상 서울/경기', desc: '진단: I10, 연령 50+, 지역: 서울/경기', count: '약 12,300명' },
+                      ].map((rec, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100">
+                          <div>
+                            <p className="text-sm font-medium text-navy">{rec.name}</p>
+                            <p className="text-xs text-slate-500">{rec.desc} · {rec.count}</p>
+                          </div>
+                          <Link href={`/segments/new`}>
+                            <Button size="sm" variant="outline">생성하기</Button>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 직접 만들기 */}
+                  <div className="text-center">
+                    <p className="text-slate-500 mb-3">또는 직접 세그먼트를 만들 수 있습니다</p>
+                    <Link href="/segments/new">
+                      <Button variant="outline"><Plus size={16} />세그먼트 만들러 가기</Button>
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3">
