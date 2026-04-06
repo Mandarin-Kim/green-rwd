@@ -8,19 +8,24 @@ import { useApi } from '@/hooks/use-api'
 
 interface Order {
   id: string
-  reportTitle: string
+  catalog?: { id: string; title: string; slug: string }
+  user?: { id: string; name: string; email: string }
+  org?: { id: string; name: string }
   tier: string
-  userName: string
-  organizationName: string
   price: number
   status: string
+  progress: number
   createdAt: string
+  completedAt: string | null
 }
 
-interface OrderKpis {
-  totalOrders: number
-  totalRevenue: number
-  generatingCount: number
+interface OrdersResponse {
+  orders: Order[]
+  kpi: {
+    totalRevenue: number
+    monthlyRevenue: number
+    revenueByTier: Record<string, number>
+  }
 }
 
 const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'danger' }> = {
@@ -32,18 +37,18 @@ const statusMap: Record<string, { label: string; variant: 'success' | 'warning' 
 }
 
 export default function AdminOrdersPage() {
-  const { data: orders, loading } = useApi<Order[]>('/api/admin/orders')
-  const { data: kpis } = useApi<OrderKpis>('/api/admin/orders', { kpi: 'true' })
+  const { data, loading } = useApi<OrdersResponse>('/api/admin/orders')
 
-  const items = orders || []
+  const items = data?.orders || []
+  const kpi = data?.kpi
 
   return (
     <div className="p-8">
       <Header title="주문 관리" description="AI 시장보고서 주문 현황을 관리하세요" />
       <div className="grid grid-cols-3 gap-5 mb-8">
-        <Card><p className="text-xs text-slate-500 mb-1">총 주문</p><p className="text-2xl font-bold text-navy">{kpis?.totalOrders ?? items.length}건</p></Card>
-        <Card><p className="text-xs text-slate-500 mb-1">총 매출</p><p className="text-2xl font-bold text-primary">₩{((kpis?.totalRevenue ?? 0) / 10000).toLocaleString()}만</p></Card>
-        <Card><p className="text-xs text-slate-500 mb-1">생성 중</p><p className="text-2xl font-bold text-accent">{kpis?.generatingCount ?? 0}건</p></Card>
+        <Card><p className="text-xs text-slate-500 mb-1">총 주문</p><p className="text-2xl font-bold text-navy">{items.length}건</p></Card>
+        <Card><p className="text-xs text-slate-500 mb-1">총 매출</p><p className="text-2xl font-bold text-primary">₩{((kpi?.totalRevenue ?? 0) / 10000).toLocaleString()}만</p></Card>
+        <Card><p className="text-xs text-slate-500 mb-1">생성 중</p><p className="text-2xl font-bold text-accent">{items.filter(o => o.status === 'GENERATING').length}건</p></Card>
       </div>
       <Card padding="none">
         {loading ? (
@@ -65,9 +70,9 @@ export default function AdminOrdersPage() {
               {items.map(o => (
                 <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                   <td className="px-5 py-3 text-[13px] font-mono text-slate-500">{o.id.slice(0, 8)}</td>
-                  <td className="px-3 py-3 text-[13px] font-medium text-navy">{o.reportTitle}</td>
+                  <td className="px-3 py-3 text-[13px] font-medium text-navy">{o.catalog?.title || '-'}</td>
                   <td className="text-center px-3 py-3"><Badge variant={o.tier === 'PREMIUM' ? 'warning' : o.tier === 'PRO' ? 'info' : 'default'}>{o.tier}</Badge></td>
-                  <td className="px-3 py-3 text-[13px]"><span className="text-navy">{o.userName}</span> <span className="text-slate-400">· {o.organizationName || '-'}</span></td>
+                  <td className="px-3 py-3 text-[13px]"><span className="text-navy">{o.user?.name || '-'}</span> <span className="text-slate-400">· {o.org?.name || '-'}</span></td>
                   <td className="text-right px-3 py-3 text-[13px] font-medium tabular-nums">₩{(o.price || 0).toLocaleString()}</td>
                   <td className="text-center px-3 py-3"><Badge variant={statusMap[o.status]?.variant || 'default'}>{statusMap[o.status]?.label || o.status}</Badge></td>
                   <td className="text-center px-3 py-3 text-[13px] text-slate-500">{new Date(o.createdAt).toLocaleDateString('ko-KR')}</td>
