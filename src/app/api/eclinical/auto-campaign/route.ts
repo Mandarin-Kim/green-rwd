@@ -8,9 +8,6 @@ import type { ApiResponse, SessionUser } from '@/types'
  * POST /api/eclinical/auto-campaign
  * 임상시험 기반 리크루팅 캠페인 자동 생성
  * body: { studyId: string }
- *
- * - Study 정보를 읽어 캠페인 이름/목표/콘텐츠를 자동 구성
- * - 상태: DRAFT (나중에 승인 플로우)
  */
 export async function POST(request: Request) {
   try {
@@ -38,7 +35,6 @@ export async function POST(request: Request) {
         email: sessionUser.email || '',
         name: sessionUser.name || 'Unknown',
         role: sessionUser.role || 'ADMIN',
-        passwordHash: '',
       },
     })
 
@@ -52,7 +48,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // 임상시험 정보 조회
     const study = await prisma.study.findUnique({
       where: { id: studyId },
       include: { sites: true },
@@ -68,7 +63,6 @@ export async function POST(request: Request) {
     const remaining = study.targetEnrollment - study.currentEnrollment
     const siteNames = study.sites.map(s => s.name).join(', ')
 
-    // 캠페인 자동 생성
     const campaign = await prisma.campaign.create({
       data: {
         name: `[리크루팅] ${study.title}`,
