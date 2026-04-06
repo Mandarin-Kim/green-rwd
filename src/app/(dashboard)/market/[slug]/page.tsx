@@ -1,373 +1,1097 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import Header from '@/components/layout/Header'
-import Card from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
-import Badge from '@/components/ui/Badge'
-import { ArrowLeft, FileText, Zap, Crown, Check, Eye, ShoppingCart, CreditCard, Loader2, BarChart3, TrendingUp, Users, Globe } from 'lucide-react'
-import Link from 'next/link'
-import { useApi, useMutation } from '@/hooks/use-api'
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import {
+  ArrowLeft,
+  Lock,
+  Loader2,
+  BarChart3,
+  Zap,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 
-interface ReportCatalog {
-  id: string
-  slug: string
-  title: string
-  description: string
-  categories: string[]
-  therapeuticArea: string
-  drugName: string
-  indication: string
-  region: string
-  marketSizeKrw: number
-  patientPool: number
-  priceBasic: number
-  pricePro: number
-  pricePremium: number
-  sampleUrl: string | null
-  thumbnailUrl: string | null
+interface ChartData {
+  label: string;
+  value: number;
+  color?: string;
 }
 
-const tiers = [
-  { key: 'BASIC', label: 'Basic', icon: <FileText size={20} />, desc: '시장 개요 + PEST 분석 + 기본 통계', sections: 5 },
-  { key: 'PRO', label: 'Pro', icon: <Zap size={20} />, desc: 'Basic + 경쟁사 분석 + Porter 5 Forces + 시나리오', sections: 10 },
-  { key: 'PREMIUM', label: 'Premium', icon: <Crown size={20} />, desc: 'Pro + 환자 세그먼트 + RWD 대시보드 + 전략 제안', sections: 15 },
-]
+interface Chart {
+  type: 'bar' | 'pie' | 'line' | 'donut';
+  title: string;
+  data: ChartData[];
+}
 
-// 미리보기 샘플 데이터 (실제로는 API에서 가져옴)
-const sampleSections = [
-  { title: '시장 개요 (Market Overview)', icon: <Globe size={18} />, content: '본 보고서는 해당 의약품/건강식품 시장의 전반적인 개요를 제공합니다. 시장 규모, 성장률, 주요 트렌드 등을 분석합니다.' },
-  { title: 'PEST 분석', icon: <BarChart3 size={18} />, content: '정치(Political), 경제(Economic), 사회(Social), 기술(Technological) 요인을 분석하여 시장 환경을 파악합니다.' },
-  { title: '경쟁사 분석', icon: <TrendingUp size={18} />, locked: true, content: '주요 경쟁사의 시장 점유율, 전략, 제품 파이프라인을 분석합니다. Pro 이상 티어에서 확인 가능합니다.' },
-  { title: '환자 세그먼트', icon: <Users size={18} />, locked: true, content: '환자 인구통계, 질화 실걩도, 치료 패턴 등 세부 환자 세그먼트를 분석합니다. Premium 티어에서 확인 가능합니다.' },
-]
+interface GreenRibbonCTA {
+  segmentName: string;
+  patientCount: number;
+  message: string;
+}
 
-export default function ReportDetailPage() {
-  const { slug } = useParams()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  // SessionProvider 없이도 동작하도록 임시 처리 (데모용 Admin 모드)
-  const isAdmin = true
+interface ReportSection {
+  id: string;
+  title: string;
+  tier: 'BASIC' | 'PRO' | 'PREMIUM';
+  locked: boolean;
+  content: string;
+  charts?: Chart[];
+  greenRibbonCTA?: GreenRibbonCTA;
+}
 
-  const initialTab = searchParams.get('tab') || 'preview'
-  const [activeTab, setActiveTab] = useState<'preview' | 'order' | 'payment' | 'complete'>(initialTab as any)
-  const [selectedTier, setSelectedTier] = useState('PRO')
-  const [ordering, setOrdering] = useState(false)
-  const [paymentProcessing, setPaymentProcessing] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [orderId, setOrderId] = useState<string | null>(null)
+interface ReportKPI {
+  marketSizeKrw: number;
+  marketSizeFormatted: string;
+  growthRate: string;
+  patientPool: number;
+  greenRibbonReachable: number;
+  greenRibbonReachableRate: string;
+  activeClinicalTrials: number;
+}
 
-  const { data: catalog } = useApi<ReportCatalog>(`/api/reports?slug=${slug}`)
-  const { mutate: createOrder } = useMutation('post')
-  const { mutate: updateOrder } = useMutation('put')
+interface MarketReport {
+  reportId: string;
+  slug: string;
+  title: string;
+  generatedAt: string;
+  tier: 'BASIC' | 'PRO' | 'PREMIUM';
+  kpis: ReportKPI;
+  sections: ReportSection[];
+}
 
-  const getTierPrice = useCallback((tierKey: string) => {
-    if (!catalog) return 0
-    if (isAdmin) return 0 // 관리자 0원 테스트
-    const map: Record<string, number> = {
-      BASIC: catalog.priceBasic || 500000,
-      PRO: catalog.pricePro || 1500000,
-      PREMIUM: catalog.pricePremium || 3000000,
-    }
-    return map[tierKey] || 0
-  }, [catalog, isAdmin])
+interface CatalogData {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  categories: string[];
+  therapeuticArea: string;
+  drugName: string;
+  indication: string;
+  region: string;
+  marketSizeKrw: number;
+  patientPool: number;
+  priceBasic: number;
+  pricePro: number;
+  pricePremium: number;
+  sampleUrl?: string;
+  thumbnailUrl?: string;
+}
 
-  const formatPrice = (price: number) => {
-    if (price === 0) return '₩0 (관리자 무료)'
-    return `₩${(price / 10000).toFixed(0)}만`
-  }
+// Simple markdown to HTML converter
+function markdownToHtml(markdown: string): string {
+  let html = markdown
+    .replace(/^### (.*?)$/gm, '<h3 style="font-size: 1.125rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem;">$1</h3>')
+    .replace(/^## (.*?)$/gm, '<h2 style="font-size: 1.5rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem;">$1</h2>')
+    .replace(/^# (.*?)$/gm, '<h1 style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem;">$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em style="font-style: italic;">$1</em>')
+    .replace(/^- (.*?)$/gm, '<li style="margin-left: 1.5rem;">$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul style="list-style-type: disc; margin: 0.5rem 0;">$1</ul>')
+    .replace(/\n\n/g, '</p><p style="margin: 0.75rem 0;">')
+    .replace(/^(?!<[^>]*>)(.*?)$/gm, (match) => {
+      if (match.startsWith('<')) return match;
+      return `<p style="margin: 0.75rem 0;">${match}</p>`;
+    });
 
-  // 주문하기 클릭
-  const handleOrder = async () => {
-    setOrdering(true)
-    try {
-      const catalogId = catalog?.id
-      if (!catalogId) {
-        alert('보고서 정보를 불러올 수 없습니다.')
-        setOrdering(false)
-        return
-      }
-      const result = await createOrder('/api/reports/orders', {
-        catalogId,
-        tier: selectedTier,
-      })
-      if (result?.id) {
-        setOrderId(result.id)
-        setActiveTab('payment')
-      }
-    } catch (e: any) {
-      alert(e?.message || '주문 생성에 실패했습니다.')
-    }
-    setOrdering(false)
-  }
+  return `<div style="line-height: 1.6; color: #1f2937;">${html}</div>`;
+}
 
-  // 결제 처리 (관리자 0원 즉시 결제)
-  const handlePayment = async () => {
-    setPaymentProcessing(true)
+// Simple Bar Chart Component
+function BarChart({ data }: { data: ChartData[] }) {
+  const maxValue = Math.max(...data.map((d) => d.value));
+  return (
+    <div style={{ padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem' }}>
+      {data.map((item, idx) => (
+        <div key={idx} style={{ marginBottom: '1rem' }}>
+          <div
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              marginBottom: '0.25rem',
+              color: '#374151',
+            }}
+          >
+            {item.label}
+          </div>
+          <div
+            style={{
+              width: '100%',
+              height: '24px',
+              backgroundColor: '#e5e7eb',
+              borderRadius: '0.25rem',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${(item.value / maxValue) * 100}%`,
+                backgroundColor: item.color || '#0d9488',
+                transition: 'width 0.3s ease',
+              }}
+            />
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+            {item.value}%
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-    // 결제 시뮬레이션 (1.5초)
-    await new Promise(r => setTimeout(r, 1500))
+// Simple Pie Chart Component
+function PieChart({ data }: { data: ChartData[] }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let cumulativePercent = 0;
 
-    if (!orderId) {
-      setPaymentProcessing(false)
-      return
-    }
-
-    // 결제 완료 → 보고서 생성 시작
-    setPaymentProcessing(false)
-    setActiveTab('complete')
-    setGenerating(true)
-    setProgress(0)
-
-    // 보고서 생성 시뮬레이션 (상태 업데이트)
-    try {
-      await updateOrder(`/api/reports/orders/${orderId}`, {
-        status: 'GENERATING',
-        progress: 10,
-      })
-    } catch {}
-
-    // 프로그레스 시뮬레이션
-    const steps = [20, 35, 50, 65, 80, 90, 100]
-    for (const step of steps) {
-      await new Promise(r => setTimeout(r, 800))
-      setProgress(step)
-      try {
-        if (step === 100) {
-          await updateOrder(`/api/reports/orders/${orderId}`, {
-            status: 'COMPLETED',
-            progress: 100,
-            generatedUrl: `/reports/generated/${orderId}.pdf`,
-          })
-        } else {
-          await updateOrder(`/api/reports/orders/${orderId}`, {
-            progress: step,
-          })
-        }
-      } catch {}
-    }
-
-    setGenerating(false)
-  }
+  const gradientStops = data
+    .map((item) => {
+      const percent = (item.value / total) * 100;
+      const start = cumulativePercent;
+      cumulativePercent += percent;
+      return `${item.color || '#0d9488'} ${start}% ${cumulativePercent}%`;
+    })
+    .join(', ');
 
   return (
-    <div className="p-8">
-      <Link href="/market" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary mb-4">
-        <ArrowLeft size={14} />보고서 목록
-      </Link>
-
-      <Header
-        title={catalog?.title || String(slug)}
-        description={catalog?.description || '보고서 미리보기 및 주문'}
+    <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', padding: '1rem' }}>
+      <div
+        style={{
+          width: '120px',
+          height: '120px',
+          borderRadius: '50%',
+          background: `conic-gradient(${gradientStops})`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        }}
       />
+      <div style={{ flex: 1 }}>
+        {data.map((item, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '0.75rem',
+              fontSize: '0.875rem',
+            }}
+          >
+            <div
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '2px',
+                backgroundColor: item.color || '#0d9488',
+                marginRight: '0.5rem',
+              }}
+            />
+            <span style={{ color: '#374151' }}>
+              {item.label}: {item.value}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {/* 탭 네비게이션 */}
-      <div className="flex gap-1 mb-8 bg-slate-100 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setActiveTab('preview')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'preview' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
+// Simple Donut Chart Component
+function DonutChart({ data }: { data: ChartData[] }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let cumulativePercent = 0;
+
+  const gradientStops = data
+    .map((item) => {
+      const percent = (item.value / total) * 100;
+      const start = cumulativePercent;
+      cumulativePercent += percent;
+      return `${item.color || '#0d9488'} ${start}% ${cumulativePercent}%`;
+    })
+    .join(', ');
+
+  return (
+    <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', padding: '1rem' }}>
+      <div
+        style={{
+          width: '120px',
+          height: '120px',
+          borderRadius: '50%',
+          background: `conic-gradient(${gradientStops})`,
+          position: 'relative',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '70px',
+            height: '70px',
+            borderRadius: '50%',
+            backgroundColor: 'white',
+          }}
+        />
+      </div>
+      <div style={{ flex: 1 }}>
+        {data.map((item, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '0.75rem',
+              fontSize: '0.875rem',
+            }}
+          >
+            <div
+              style={{
+                width: '12px',
+                height: '12px',
+                borderRadius: '50%',
+                backgroundColor: item.color || '#0d9488',
+                marginRight: '0.5rem',
+              }}
+            />
+            <span style={{ color: '#374151' }}>
+              {item.label}: {item.value}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Chart Renderer
+function ChartRenderer({ chart }: { chart: Chart }) {
+  switch (chart.type) {
+    case 'bar':
+      return <BarChart data={chart.data} />;
+    case 'pie':
+      return <PieChart data={chart.data} />;
+    case 'donut':
+      return <DonutChart data={chart.data} />;
+    case 'line':
+      return <BarChart data={chart.data} />;
+    default:
+      return null;
+  }
+}
+
+// KPI Card Component
+function KPICard({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  highlight = false,
+}: {
+  icon: any;
+  label: string;
+  value: string | number;
+  unit?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        backgroundColor: highlight ? '#d1fae5' : 'white',
+        border: `2px solid ${highlight ? '#10b981' : '#e5e7eb'}`,
+        borderRadius: '0.75rem',
+        padding: '1.5rem',
+        flex: 1,
+        minWidth: '200px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <Icon
+          size={20}
+          style={{
+            marginRight: '0.5rem',
+            color: highlight ? '#10b981' : '#0d9488',
+          }}
+        />
+        <div style={{ fontSize: '0.875rem', color: '#6b7280', fontWeight: 500 }}>
+          {label}
+        </div>
+      </div>
+      <div
+        style={{
+          fontSize: '1.875rem',
+          fontWeight: 700,
+          color: highlight ? '#10b981' : '#1f2937',
+        }}
+      >
+        {value}
+      </div>
+      {unit && (
+        <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+          {unit}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Tier Badge
+function TierBadge({ tier }: { tier: 'BASIC' | 'PRO' | 'PREMIUM' }) {
+  const bgColors = {
+    BASIC: '#dbeafe',
+    PRO: '#fef3c7',
+    PREMIUM: '#fce7f3',
+  };
+  const textColors = {
+    BASIC: '#0c4a6e',
+    PRO: '#92400e',
+    PREMIUM: '#831843',
+  };
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        backgroundColor: bgColors[tier],
+        color: textColors[tier],
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '0.25rem 0.75rem',
+        borderRadius: '9999px',
+        marginLeft: '0.5rem',
+      }}
+    >
+      {tier}
+    </span>
+  );
+}
+
+// Report Section Component
+function ReportSectionCard({
+  section,
+  isAdmin,
+}: {
+  section: ReportSection;
+  isAdmin: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const blurredStyle: React.CSSProperties = section.locked
+    ? {
+        filter: 'blur(4px)',
+        pointerEvents: 'none',
+        opacity: 0.5,
+      }
+    : {};
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'white',
+        borderLeft: `4px solid ${section.locked ? '#d1d5db' : '#0d9488'}`,
+        borderRadius: '0.5rem',
+        padding: '1.5rem',
+        marginBottom: '1.5rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1rem',
+          cursor: 'pointer',
+        }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0 }}>
+            {section.title}
+          </h3>
+          <TierBadge tier={section.tier} />
+          {section.locked && (
+            <Lock
+              size={16}
+              style={{
+                marginLeft: '0.75rem',
+                color: '#9ca3af',
+              }}
+            />
+          )}
+        </div>
+        <div
+          style={{
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s',
+            color: '#6b7280',
+          }}
         >
-          <Eye size={16} />미리보기
-        </button>
-        <button
-          onClick={() => setActiveTab('order')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'order' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <ShoppingCart size={16} />주문하기
-        </button>
+          ▼
+        </div>
       </div>
 
-      {/* ===== 미리보기 탭 ===== */}
-      {activeTab === 'preview' && (
-        <div>
-          {/* 보고서 기본 정보 */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
-            {[
-              { label: '질환 영역', value: catalog?.therapeuticArea || catalog?.indication || '-' },
-              { label: '시장 규모', value: catalog?.marketSizeKrw ? `₩${(catalog.marketSizeKrw / 100000000).toFixed(0)}억` : '-' },
-              { label: '환자 풀', value: catalog?.patientPool ? `${catalog.patientPool.toLocaleString()}명` : '-' },
-              { label: '분석 지역', value: catalog?.region || '국내' },
-            ].map(info => (
-              <Card key={info.label}>
-                <p className="text-xs text-slate-500 mb-1">{info.label}</p>
-                <p className="text-lg font-bold text-navy">{info.value}</p>
-              </Card>
-            ))}
-          </div>
-
-          {/* 샘플 보고서 섹션 */}
-          <Card className="mb-8">
-            <h3 className="font-semibold text-[15px] mb-4 flex items-center gap-2">
-              <FileText size={18} className="text-primary" />보고서 구성 미리보기
-            </h3>
-            <div className="space-y-4">
-              {sampleSections.map((section, idx) => (
-                <div key={idx} className={`p-4 rounded-lg border ${section.locked ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-primary">{section.icon}</span>
-                      <h4 className="font-medium text-navy text-sm">{section.title}</h4>
-                    </div>
-                    {section.locked && <Badge variant="warning">잠김</Badge>}
-                  </div>
-                  <p className={`text-sm ${section.locked ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {section.content}
-                  </p>
-                  {section.locked && (
-                    <div className="mt-2 h-8 bg-gradient-to-b from-slate-100 to-white rounded" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* 미리보기 내 주문 CTA */}
-          <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-navy text-lg mb-1">전체 보고서가 필요하신가요?</h3>
-              <p className="text-sm text-slate-600">
-                {isAdmin ? '관리자 계정 - 0원으로 테스트 주문이 가능합니다.' : 'Basic ₩50만부터 시작하는 AI 분석 보고서를 받아보세요.'}
-              </p>
-            </div>
-            <Button size="lg" onClick={() => setActiveTab('order')}>
-              <ShoppingCart size={16} />주문하기
-            </Button>
-          </div>
+      {section.locked && (
+        <div
+          style={{
+            backgroundColor: '#f3f4f6',
+            border: '1px solid #e5e7eb',
+            borderRadius: '0.5rem',
+            padding: '1rem',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <Lock size={16} style={{ color: '#6b7280' }} />
+          <span style={{ fontSize: '0.875rem', color: '#4b5563' }}>
+            이 섹션은 {section.tier} 플랜에서 볼 수 있습니다. 업그레이드하세요.
+          </span>
         </div>
       )}
 
-      {/* ===== 주문 탭 ===== */}
-      {activeTab === 'order' && (
-        <>
-          {/* 관리자 0원 테스트 안내 */}
-          {isAdmin && (
-            <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
-              <CreditCard size={20} className="text-blue-600" />
-              <div>
-                <p className="text-sm font-medium text-blue-800">관리자 테스트 모드</p>
-                <p className="text-xs text-blue-600">모든 티어가 0원으로 결제됩니다. 결제 완료 시 즉시 보고서가 생성됩니다.</p>
-              </div>
+      {expanded && (
+        <div style={blurredStyle}>
+          <div
+            dangerouslySetInnerHTML={{
+              __html: markdownToHtml(section.content),
+            }}
+            style={{
+              marginBottom: section.charts || section.greenRibbonCTA ? '1.5rem' : 0,
+            }}
+          />
+
+          {section.charts && section.charts.length > 0 && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              {section.charts.map((chart, idx) => (
+                <div key={idx} style={{ marginBottom: '1.5rem' }}>
+                  <h4
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      marginBottom: '1rem',
+                      color: '#1f2937',
+                    }}
+                  >
+                    {chart.title}
+                  </h4>
+                  <ChartRenderer chart={chart} />
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Tier Selection */}
-          <div className="grid grid-cols-3 gap-6 mb-8">
-            {tiers.map(tier => {
-              const price = getTierPrice(tier.key)
-              return (
-                <button
-                  key={tier.key}
-                  onClick={() => setSelectedTier(tier.key)}
-                  className={`p-6 rounded-xl border-2 text-left transition-all ${
-                    selectedTier === tier.key ? 'border-primary bg-primary/5 shadow-lg' : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedTier === tier.key ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      {tier.icon}
-                    </div>
-                    {selectedTier === tier.key && <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center"><Check size={14} className="text-white" /></div>}
-                  </div>
-                  <h3 className="text-lg font-bold text-navy mb-1">{tier.label}</h3>
-                  <p className="text-2xl font-bold text-primary mb-3">{formatPrice(price)}</p>
-                  <p className="text-sm text-slate-500 mb-3">{tier.desc}</p>
-                  <p className="text-xs text-slate-400">{tier.sections}개 섹션 포함</p>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="flex justify-between items-center">
-            <button onClick={() => setActiveTab('preview')} className="text-sm text-slate-500 hover:text-primary flex items-center gap-1">
-              <Eye size={14} />미리보기로 돌아가기
-            </button>
-            <Button size="lg" onClick={handleOrder} loading={ordering}>
-              {ordering ? '주문 처리 중...' : `${tiers.find(t => t.key === selectedTier)?.label} 결제하기`}
-            </Button>
-          </div>
-        </>
-      )}
-
-      {/* ===== 결제 탭 ===== */}
-      {activeTab === 'payment' && (
-        <Card className="max-w-lg mx-auto text-center py-12">
-          {paymentProcessing ? (
-            <>
-              <Loader2 size={48} className="animate-spin text-primary mx-auto mb-4" />
-              <h2 className="text-xl font-bold text-navy mb-2">결제 처리 중...</h2>
-              <p className="text-slate-500">잠시만 기다려 주세요.</p>
-            </>
-          ) : (
-            <>
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                <CreditCard size={36} className="text-primary" />
+          {section.greenRibbonCTA && !section.locked && (
+            <div
+              style={{
+                backgroundColor: '#ecfdf5',
+                borderLeft: '4px solid #10b981',
+                borderRadius: '0.5rem',
+                padding: '1rem',
+                marginTop: '1.5rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '0.75rem',
+                  color: '#047857',
+                  fontWeight: 600,
+                }}
+              >
+                <Target size={18} style={{ marginRight: '0.5rem' }} />
+                그린리본 컨택 가능 세그먼트
               </div>
-              <h2 className="text-xl font-bold text-navy mb-2">결제 확인</h2>
-              <div className="my-6 p-4 bg-slate-50 rounded-lg">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-500">보고서</span>
-                  <span className="font-medium text-navy">{catalog?.title || slug}</span>
-                </div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-500">티어</span>
-                  <span className="font-medium text-navy">{tiers.find(t => t.key === selectedTier)?.label}</span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-slate-200 pt-2 mt-2">
-                  <span className="text-slate-500 font-medium">결제 금액</span>
-                  <span className="font-bold text-primary text-lg">{formatPrice(getTierPrice(selectedTier))}</span>
-                </div>
-              </div>
-              {isAdmin && (
-                <p className="text-xs text-blue-600 mb-4">관리자 테스트: 0원 결제로 처리됩니다.</p>
-              )}
-              <div className="flex gap-3 justify-center">
-                <Button variant="outline" onClick={() => setActiveTab('order')}>이전으로</Button>
-                <Button size="lg" onClick={handlePayment}>결제 완료</Button>
-              </div>
-            </>
+              <p style={{ margin: '0 0 0.75rem 0', color: '#1f2937', fontSize: '0.875rem' }}>
+                {section.greenRibbonCTA.segmentName}: 약{' '}
+                <strong>{section.greenRibbonCTA.patientCount.toLocaleString()}명</strong>
+              </p>
+              <p style={{ margin: '0 0 1rem 0', color: '#4b5563', fontSize: '0.875rem' }}>
+                {section.greenRibbonCTA.message}
+              </p>
+              <a
+                href={`/campaigns/new?segment=${section.greenRibbonCTA.segmentName}`}
+                style={{
+                  display: 'inline-block',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem',
+                  textDecoration: 'none',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                이 세그먼트에 캠페인 발송하기 →
+              </a>
+            </div>
           )}
-        </Card>
-      )}
-
-      {/* ===== 완료 탭 ===== */}
-      {activeTab === 'complete' && (
-        <Card className="max-w-lg mx-auto text-center py-12">
-          {generating ? (
-            <>
-              <Loader2 size={48} className="animate-spin text-primary mx-auto mb-4" />
-              <h2 className="text-xl font-bold text-navy mb-2">AI 보고서 생성 중...</h2>
-              <p className="text-slate-500 mb-6">RWD 데이터를 분석하고 있습니다.</p>
-              <div className="max-w-xs mx-auto">
-                <div className="flex justify-between text-xs text-slate-500 mb-1">
-                  <span>생성 진행률</span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-                <Check size={32} className="text-success" />
-              </div>
-              <h2 className="text-xl font-bold text-navy mb-2">보고서 생성 완료!</h2>
-              <p className="text-slate-500 mb-6">AI 분석 보고서가 성공적으로 생성되었습니다.</p>
-              <div className="flex gap-3 justify-center">
-                <Button variant="outline" onClick={() => router.push('/market')}>보고서 목록</Button>
-                <Button onClick={() => router.push('/admin/orders')}>주문 관리</Button>
-              </div>
-            </>
-          )}
-        </Card>
+        </div>
       )}
     </div>
-  )
+  );
+}
+
+// Pricing Card Component
+function PricingCard({
+  tier,
+  price,
+  features,
+  isCurrentTier,
+}: {
+  tier: 'BASIC' | 'PRO' | 'PREMIUM';
+  price: number;
+  features: string[];
+  isCurrentTier: boolean;
+}) {
+  const bgColor = isCurrentTier ? '#eff6ff' : 'white';
+  const borderColor = isCurrentTier ? '#0284c7' : '#e5e7eb';
+
+  return (
+    <div
+      style={{
+        backgroundColor: bgColor,
+        border: `2px solid ${borderColor}`,
+        borderRadius: '0.75rem',
+        padding: '1.5rem',
+        flex: 1,
+        minWidth: '250px',
+        position: 'relative',
+      }}
+    >
+      {isCurrentTier && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            backgroundColor: '#0284c7',
+            color: 'white',
+            padding: '0.25rem 0.75rem',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            borderRadius: '0 0.75rem 0 0',
+          }}
+        >
+          현재 플랜
+        </div>
+      )}
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+        {tier}
+      </h3>
+      <div style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '1rem', color: '#0d9488' }}>
+        ₩{(price / 10000).toFixed(0)}만
+      </div>
+      <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+        한 달 구독
+      </p>
+      <ul style={{ listStyle: 'none', padding: 0, marginBottom: '1.5rem' }}>
+        {features.map((feature, idx) => (
+          <li
+            key={idx}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '0.75rem',
+              fontSize: '0.875rem',
+              color: '#374151',
+            }}
+          >
+            <span style={{ marginRight: '0.5rem', color: '#10b981' }}>✓</span>
+            {feature}
+          </li>
+        ))}
+      </ul>
+      <button
+        style={{
+          width: '100%',
+          backgroundColor: isCurrentTier ? '#0d9488' : '#f3f4f6',
+          color: isCurrentTier ? 'white' : '#1f2937',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.5rem',
+          border: 'none',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'opacity 0.2s',
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.opacity = '0.9';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.opacity = '1';
+        }}
+      >
+        {isCurrentTier ? '구독 중' : '구독하기'}
+      </button>
+    </div>
+  );
+}
+
+// Main Page Component
+export default function ReportDetailPage() {
+  const params = useParams();
+  const slug = params?.slug as string;
+  const isAdmin = true;
+
+  const [catalogData, setCatalogData] = useState<CatalogData | null>(null);
+  const [report, setReport] = useState<MarketReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'preview' | 'order'>('preview');
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch catalog data on mount
+  useEffect(() => {
+    async function fetchCatalog() {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/reports/${slug}`);
+        if (!response.ok) throw new Error('Catalog not found');
+        const data = await response.json();
+        setCatalogData(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load catalog');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (slug) {
+      fetchCatalog();
+    }
+  }, [slug]);
+
+  // Generate report
+  async function handleGenerateReport(tier: 'BASIC' | 'PRO' | 'PREMIUM' = 'BASIC') {
+    try {
+      setGenerating(true);
+      setError(null);
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, tier }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate report');
+      const data = await response.json();
+      setReport(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate report');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <Loader2
+          size={32}
+          style={{
+            margin: '0 auto',
+            animation: 'spin 1s linear infinite',
+            color: '#0d9488',
+          }}
+        />
+        <p style={{ marginTop: '1rem', color: '#6b7280' }}>로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (!catalogData) {
+    return (
+      <div style={{ padding: '2rem' }}>
+        <div style={{ color: '#dc2626' }}>보고서를 찾을 수 없습니다.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh', paddingBottom: '3rem' }}>
+      {/* Header */}
+      <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 2rem' }}>
+        <button
+          onClick={() => window.history.back()}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#0d9488',
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginBottom: '1rem',
+          }}
+        >
+          <ArrowLeft size={18} />
+          뒤로 가기
+        </button>
+        <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>
+          {catalogData.title}
+        </h1>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {catalogData.categories.map((cat, idx) => (
+            <span
+              key={idx}
+              style={{
+                backgroundColor: '#ecfdf5',
+                color: '#047857',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '9999px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+              }}
+            >
+              {cat}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+        {error && (
+          <div
+            style={{
+              backgroundColor: '#fee2e2',
+              color: '#991b1b',
+              padding: '1rem',
+              borderRadius: '0.5rem',
+              marginBottom: '1.5rem',
+              border: '1px solid #fecaca',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {!report ? (
+          // Initial state: Show KPI placeholders and generate button
+          <>
+            <div
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '0.75rem',
+                padding: '2rem',
+                marginBottom: '2rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              }}
+            >
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem' }}>
+                핵심 지표
+              </h2>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '2rem',
+                }}
+              >
+                <KPICard
+                  icon={TrendingUp}
+                  label="시장규모"
+                  value={catalogData.marketSizeKrw >= 100000000
+                    ? `${(catalogData.marketSizeKrw / 100000000).toFixed(0)}억원`
+                    : `${catalogData.marketSizeKrw.toLocaleString()}원`}
+                />
+                <KPICard
+                  icon={Users}
+                  label="환자풀"
+                  value={catalogData.patientPool.toLocaleString()}
+                  unit="명"
+                />
+                <KPICard
+                  icon={Target}
+                  label="그린리본 컨택 가능"
+                  value={Math.floor(catalogData.patientPool * 0.25).toLocaleString()}
+                  unit="명"
+                  highlight
+                />
+                <KPICard
+                  icon={Zap}
+                  label="임상시험"
+                  value="로드 중..."
+                  unit="개"
+                />
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '0.5rem',
+                  padding: '1.5rem',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: '1.125rem',
+                    fontWeight: 600,
+                    color: '#047857',
+                    margin: '0 0 0.5rem 0',
+                  }}
+                >
+                  보고서 생성
+                </h3>
+                <p style={{ color: '#1f2937', fontSize: '0.875rem', margin: '0 0 1rem 0' }}>
+                  아래 버튼을 클릭하여 AI 기반의 상세 시장 분석 보고서를 생성하세요.
+                  생성된 보고서는 최대 10개 섹션으로 구성됩니다.
+                </p>
+
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  {(['BASIC', 'PRO', 'PREMIUM'] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      onClick={() => handleGenerateReport(tier)}
+                      disabled={generating}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        padding: '0.75rem 1.25rem',
+                        borderRadius: '0.5rem',
+                        border: 'none',
+                        fontWeight: 600,
+                        cursor: generating ? 'not-allowed' : 'pointer',
+                        opacity: generating ? 0.6 : 1,
+                      }}
+                    >
+                      {generating && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                      {tier} 보고서 생성
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '0.75rem',
+                padding: '2rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              }}
+            >
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>
+                보고서 설명
+              </h2>
+              <p style={{ color: '#4b5563', lineHeight: 1.6 }}>
+                {catalogData.description}
+              </p>
+            </div>
+          </>
+        ) : (
+          // Report generated state
+          <>
+            {/* Tab Navigation */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0',
+                borderBottom: '2px solid #e5e7eb',
+                marginBottom: '2rem',
+              }}
+            >
+              {(['preview', 'order'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: '1rem 1.5rem',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: activeTab === tab ? '3px solid #0d9488' : 'none',
+                    color: activeTab === tab ? '#0d9488' : '#6b7280',
+                    fontWeight: activeTab === tab ? 600 : 500,
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                  }}
+                >
+                  {tab === 'preview' ? '미리보기' : '주문하기'}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'preview' && (
+              <>
+                {/* KPI Cards */}
+                <div
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '2rem',
+                    marginBottom: '2rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem' }}>
+                    핵심 지표 (KPIs)
+                  </h2>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '1rem',
+                    }}
+                  >
+                    <KPICard
+                      icon={TrendingUp}
+                      label="시장규모"
+                      value={report.kpis.marketSizeFormatted}
+                    />
+                    <KPICard
+                      icon={Zap}
+                      label="성장률"
+                      value={report.kpis.growthRate}
+                      unit="연간"
+                    />
+                    <KPICard
+                      icon={Users}
+                      label="환자풀"
+                      value={report.kpis.patientPool.toLocaleString()}
+                      unit="명"
+                    />
+                    <KPICard
+                      icon={Target}
+                      label="그린리본 컨택 가능"
+                      value={report.kpis.greenRibbonReachable.toLocaleString()}
+                      unit="명"
+                      highlight
+                    />
+                    <KPICard
+                      icon={BarChart3}
+                      label="진행중 임상시험"
+                      value={report.kpis.activeClinicalTrials}
+                      unit="개"
+                    />
+                  </div>
+                </div>
+
+                {/* Report Info */}
+                <div
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '1rem',
+                    marginBottom: '2rem',
+                    fontSize: '0.875rem',
+                    color: '#6b7280',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div>
+                    생성된 보고서 ID: <strong>{report.reportId}</strong>
+                  </div>
+                  <div>
+                    {new Date(report.generatedAt).toLocaleString('ko-KR')}
+                  </div>
+                </div>
+
+                {/* Sections */}
+                <div
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '2rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem' }}>
+                    보고서 섹션
+                  </h2>
+                  {report.sections.map((section) => (
+                    <ReportSectionCard
+                      key={section.id}
+                      section={section}
+                      isAdmin={isAdmin}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {activeTab === 'order' && (
+              <div
+                style={{
+                  backgroundColor: 'white',
+                  borderRadius: '0.75rem',
+                  padding: '2rem',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                }}
+              >
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1.5rem' }}>
+                  플랜 선택
+                </h2>
+                <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
+                  적절한 플랜을 선택하여 구독하세요. 언제든지 업그레이드할 수 있습니다.
+                </p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                    gap: '1.5rem',
+                  }}
+                >
+                  <PricingCard
+                    tier="BASIC"
+                    price={catalogData.priceBasic}
+                    features={[
+                      '시장 개요',
+                      'PEST 분석',
+                      '질환 역학 데이터',
+                      '기본 차트',
+                    ]}
+                    isCurrentTier={report.tier === 'BASIC'}
+                  />
+                  <PricingCard
+                    tier="PRO"
+                    price={catalogData.pricePro}
+                    features={[
+                      'BASIC 모든 항목',
+                      '경쟁 환경 분석',
+                      '약물 안전성 분석',
+                      '임상시험 데이터',
+                      "Porter's 5 Forces",
+                    ]}
+                    isCurrentTier={report.tier === 'PRO'}
+                  />
+                  <PricingCard
+                    tier="PREMIUM"
+                    price={catalogData.pricePremium}
+                    features={[
+                      'PRO 모든 항목',
+                      '환자 세그먼트 분석',
+                      'RWD 처방 패턴',
+                      '그린리본 캠페인 발송',
+                      '전략 제언',
+                    ]}
+                    isCurrentTier={report.tier === 'PREMIUM'}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
 }
