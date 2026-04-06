@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import { Search, Star, ShoppingCart, Loader2 } from 'lucide-react'
+import { Search, Star, ShoppingCart, Eye, Loader2 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 
 interface Report {
@@ -36,6 +37,7 @@ const categoryColors: Record<string, string> = {
 export default function MarketPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('전체')
+  const router = useRouter()
 
   const apiParams: Record<string, string | undefined> = {
     search: search || undefined,
@@ -86,9 +88,9 @@ export default function MarketPage() {
           {/* Report Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map(report => (
-              <Link key={report.id || report.slug} href={`/market/${report.slug}`}>
-                <div className="h-full bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden cursor-pointer">
-                  <div className="p-5 border-b border-slate-100">
+              <div key={report.id || report.slug} className="h-full bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+                <Link href={`/market/${report.slug}`}>
+                  <div className="p-5 border-b border-slate-100 cursor-pointer hover:bg-slate-50/50 transition-colors">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex flex-wrap gap-1.5">
                         {(report.categories || []).map((cat: string) => (
@@ -104,7 +106,7 @@ export default function MarketPage() {
                     </div>
                     <h3 className="text-[15px] font-semibold text-navy">{report.title}</h3>
                   </div>
-                  <div className="p-5">
+                  <div className="p-5 cursor-pointer">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-[11px] text-slate-500 uppercase font-semibold mb-1">시장규모</p>
@@ -116,17 +118,31 @@ export default function MarketPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Basic ₩{((report.priceBasic || 500000) / 10000).toFixed(0)}만 ~</span>
-                    <span className="text-sm font-medium text-primary flex items-center gap-1"><ShoppingCart size={14} />주문하기</span>
+                </Link>
+                {/* 미리보기 + 주문하기 버튼 영역 */}
+                <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Basic ₩{((report.priceBasic || 500000) / 10000).toFixed(0)}만 ~</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}?tab=preview`); }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
+                      <Eye size={13} />미리보기
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}?tab=order`); }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      <ShoppingCart size={13} />주문하기
+                    </button>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
 
           {items.length === 0 && (
-            <div className="text-center py-16"><p className="text-slate-400">검색 결과가 없습니다</p></div>
+            <div className="text-center py-16"><p className="text-slate-400">가색 결과가 없습니다</p></div>
           )}
         </>
       )}
