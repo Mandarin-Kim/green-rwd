@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
         userId: user.id,
         orgId: userRecord?.orgId || undefined,
-        status: 'DRAFT',
+        status: 'PENDING_APPROVAL',
       },
       include: {
         user: {
