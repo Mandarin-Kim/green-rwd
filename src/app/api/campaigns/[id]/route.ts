@@ -104,7 +104,7 @@ export async function PUT(
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      select: { userId: true, status: true },
+      select: { userId: true, status: true, targetCount: true, channelType: true },
     })
 
     if (!campaign) {
@@ -122,16 +122,10 @@ export async function PUT(
       )
     }
 
-    // Can only update DRAFT status campaigns
-    if (campaign.status !== 'DRAFT') {
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: '초안 상태의 캠페인만 수정할 수 있습니다.' },
-        { status: 400 }
-      )
-    }
-
     const body = await request.json()
     const {
+      status,
+      rejectionReason,
       name,
       channelType,
       description,
@@ -142,6 +136,72 @@ export async function PUT(
       contentBody,
       abTestEnabled,
     } = body
+
+    // Status change flow (for ADMIN only)
+    if (status !== undefined) {
+      if (user.role !== 'ADMIN') {
+        return NextResponse.json<ApiResponse>(
+          { success: false, error: '상태 변경 권한이 없습니다.' },
+          { status: 403 }
+        )
+      }
+
+      // Allow status transitions from PENDING_APPROVAL
+      if (campaign.status !== 'PENDING_APPROVAL') {
+        return NextResponse.json<ApiResponse>(
+          { success: false, error: '승인 대기 상태의 캠페인만 상태를 변경할 수 있습니다.' },
+          { status: 400 }
+        )
+      }
+
+      // Validate allowed status transitions
+      if (!['APPROVED', 'REJECTED'].includes(status)) {
+        return NextResponse.json<ApiResponse>(
+          { success: false, error: '허용되지 않는 상태입니다.' },
+          { status: 400 }
+        )
+      }
+
+      const updateData: any = { status }
+
+      if (status === 'REJECTED') {
+        updateData.rejectionReason = rejectionReason || '승인 반려'
+      }
+
+      const updatedCampaign = await prisma.campaign.update({
+        where: { id },
+        data: updateData,
+        include: {
+          user: { select: { name: true, email: true } },
+          analytics: true,
+        },
+      })
+
+      // Create Sending record if status changed to APPROVED
+      if (status === 'APPROVED') {
+        await prisma.sending.create({
+          data: {
+            campaignId: id,
+            totalCount: campaign.targetCount || 0,
+            channel: campaign.channelType || 'SMS',
+            status: 'PENDING',
+          },
+        })
+      }
+
+      return NextResponse.json<ApiResponse>({
+        success: true,
+        data: updatedCampaign,
+      })
+    }
+
+    // Content edit flow (for DRAFT campaigns)
+    if (campaign.status !== 'DRAFT') {
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: '초안 상태의 캠페인만 수정할 수 있습니다.' },
+        { status: 400 }
+      )
+    }
 
     const updatedCampaign = await prisma.campaign.update({
       where: { id },
