@@ -30,7 +30,7 @@ export async function GET(
       drugName: catalog.drugName,
       indication: catalog.indication,
       region: catalog.region,
-      marketSizeKrw: catalog.marketSizeKrw,
+      marketSizeKrw: Number(catalog.marketSizeKrw),
       patientPool: catalog.patientPool,
       priceBasic: catalog.priceBasic,
       pricePro: catalog.pricePro,
