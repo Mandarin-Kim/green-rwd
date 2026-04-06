@@ -378,6 +378,11 @@ ${catalogData.title}은 ${catalogData.indication} 치료 시장의 핵심 약물
           ],
         },
       ],
+      greenRibbonCTA: {
+        segmentName: 'target_patients',
+        patientCount: Math.floor(catalogData.patientPool * 0.22),
+        message: '타겟 환자군에 캠페인 발송하기',
+      },
     },
     {
       id: 'competitive_landscape',
@@ -684,9 +689,7 @@ ${catalogData.title}은 ${catalogData.indication} 치료 시장의 핵심 약물
     },
   ];
 
-  return sections.filter(
-    (s) => tierHierarchy[s.tier as keyof typeof tierHierarchy] <= userTierLevel
-  );
+  return sections;
 }
 
 function buildKPIs(
