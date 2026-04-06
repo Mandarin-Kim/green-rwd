@@ -14,9 +14,38 @@ export default function NewSegmentPage() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [filters, setFilters] = useState([{ field: 'ageGroup', operator: 'in', value: '' }])
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
   const addFilter = () => setFilters(prev => [...prev, { field: '', operator: 'equals', value: '' }])
   const removeFilter = (i: number) => setFilters(prev => prev.filter((_, idx) => idx !== i))
+
+  const handleCreate = async () => {
+    if (!name.trim()) { setError('세그먼트 이름을 입력하세요.'); return }
+    const validFilters = filters.filter(f => f.field && f.value)
+    if (validFilters.length === 0) { setError('필터 조건을 1개 이상 입력하세요.'); return }
+    setError('')
+    setSubmitting(true)
+    try {
+      const conditions: Record<string, unknown> = {}
+      validFilters.forEach(f => { conditions[f.field] = { operator: f.operator, value: f.value } })
+      const res = await fetch('/api/segments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), conditions }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        router.push('/segments')
+      } else {
+        setError(data.error || '세그먼트 생성에 실패했습니다.')
+      }
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="p-8">
@@ -58,13 +87,14 @@ export default function NewSegmentPage() {
                       { value: 'in', label: '포함' },
                       { value: 'gt', label: '>' },
                       { value: 'lt', label: '<' },
+                      { value: 'between', label: '범위' },
                     ]}
                     value={f.operator}
                     onChange={e => { const next = [...filters]; next[i].operator = e.target.value; setFilters(next) }}
                     className="w-24"
                   />
                   <Input
-                    placeholder="값 입력..."
+                    placeholder={f.field === 'ageGroup' ? '예: 40-80' : f.field === 'gender' ? '예: M, F' : '값 입력...'}
                     value={f.value}
                     onChange={e => { const next = [...filters]; next[i].value = e.target.value; setFilters(next) }}
                     className="flex-1"
@@ -89,7 +119,8 @@ export default function NewSegmentPage() {
                 <p className="text-xs text-slate-500">예상 대상자 수</p>
               </div>
             </div>
-            <Button className="w-full" onClick={() => router.push('/segments')}>세그먼트 생성</Button>
+            {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
+            <Button className="w-full" onClick={handleCreate} disabled={submitting}>{submitting ? '생성 중...' : '세그먼트 생성'}</Button>
           </Card>
         </div>
       </div>
