@@ -22,10 +22,15 @@ interface Study {
 }
 
 interface EnrollmentSummary {
-  activeStudies: number
-  totalEnrolled: number
-  totalSites: number
-  overallProgress: number
+  overall: {
+    target: number
+    enrolled: number
+    percentage: number
+  }
+  studyCount: number
+  siteCount: number
+  byStudy: unknown[]
+  bySite: unknown[]
 }
 
 const statusConfig: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' }> = {
@@ -53,10 +58,10 @@ export default function EClinicalPage() {
       {/* KPI */}
       <div className="grid grid-cols-4 gap-5 mb-8">
         {[
-          { label: '진행 중 연구', value: summary?.activeStudies ?? '-', color: 'text-primary' },
-          { label: '총 등록 환자', value: summary?.totalEnrolled ?? '-', color: 'text-navy' },
-          { label: '참여 기관', value: summary?.totalSites ?? '-', color: 'text-accent' },
-          { label: '목표 달성률', value: summary ? `${summary.overallProgress}%` : '-', color: 'text-success' },
+          { label: '진행 중 연구', value: summary?.studyCount ?? '-', color: 'text-primary' },
+          { label: '총 등록 환자', value: summary?.overall?.enrolled ?? '-', color: 'text-navy' },
+          { label: '참여 기관', value: summary?.siteCount ?? '-', color: 'text-accent' },
+          { label: '목표 달성률', value: summary ? `${summary.overall?.percentage ?? 0}%` : '-', color: 'text-success' },
         ].map(kpi => (
           <Card key={kpi.label}>
             <p className="text-xs text-slate-500 mb-1">{kpi.label}</p>
