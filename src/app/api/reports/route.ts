@@ -104,9 +104,9 @@ export async function GET(req: NextRequest) {
       prisma.reportCatalog.count({ where }),
     ])
 
-    const data: ReportCatalogItem[] = reports.map((r) => ({
+    const data = reports.map((r) => ({
       ...r,
-      marketSizeKrw: r.marketSizeKrw || null,
+      marketSizeKrw: r.marketSizeKrw ? Number(r.marketSizeKrw) : null,
     }))
 
     return success(data, { page, pageSize, total })
