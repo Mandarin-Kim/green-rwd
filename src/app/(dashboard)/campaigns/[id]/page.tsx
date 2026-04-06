@@ -5,7 +5,7 @@ import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import KpiCard from '@/components/ui/KpiCard'
 import Button from '@/components/ui/Button'
-import { BarChart3, Send, TrendingUp, Wallet, ArrowLeft, Pause, Loader2, XCircle } from 'lucide-react'
+import { BarChart3, Send, TrendingUp, Wallet, ArrowLeft, Pause, Loader2, XCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useApi, useMutation } from '@/hooks/use-api'
 import { useState } from 'react'
@@ -104,6 +104,16 @@ export default function CampaignDetailPage() {
             <p className="text-sm text-slate-500">{c.objective}</p>
           </div>
           <div className="flex gap-2">
+            {c.status === 'PENDING_APPROVAL' && (
+              <>
+                <Button variant="primary" onClick={() => handleStatusChange('APPROVED')} disabled={actionLoading}>
+                  <CheckCircle size={16} />승인
+                </Button>
+                <Button variant="danger" onClick={() => handleStatusChange('REJECTED')} disabled={actionLoading}>
+                  <XCircle size={16} />반려
+                </Button>
+              </>
+            )}
             {c.status === 'EXECUTING' && (
               <Button variant="outline" onClick={() => handleStatusChange('PAUSED')} disabled={actionLoading}>
                 <Pause size={16} />일시 중지
