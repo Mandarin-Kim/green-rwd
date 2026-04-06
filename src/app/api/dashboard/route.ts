@@ -10,7 +10,7 @@ export async function GET() {
 
     if (!session || !session.user) {
       return NextResponse.json(
-        { success: false, error: '\uC778\uC99D\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.' },
+        { success: false, error: '인증이 필요합니다.' },
         { status: 401 }
       )
     }
@@ -31,37 +31,55 @@ export async function GET() {
       recentCampaignsRaw,
       pendingApprovalsRaw,
     ] = await Promise.all([
+      // Active campaign count
       prisma.campaign.count({
-        where: { status: { in: ['EXECUTING', 'SCHEDULED', 'APPROVED'] } },
+        where: {
+          status: { in: ['EXECUTING', 'SCHEDULED', 'APPROVED'] },
+        },
       }),
+      // Total sent (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _sum: { totalSent: true },
       }),
+      // Avg conversion rate (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _avg: { conversionRate: true },
       }),
+      // Total cost (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _sum: { totalCost: true },
       }),
+      // Previous period sent
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
         _sum: { totalSent: true },
       }),
+      // Previous period cost
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
         _sum: { totalCost: true },
       }),
+      // Recent campaigns with analytics
       prisma.campaign.findMany({
         take: 5,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
+        where: { status: { not: 'DRAFT' } },
         include: {
           segment: { select: { name: true } },
-          analytics: { select: { totalSent: true, totalConverted: true, conversionRate: true, totalCost: true } },
+          analytics: {
+            select: {
+              totalSent: true,
+              converted: true,
+              conversionRate: true,
+              totalCost: true,
+            },
+          },
         },
       }),
+      // Pending approvals
       prisma.campaign.findMany({
         where: { status: 'PENDING_APPROVAL' },
         take: 5,
@@ -92,20 +110,20 @@ export async function GET() {
           monthCost: costTrend.change,
         },
       },
-      recentCampaigns: recentCampaignsRaw.map(c => ({
-        id: String(c.id),
+      recentCampaigns: recentCampaignsRaw.map((c) => ({
+        id: c.id,
         name: c.name,
-        segmentName: c.segment?.name || undefined,
+        segmentName: c.segment?.name,
         totalSent: c.analytics?.totalSent || 0,
-        totalConverted: c.analytics?.totalConverted || 0,
+        totalConverted: c.analytics?.converted || 0,
         conversionRate: c.analytics?.conversionRate || 0,
         totalCost: c.analytics?.totalCost || 0,
         status: c.status,
       })),
-      pendingApprovals: pendingApprovalsRaw.map(a => ({
-        id: String(a.id),
+      pendingApprovals: pendingApprovalsRaw.map((a) => ({
+        id: a.id,
         name: a.name,
-        requesterName: a.user?.name || 'Unknown',
+        requesterName: a.user?.name || '알 수 없음',
         createdAt: a.createdAt.toISOString(),
       })),
     }
@@ -114,7 +132,7 @@ export async function GET() {
   } catch (error) {
     console.error('Dashboard error:', error)
     return NextResponse.json(
-      { success: false, error: '\uB300\uC2DC\uBCF4\uB4DC \uC870\uD68C \uC2E4\uD328' },
+      { success: false, error: '대시보드 조회 실패' },
       { status: 500 }
     )
   }
@@ -124,10 +142,10 @@ function calculateTrend(current: number, previous: number): { change: string; up
   if (previous === 0) {
     return { change: '+0%', up: current > 0 }
   }
-  const change = ((current - previous) / previous) * 100
-  const sign = change >= 0 ? '+' : ''
+  const pct = ((current - previous) / previous) * 100
+  const sign = pct >= 0 ? '+' : ''
   return {
-    change: `${sign}${change.toFixed(1)}%`,
-    up: change >= 0,
+    change: `${sign}${pct.toFixed(1)}%`,
+    up: pct >= 0,
   }
 }
