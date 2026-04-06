@@ -51,15 +51,15 @@ interface MarketReport {
 
 function formatMarketSize(krw: number): string {
   if (krw >= 1000000000000) {
-    return `${(krw / 1000000000000).toFixed(1)}ì¡°ì`;
+    return `${(krw / 1000000000000).toFixed(1)}조원`;
   }
   if (krw >= 100000000) {
-    return `${(krw / 100000000).toFixed(0)}ìµì`;
+    return `${(krw / 100000000).toFixed(0)}억원`;
   }
   if (krw >= 10000000) {
-    return `${(krw / 10000000).toFixed(1)}ì²ë§ì`;
+    return `${(krw / 10000000).toFixed(1)}천만원`;
   }
-  return `${krw.toLocaleString()}ì`;
+  return `${krw.toLocaleString()}원`;
 }
 
 function calculateGrowthRate(): string {
@@ -178,37 +178,37 @@ async function generateReportWithOpenAI(
     );
   }
 
-  const systemPrompt = `ë¹ì ì ì ì½ ìì¥ ë¦¬ìì¹ ì ë¬¸ê°ìëë¤. íêµ­ì´ë¡ ìì±íë©°, êµ¬ì²´ì ì¸ ìì¹ì íµê³ë¥¼ í¬í¨í´ì¼ í©ëë¤.
-ë¤ì ë³´ê³ ì ì¹ìë¤ì ìì±í´ì£¼ì¸ì. ê° ì¹ìì ë§í¬ë¤ì´ íìì´ì´ì¼ í©ëë¤.`;
+  const systemPrompt = `당신은 제약 시장 리서치 전문가입니다. 한국어로 작성하며, 구체적인 수치와 통계를 포함해야 합니다.
+다음 보고서 섹션들을 생성해주세요. 각 섹션은 마크다운 형식이어야 합니다.`;
 
-  const userPrompt = `ë¤ì ì ë³´ë¥¼ ë°íì¼ë¡ ì ì½ ìì¥ ë³´ê³ ìë¥¼ ìì±íì¸ì:
-ì½ë¬¼ëª: ${catalogData.drugName}
-ì§í: ${catalogData.indication}
-ì§ì­: ${catalogData.region}
-ìì¥ê·ëª¨: ${formatMarketSize(catalogData.marketSizeKrw)}
-íìí: ${catalogData.patientPool.toLocaleString()}ëª
-ì§í ì¤ì¸ ìììí: ${trialsData.activeTrials}ê°
+  const userPrompt = `다음 정보를 바탕으로 제약 시장 보고서를 생성하세요:
+약물명: ${catalogData.drugName}
+질환: ${catalogData.indication}
+지역: ${catalogData.region}
+시장규모: ${formatMarketSize(catalogData.marketSizeKrw)}
+환자풀: ${catalogData.patientPool.toLocaleString()}명
+진행 중인 임상시험: ${trialsData.activeTrials}개
 
-ìì±í  ì¹ìë¤ (ë§í¬ë¤ì´):
-1. ìì¥ ê°ì: ${catalogData.title}ì ìì¥ ê·ëª¨, ì±ì¥ í¸ë ë, ì£¼ì ëë¼ì´ë²
-2. PEST ë¶ì: ì ì¹, ê²½ì , ì¬í, ê¸°ì ì  ë¶ì
-3. ì§í ì­í ë°ì´í°: ì§í ì ë³ë¥ , ë°ìë¥ , ì¸êµ¬íµê³í
-4. ê²½ì íê²½ ë¶ì: ì£¼ì ê²½ìì¬, ìì¥ ì ì ì¨, íì´íë¼ì¸
-5. ì½ë¬¼ ìì ì± íë¡íì¼: ë¶ìì© ë°ì´í° (${trialsData.topEvents.join(', ')})
-6. ê¸ë¡ë² ìììí íí©: íì± ìí ${trialsData.activeTrials}ê°
-7. Porter's 5 Forces: ì°ì ë¶ì
-8. íì ì¸ê·¸ë¨¼í¸ ë¶ì: ìì¸ ì¸êµ¬íµê³í
-9. ì¤ì  ì²ë°© í¨í´: RWD ê¸°ë° ë¶ì
-10. ì ëµ ì ì¸: ê¸°í ë¶ì
+생성할 섹션들 (마크다운):
+1. 시장 개요: ${catalogData.title}의 시장 규모, 성장 트렌드, 주요 드라이버
+2. PEST 분석: 정치, 경제, 사회, 기술적 분석
+3. 질환 역학 데이터: 질환 유병률, 발생률, 인구통계학
+4. 경쟁 환경 분석: 주요 경쟁사, 시장 점유율, 파이프라인
+5. 약물 안전성 프로파일: 부작용 데이터 (${trialsData.topEvents.join(', ')})
+6. 글로벌 임상시험 현황: 활성 시험 ${trialsData.activeTrials}개
+7. Porter's 5 Forces: 산업 분석
+8. 환자 세그먼트 분석: 상세 인구통계학
+9. 실제 처방 패턴: RWD 기반 분석
+10. 전략 제언: 기회 분석
 
-ê° ì¹ìì êµ¬ì²´ì ì¸ ìì¹ë¥¼ í¬í¨í´ì¼ í©ëë¤. JSON íìì¼ë¡ ë¤ìê³¼ ê°ì´ ë°ííì¸ì:
+각 섹션은 구체적인 수치를 포함해야 합니다. JSON 형식으로 다음과 같이 반환하세요:
 {
   "sections": [
     {
       "id": "section_id",
-      "title": "ì¹ì ì ëª©",
+      "title": "섹션 제목",
       "tier": "BASIC|PRO|PREMIUM",
-      "content": "ë§í¬ë¤ì´ íìì ìì¸ ë´ì©"
+      "content": "마크다운 형식의 상세 내용"
     }
   ]
 }`;
@@ -292,183 +292,183 @@ function generateSyntheticSections(
   const sections: ReportSection[] = [
     {
       id: 'market_overview',
-      title: 'ìì¥ ê°ì',
+      title: '시장 개요',
       tier: 'BASIC',
       locked: false,
-      content: `# ${catalogData.title} ìì¥ ê°ì
+      content: `# ${catalogData.title} 시장 개요
 
-${catalogData.title}ì ${catalogData.indication} ì¹ë£ ìì¥ì íµì¬ ì½ë¬¼ìëë¤.
+${catalogData.title}은 ${catalogData.indication} 치료 시장의 핵심 약물입니다.
 
-## ìì¥ ê·ëª¨ ë° ì±ì¥
-- íì¬ ìì¥ê·ëª¨: ${formatMarketSize(catalogData.marketSizeKrw)}
-- ìì ì°ê° ì±ì¥ë¥ : ${calculateGrowthRate()}
-- ì§ì­: ${catalogData.region}
+## 시장 규모 및 성장
+- 현재 시장규모: ${formatMarketSize(catalogData.marketSizeKrw)}
+- 예상 연간 성장률: ${calculateGrowthRate()}
+- 지역: ${catalogData.region}
 
-## ì£¼ì ìì¥ ëë¼ì´ë²
-1. ì¦ê°íë ì§í ì ë³ë¥ 
-2. ìë£ ì ê·¼ì± ê°ì 
-3. ì ì½ ê¸°ì  íì 
-4. ì ë¶ ê±´ê°ë³´í íë`,
+## 주요 시장 드라이버
+1. 증가하는 질환 유병률
+2. 의료 접근성 개선
+3. 제약 기술 혁신
+4. 정부 건강보험 확대`,
       charts: [
         {
           type: 'bar',
-          title: 'ì§ì­ë³ ìì¥ê·ëª¨',
+          title: '지역별 시장규모',
           data: [
-            { label: 'íêµ­', value: 35, color: '#0d9488' },
-            { label: 'ì¼ë³¸', value: 25, color: '#14b8a6' },
-            { label: 'ì¤êµ­', value: 30, color: '#2dd4bf' },
-            { label: 'ê¸°í', value: 10, color: '#99f6e4' },
+            { label: '한국', value: 35, color: '#0d9488' },
+            { label: '일본', value: 25, color: '#14b8a6' },
+            { label: '중국', value: 30, color: '#2dd4bf' },
+            { label: '기타', value: 10, color: '#99f6e4' },
           ],
         },
       ],
     },
     {
       id: 'pest_analysis',
-      title: 'PEST ë¶ì',
+      title: 'PEST 분석',
       tier: 'BASIC',
       locked: false,
-      content: `# PEST ë¶ì
+      content: `# PEST 분석
 
-## ì ì¹ì  ìì¸ (Political)
-- ìì½í ê·ì  ê°í
-- ì ë¶ ê°ê²© íµì  ì ì±
-- ë³´í ê¸ì¬ íë ì ì±
+## 정치적 요인 (Political)
+- 의약품 규제 강화
+- 정부 가격 통제 정책
+- 보험 급여 확대 정책
 
-## ê²½ì ì  ìì¸ (Economic)
-- ìë£ë¹ ì¦ê° ì¶ì¸
-- ì ì½íì¬ R&D í¬ì íë
-- ìì¬ë£ë¹ ìì¹
+## 경제적 요인 (Economic)
+- 의료비 증가 추세
+- 제약회사 R&D 투자 확대
+- 원재료비 상승
 
-## ì¬íì  ìì¸ (Social)
-- ê³ ë ¹í ì¬íë¡ì ì§í
-- íì ê±´ê° ì¸ì ì¦ì§
-- ì¨ë¼ì¸ ìë£ ì»¤ë®¤ëí° ì±ì¥
+## 사회적 요인 (Social)
+- 고령화 사회로의 진행
+- 환자 건강 인식 증진
+- 온라인 의료 커뮤니티 성장
 
-## ê¸°ì ì  ìì¸ (Technological)
-- AI ê¸°ë° ì ì½ ê°ë°
-- ëì§í¸ í¬ì¤ì¼ì´ íì 
-- ë¹ë°ì´í° ë¶ì ê¸°ì `,
+## 기술적 요인 (Technological)
+- AI 기반 신약 개발
+- 디지털 헬스케어 혁신
+- 빅데이터 분석 기술`,
     },
     {
       id: 'epidemiology',
-      title: 'ì§í ì­í ë°ì´í°',
+      title: '질환 역학 데이터',
       tier: 'BASIC',
       locked: false,
-      content: `# ${catalogData.indication} ì­í ë°ì´í°
+      content: `# ${catalogData.indication} 역학 데이터
 
-## ì§í íµê³
-- êµ­ë´ ì ë³ì ì: ${catalogData.patientPool.toLocaleString()}ëª
-- ì°ê° ì ê· íì: ${Math.floor(catalogData.patientPool * 0.15).toLocaleString()}ëª
-- ì§ë¨ì¨: 68.5%
-- ì¹ë£ì¨: 54.2%
+## 질환 통계
+- 국내 유병자 수: ${catalogData.patientPool.toLocaleString()}명
+- 연간 신규 환자: ${Math.floor(catalogData.patientPool * 0.15).toLocaleString()}명
+- 진단율: 68.5%
+- 치료율: 54.2%
 
-## ì¸êµ¬íµê³íì  í¹ì±
-- íê·  ë°ë³ ì°ë ¹: 45-55ì¸
-- ì±ë³ ë¶í¬: ë¨ì± 52%, ì¬ì± 48%
-- ì§ì­ë³ ì§ì¤ë: ëëì 65%`,
+## 인구통계학적 특성
+- 평균 발병 연령: 45-55세
+- 성별 분포: 남성 52%, 여성 48%
+- 지역별 집중도: 대도시 65%`,
       charts: [
         {
           type: 'pie',
-          title: 'ì°ë ¹ëë³ íì ë¶í¬',
+          title: '연령대별 환자 분포',
           data: [
-            { label: '20-40ì¸', value: 15, color: '#e0f2fe' },
-            { label: '40-60ì¸', value: 45, color: '#0ea5e9' },
-            { label: '60-80ì¸', value: 30, color: '#0284c7' },
-            { label: '80ì¸ì´ì', value: 10, color: '#0c4a6e' },
+            { label: '20-40세', value: 15, color: '#e0f2fe' },
+            { label: '40-60세', value: 45, color: '#0ea5e9' },
+            { label: '60-80세', value: 30, color: '#0284c7' },
+            { label: '80세이상', value: 10, color: '#0c4a6e' },
           ],
         },
       ],
     },
     {
       id: 'competitive_landscape',
-      title: 'ê²½ì íê²½ ë¶ì',
+      title: '경쟁 환경 분석',
       tier: 'PRO',
       locked: userTierLevel < tierHierarchy.PRO,
-      content: `# ê²½ì íê²½ ë¶ì
+      content: `# 경쟁 환경 분석
 
-## ì£¼ì ê²½ìì¬
-1. **ì ëê¸°ì A**: ìì¥ì ì ì¨ 28%, ì°ë§¤ì¶ 5,200ìµì
-2. **ì ëê¸°ì B**: ìì¥ì ì ì¨ 22%, ì°ë§¤ì¶ 4,100ìµì
-3. **ì ëê¸°ì C**: ìì¥ì ì ì¨ 18%, ì°ë§¤ì¶ 3,300ìµì
-4. **ê¸°í**: ìì¥ì ì ì¨ 32%
+## 주요 경쟁사
+1. **선도기업 A**: 시장점유율 28%, 연매출 5,200억원
+2. **선도기업 B**: 시장점유율 22%, 연매출 4,100억원
+3. **선도기업 C**: 시장점유율 18%, 연매출 3,300억원
+4. **기타**: 시장점유율 32%
 
-## íì´íë¼ì¸ íí©
-- ìì ë¨ê³ ì ì½: 7ê° (Phase II-III)
-- ì¶ì ëê¸° ì¤: 3ê°
-- ìµê·¼ 1ë ì ê· ì¶ì: 2ê°
+## 파이프라인 현황
+- 임상 단계 신약: 7개 (Phase II-III)
+- 출시 대기 중: 3개
+- 최근 1년 신규 출시: 2개
 
-## ê²½ì ì ëµ
-- ê°ê²© ê²½ìë³´ë¤ ì°¨ë³íë ì¹ë£ í¨ê³¼ ê°ì¡°
-- íì ì¤ì¬ ë§ì¼í íë
-- ìë£ì§ êµì¡ íë¡ê·¸ë¨ ê°í`,
+## 경쟁 전략
+- 가격 경쟁보다 차별화된 치료 효과 강조
+- 환자 중심 마케팅 확대
+- 의료진 교육 프로그램 강화`,
       charts: [
         {
           type: 'bar',
-          title: 'ì£¼ì ê²½ìì¬ ìì¥ì ì ì¨',
+          title: '주요 경쟁사 시장점유율',
           data: [
-            { label: 'ì ëê¸°ì A', value: 28, color: '#f87171' },
-            { label: 'ì ëê¸°ì B', value: 22, color: '#fb923c' },
-            { label: 'ì ëê¸°ì C', value: 18, color: '#facc15' },
-            { label: 'ê¸°í', value: 32, color: '#d1d5db' },
+            { label: '선도기업 A', value: 28, color: '#f87171' },
+            { label: '선도기업 B', value: 22, color: '#fb923c' },
+            { label: '선도기업 C', value: 18, color: '#facc15' },
+            { label: '기타', value: 32, color: '#d1d5db' },
           ],
         },
       ],
     },
     {
       id: 'drug_safety',
-      title: 'ì½ë¬¼ ìì ì± íë¡íì¼',
+      title: '약물 안전성 프로파일',
       tier: 'PRO',
       locked: userTierLevel < tierHierarchy.PRO,
-      content: `# ${catalogData.drugName} ìì ì± íë¡íì¼
+      content: `# ${catalogData.drugName} 안전성 프로파일
 
-## FDA ë³´ê³  ë¶ìì©
-ì´ ${fdaData.adverseEvents.toLocaleString()}ê±´ì ë¶ìì© ë³´ê³ 
+## FDA 보고 부작용
+총 ${fdaData.adverseEvents.toLocaleString()}건의 부작용 보고
 
-### ì£¼ì ë¶ìì© (ìì 5)
+### 주요 부작용 (상위 5)
 1. ${fdaData.topEvents[0]}: 23.4%
 2. ${fdaData.topEvents[1]}: 18.7%
 3. ${fdaData.topEvents[2]}: 15.2%
-4. ë³µë¶ íµì¦: 12.1%
-5. í¼ë¡: 10.6%
+4. 복부 통증: 12.1%
+5. 피로: 10.6%
 
-## ì¬ê° ë¶ìì©
-- ì¬ê° ì´ì ë°ì: ì½ 2.3%
-- ì½ë¬¼ ì¤ë¨ì¼ë¡ ì¸í íë½: 1.8%
-- ì¬ë§ ê´ë ¨ ë³´ê³ : 0.1%
+## 심각 부작용
+- 심각 이상 반응: 약 2.3%
+- 약물 중단으로 인한 탈락: 1.8%
+- 사망 관련 보고: 0.1%
 
-## ìì ì± íê°
-ì ë°ì ì¼ë¡ ìì í ì½ë¬¼ë¡ íê°ëë©°, ìì ëª¨ëí°ë§ íì`,
+## 안전성 평가
+전반적으로 안전한 약물로 평가되며, 임상 모니터링 필요`,
     },
     {
       id: 'clinical_trials',
-      title: 'ê¸ë¡ë² ìììí íí©',
+      title: '글로벌 임상시험 현황',
       tier: 'PRO',
       locked: userTierLevel < tierHierarchy.PRO,
-      content: `# ê¸ë¡ë² ìììí íí©
+      content: `# 글로벌 임상시험 현황
 
-## ì§í ì¤ì¸ ìììí
-ì´ **${trialsData.activeTrials}ê°**ì íì± ìììí
+## 진행 중인 임상시험
+총 **${trialsData.activeTrials}개**의 활성 임상시험
 
-### ë¨ê³ë³ ë¶í¬
-- Phase I: ${Math.floor(trialsData.activeTrials * 0.15)}ê°
-- Phase II: ${Math.floor(trialsData.activeTrials * 0.35)}ê°
-- Phase III: ${Math.floor(trialsData.activeTrials * 0.40)}ê°
-- Phase IV: ${Math.floor(trialsData.activeTrials * 0.10)}ê°
+### 단계별 분포
+- Phase I: ${Math.floor(trialsData.activeTrials * 0.15)}개
+- Phase II: ${Math.floor(trialsData.activeTrials * 0.35)}개
+- Phase III: ${Math.floor(trialsData.activeTrials * 0.40)}개
+- Phase IV: ${Math.floor(trialsData.activeTrials * 0.10)}개
 
-### ì§ì­ë³ ë¶í¬
-- ë¶ë¯¸: 40%
-- ì ë½: 30%
-- ìììííì: 20%
-- ê¸°í: 10%
+### 지역별 분포
+- 북미: 40%
+- 유럽: 30%
+- 아시아태평양: 20%
+- 기타: 10%
 
-### ìµê·¼ ì§í ì¤ì¸ ì£¼ì ìí
+### 최근 진행 중인 주요 시험
 - ${trialsData.recentTrials[0]}
 - ${trialsData.recentTrials[1]}
 - ${trialsData.recentTrials[2]}`,
       charts: [
         {
           type: 'donut',
-          title: 'ìììí ë¨ê³ë³ ë¶í¬',
+          title: '임상시험 단계별 분포',
           data: [
             { label: 'Phase I', value: 15, color: '#dbeafe' },
             { label: 'Phase II', value: 35, color: '#93c5fd' },
@@ -480,91 +480,91 @@ ${catalogData.title}ì ${catalogData.indication} ì¹ë£ ìì¥ì
     },
     {
       id: 'porters_five_forces',
-      title: "Porter's 5 Forces ë¶ì",
+      title: "Porter's 5 Forces 분석",
       tier: 'PRO',
       locked: userTierLevel < tierHierarchy.PRO,
-      content: `# Porter's 5 Forces ë¶ì
+      content: `# Porter's 5 Forces 분석
 
-## 1. ì ê· ì§ì ìíë: ì¤ (3/5)
-- ëì ê·ì  ì¥ë²½
-- ë§ëí ì´ê¸° í¬ì íì (R&D ë¹ì©)
-- í¹í ë³´í¸
+## 1. 신규 진입 위협도: 중 (3/5)
+- 높은 규제 장벽
+- 막대한 초기 투자 필요 (R&D 비용)
+- 특허 보호
 
-## 2. ê²½ìì¬ ê° ê²½ì: ëì (4/5)
-- ë§ì ê²½ìì¬ ì¡´ì¬
-- ì°¨ë³í ì´ë ¤ì
-- ê°ê²© ê²½ì ì¬í
+## 2. 경쟁사 간 경쟁: 높음 (4/5)
+- 많은 경쟁사 존재
+- 차별화 어려움
+- 가격 경쟁 심화
 
-## 3. ê³µê¸ìì íìë ¥: ì¤ (3/5)
-- ìì¬ë£ ê³µê¸ì² ì íì 
-- ì¥ê¸° ê³ì½ ê´í
+## 3. 공급자의 협상력: 중 (3/5)
+- 원재료 공급처 제한적
+- 장기 계약 관행
 
-## 4. êµ¬ë§¤ìì íìë ¥: ëì (4/5)
-- ì ë¶ ë³´í ê°ê²© íµì 
-- ëí ë³ìì ëë êµ¬ë§¤ ìí¥ë ¥
+## 4. 구매자의 협상력: 높음 (4/5)
+- 정부 보험 가격 통제
+- 대형 병원의 대량 구매 영향력
 
-## 5. ëì²´ì¬ ìíë: ì¤ (3/5)
-- ë¤ìí ì¹ë£ ëì
-- ì ì½ ê°ë°ì ë°ë¥¸ ë³í
+## 5. 대체재 위협도: 중 (3/5)
+- 다양한 치료 대안
+- 신약 개발에 따른 변화
 
-## ì¢í© íê°
-ì¤ê° ì ëì ì°ì ë§¤ë ¥ëë¡ íê°ë¨`,
+## 종합 평가
+중간 정도의 산업 매력도로 평가됨`,
     },
     {
       id: 'patient_segments',
-      title: 'íì ì¸ê·¸ë¨¼í¸ ë¶ì',
+      title: '환자 세그먼트 분석',
       tier: 'PREMIUM',
       locked: userTierLevel < tierHierarchy.PREMIUM,
-      content: `# íì ì¸ê·¸ë¨¼í¸ ë¶ì
+      content: `# 환자 세그먼트 분석
 
-## ì£¼ì ì¸ê·¸ë¨¼í¸
+## 주요 세그먼트
 
-### 1. ì´ê¸° ì§ë¨ íì (Early Diagnosed)
-- ê·ëª¨: ${Math.floor(catalogData.patientPool * 0.35).toLocaleString()}ëª
-- í¹ì§: ì§ë¨ í 3ê°ì ì´ë´
-- ì¹ë£ ì°©ììë¥ : 85%
-- ì£¼ì ì±ë: ì¼ë°ì â ì ë¬¸ì
+### 1. 초기 진단 환자 (Early Diagnosed)
+- 규모: ${Math.floor(catalogData.patientPool * 0.35).toLocaleString()}명
+- 특징: 진단 후 3개월 이내
+- 치료 착시작률: 85%
+- 주요 채널: 일반의 → 전문의
 
-### 2. ì¹ë£ ì§ì íì (Continuing Treatment)
-- ê·ëª¨: ${Math.floor(catalogData.patientPool * 0.45).toLocaleString()}ëª
-- í¹ì§: 1ë ì´ì ì¹ë£ ì¤
-- ì½ë¬¼ ììë: 92%
-- ìë£ì§ ì ë¢°ë: ëì
+### 2. 치료 지속 환자 (Continuing Treatment)
+- 규모: ${Math.floor(catalogData.patientPool * 0.45).toLocaleString()}명
+- 특징: 1년 이상 치료 중
+- 약물 순응도: 92%
+- 의료진 신뢰도: 높음
 
-### 3. ì¹ë£ ì í íì (Treatment Switch)
-- ê·ëª¨: ${Math.floor(catalogData.patientPool * 0.20).toLocaleString()}ëª
-- í¹ì§: ê¸°ì¡´ ì½ë¬¼ ë¶ìì© ëë í¨ê³¼ ë¶ì¡±
-- ì íì¨: 35%
-- ìì¬ê²°ì  ê¸°ê°: 2-3ê°ì
+### 3. 치료 전환 환자 (Treatment Switch)
+- 규모: ${Math.floor(catalogData.patientPool * 0.20).toLocaleString()}명
+- 특징: 기존 약물 부작용 또는 효과 부족
+- 전환율: 35%
+- 의사결정 기간: 2-3개월
 
-## ê·¸ë¦°ë¦¬ë³¸ ì»¨í ê°ë¥ íìí íí©
-ì ì²´ íì ì¤ **23.5%**ì í´ë¹íë ì¸ê·¸ë¨¼í¸ì ì ì´ ê°ë¥í©ëë¤.
-ì´ë¥¼ íµí´ ì ë°í íê²ë§ì¼íê³¼ ìììí ëª¨ì§ì ì¤ìí  ì ììµëë¤.`,
+## 그린리본 컨택 가능 환자풀 현황
+전체 환자 중 **23.5%**에 해당하는 세그먼트와 접촉 가능합니다.
+이를 통해 정밀한 타겟마케팅과 임상시험 모집을 실시할 수 있습니다.`,
       greenRibbonCTA: {
         segmentName: 'early_diagnosed',
         patientCount: Math.floor(
           catalogData.patientPool * 0.35 *
             (Math.random() * 0.2 + 0.15)
         ),
-        message: 'ì´ê¸° ì§ë¨ íìì ìº íì¸ ë°ì¡',
+        message: '초기 진단 환자에 캠페인 발송',
       },
       charts: [
         {
           type: 'pie',
-          title: 'ì¸ê·¸ë¨¼í¸ë³ íì ê·ëª¨',
+          title: '세그먼트별 환자 규모',
           data: [
             {
-              label: 'ì´ê¸° ì§ë¨',
+              label: '초기 진단',
               value: 35,
               color: '#dbeafe',
             },
             {
-              label: 'ì¹ë£ ì§ì',
+              label: '치료 지속',
               value: 45,
               color: '#93c5fd',
             },
             {
-              label: 'ì¹ë£ ì í',
+              label: '치료 전환',
               value: 20,
               color: '#3b82f6',
             },
@@ -574,113 +574,113 @@ ${catalogData.title}ì ${catalogData.indication} ì¹ë£ ìì¥ì
     },
     {
       id: 'prescription_patterns',
-      title: 'RWD ê¸°ë° ì²ë°© í¨í´ ë¶ì',
+      title: 'RWD 기반 처방 패턴 분석',
       tier: 'PREMIUM',
       locked: userTierLevel < tierHierarchy.PREMIUM,
-      content: `# RWD ê¸°ë° ì²ë°© í¨í´ ë¶ì
+      content: `# RWD 기반 처방 패턴 분석
 
-## ì²ë°© íí©
-- ìíê·  ì²ë°© ê±´ì: ${Math.floor(catalogData.patientPool * 0.65).toLocaleString()}ê±´
-- íê·  ì²ë°© ì£¼ê¸°: 28ì¼
-- íê·  ì²ë°©ë: 1ê°ìë¶
+## 처방 현황
+- 월평균 처방 건수: ${Math.floor(catalogData.patientPool * 0.65).toLocaleString()}건
+- 평균 처방 주기: 28일
+- 평균 처방량: 1개월분
 
-## ìë£ì§ë³ ì²ë°© í¨í´
-- ì ë¬¸ì ì²ë°©: 78%
-- ì¼ë°ì ì²ë°©: 18%
-- ê¸°í: 4%
+## 의료진별 처방 패턴
+- 전문의 처방: 78%
+- 일반의 처방: 18%
+- 기타: 4%
 
-## ë³ì ê·ëª¨ë³ ì²ë°©
-- ëíë³ì (300ë³ìì´ì): 52%
-- ì¤íë³ì (100-299ë³ì): 28%
-- ìíë³ì/ìì: 20%
+## 병원 규모별 처방
+- 대형병원 (300병상이상): 52%
+- 중형병원 (100-299병상): 28%
+- 소형병원/의원: 20%
 
-## ê³ì ë³ ì²ë°© ë³í
-- 1-3ì: íë ëë¹ 95%
-- 4-6ì: íë ëë¹ 105%
-- 7-9ì: íë ëë¹ 112%
-- 10-12ì: íë ëë¹ 98%
+## 계절별 처방 변화
+- 1-3월: 평년 대비 95%
+- 4-6월: 평년 대비 105%
+- 7-9월: 평년 대비 112%
+- 10-12월: 평년 대비 98%
 
-## ê·¸ë¦°ë¦¬ë³¸ RWD ê¸°ë° ìº íì¸ ê¸°í
-íì¬ RWD ë°ì´í°ìì ìë³ë ê³ ìëµ ì¸ê·¸ë¨¼í¸ë¡
-ì ë° íê²í ìº íì¸ì ì¤ìí  ì ììµëë¤.`,
+## 그린리본 RWD 기반 캠페인 기회
+현재 RWD 데이터에서 식별된 고응답 세그먼트로
+정밀 타게팅 캠페인을 실시할 수 있습니다.`,
       greenRibbonCTA: {
         segmentName: 'high_responders',
         patientCount: Math.floor(
           catalogData.patientPool * 0.25 *
             (Math.random() * 0.2 + 0.15)
         ),
-        message: 'ê³ ìëµ íìêµ°ì ìº íì¸ ë°ì¡',
+        message: '고응답 환자군에 캠페인 발송',
       },
       charts: [
         {
           type: 'bar',
-          title: 'ê³ì ë³ ì²ë°©ë ë³í (íë ëë¹)',
+          title: '계절별 처방량 변화 (평년 대비)',
           data: [
-            { label: '1-3ì', value: 95, color: '#fecaca' },
-            { label: '4-6ì', value: 105, color: '#fbbf24' },
-            { label: '7-9ì', value: 112, color: '#86efac' },
-            { label: '10-12ì', value: 98, color: '#93c5fd' },
+            { label: '1-3월', value: 95, color: '#fecaca' },
+            { label: '4-6월', value: 105, color: '#fbbf24' },
+            { label: '7-9월', value: 112, color: '#86efac' },
+            { label: '10-12월', value: 98, color: '#93c5fd' },
           ],
         },
       ],
     },
     {
       id: 'strategic_recommendations',
-      title: 'ì ëµ ì ì¸ ë° ê¸°í ë¶ì',
+      title: '전략 제언 및 기회 분석',
       tier: 'PREMIUM',
       locked: userTierLevel < tierHierarchy.PREMIUM,
-      content: `# ì ëµ ì ì¸ ë° ê¸°í ë¶ì
+      content: `# 전략 제언 및 기회 분석
 
-## ì£¼ì ê¸°í (Opportunities)
+## 주요 기회 (Opportunities)
 
-### 1. ìì¥ íë ê¸°í
-- ì§ë¨ì¨ ê°ì ì íµí ì ê· íì íë³´
-- ê¸°ì¡´ íìì ë³µì© ììë í¥ì
-- ì§ì­ ìì¥ íë (íì¬ ëëì ì§ì¤)
+### 1. 시장 확대 기회
+- 진단율 개선을 통한 신규 환자 확보
+- 기존 환자의 복용 순응도 향상
+- 지역 시장 확대 (현재 대도시 집중)
 
-**ê¸°ë í¨ê³¼**: ì°ê° 15-20% ì±ì¥ ê°ë¥
+**기대 효과**: 연간 15-20% 성장 가능
 
-### 2. íì ì¤ì¬ ë§ì¼í ê°í
-- ê·¸ë¦°ë¦¬ë³¸ RWD ê¸°ë° ì ë° íê²í
-- íì êµì¡ íë¡ê·¸ë¨ íë
-- ì¨ë¼ì¸ ì»¤ë®¤ëí° êµ¬ì¶
+### 2. 환자 중심 마케팅 강화
+- 그린리본 RWD 기반 정밀 타게팅
+- 환자 교육 프로그램 확대
+- 온라인 커뮤니티 구축
 
-**ê¸°ë í¨ê³¼**: íì ë§ì¡±ë 35% ì¦ê°
+**기대 효과**: 환자 만족도 35% 증가
 
-### 3. ìë£ì§ ê´ê³ ê°í
-- ì§ì­ë³ KOL ë¤í¸ìí¬ êµ¬ì¶
-- ìì êµì¡ íë¡ê·¸ë¨ íë
-- ì§ë£ ê°ì´ë ê°ë°
+### 3. 의료진 관계 강화
+- 지역별 KOL 네트워크 구축
+- 임상 교육 프로그램 확대
+- 진료 가이드 개발
 
-**ê¸°ë í¨ê³¼**: ì²ë°©ë 25% ì¦ê°
+**기대 효과**: 처방량 25% 증가
 
-## ë¦¬ì¤í¬ ìì (Risks)
+## 리스크 요소 (Risks)
 
-### 1. ê·ì  ë¦¬ì¤í¬
-- ê°ê²© ê·ì  ê°í ê°ë¥ì±
-- ìì½í íê° ì¡°ê±´ ë³í
+### 1. 규제 리스크
+- 가격 규제 강화 가능성
+- 의약품 허가 조건 변화
 
-**ëìì±**: ì¬ì  ê·ì  ëì ì ëµ ìë¦½
+**대응책**: 사전 규제 대응 전략 수립
 
-### 2. ê²½ì ë¦¬ì¤í¬
-- ì ê· ê²½ìì¬ ì§ì
-- ì ë¤ë¦­ ì½ ì¶ì ìë°
+### 2. 경쟁 리스크
+- 신규 경쟁사 진입
+- 제네릭 약 출시 임박
 
-**ëìì±**: ì°¨ë³í ì ëµ ê°í
+**대응책**: 차별화 전략 강화
 
-## ìµì í ê¶ê³ ì¬í­
+## 최적화 권고사항
 
-1. **ê·¸ë¦°ë¦¬ë³¸ ì»¨í ê°ë¥ íìí íì©**
-   - ì¦ì ì¤í ê°ë¥í ì¸ê·¸ë¨¼í¸: ${Math.floor(catalogData.patientPool * 0.3 * 0.25).toLocaleString()}ëª
-   - ROI ê¸°ëê°: 3.2ë°°
+1. **그린리본 컨택 가능 환자풀 활용**
+   - 즉시 실행 가능한 세그먼트: ${Math.floor(catalogData.patientPool * 0.3 * 0.25).toLocaleString()}명
+   - ROI 기대값: 3.2배
 
-2. **RWD ê¸°ë° íê²í**
-   - ê³ ìëµ íë¥  ì¸ê·¸ë¨¼í¸: ${Math.floor(catalogData.patientPool * 0.25).toLocaleString()}ëª
-   - ìëµì¨ ê¸°ëê°: 28-32%
+2. **RWD 기반 타게팅**
+   - 고응답 확률 세그먼트: ${Math.floor(catalogData.patientPool * 0.25).toLocaleString()}명
+   - 응답율 기대값: 28-32%
 
-3. **ìììí ëª¨ì§ íì©**
-   - íì¬ ì§í ì¤ì¸ ${trialsData.activeTrials}ê° ìíì íë ¥
-   - ì°¸ì¬ íì ëª¨ì§ ê°ë¥: ${Math.floor(catalogData.patientPool * 0.05).toLocaleString()}ëª`,
+3. **임상시험 모집 활용**
+   - 현재 진행 중인 ${trialsData.activeTrials}개 시험에 협력
+   - 참여 환자 모집 가능: ${Math.floor(catalogData.patientPool * 0.05).toLocaleString()}명`,
     },
   ];
 
