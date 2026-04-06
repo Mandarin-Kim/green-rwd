@@ -89,11 +89,11 @@ export default function DashboardPage() {
   const { data: chartData } = useApi<ChartData>('/api/dashboard/chart', { period: '7d' })
 
   // KPI 카드 데이터 구성
-  const kpis = data ? [
-    { label: '활성 캠페인', value: String(data.kpis.activeCampaigns), change: data.kpis.changes.activeCampaigns, up: !data.kpis.changes.activeCampaigns.startsWith('-'), icon: <BarChart3 size={20} /> },
-    { label: '총 발송 건수', value: formatNumber(data.kpis.totalSent), change: data.kpis.changes.totalSent, up: !data.kpis.changes.totalSent.startsWith('-'), icon: <Send size={20} /> },
-    { label: '평균 전환율', value: `${data.kpis.avgConversionRate.toFixed(1)}%`, change: data.kpis.changes.avgConversionRate, up: !data.kpis.changes.avgConversionRate.startsWith('-'), icon: <TrendingUp size={20} /> },
-    { label: '이번 달 비용', value: formatCurrency(data.kpis.monthCost), change: data.kpis.changes.monthCost, up: data.kpis.changes.monthCost.startsWith('-'), icon: <Wallet size={20} /> },
+  const kpis = data?.kpis ? [
+    { label: '활성 캠페인', value: String(data.kpis.activeCampaigns ?? 0), change: data.kpis.changes?.activeCampaigns ?? '+0%', up: !(data.kpis.changes?.activeCampaigns ?? '').startsWith('-'), icon: <BarChart3 size={20} /> },
+    { label: '총 발송 건수', value: formatNumber(data.kpis.totalSent ?? 0), change: data.kpis.changes?.totalSent ?? '+0%', up: !(data.kpis.changes?.totalSent ?? '').startsWith('-'), icon: <Send size={20} /> },
+    { label: '평균 전환율', value: `${(data.kpis.avgConversionRate ?? 0).toFixed(1)}%`, change: data.kpis.changes?.avgConversionRate ?? '+0%', up: !(data.kpis.changes?.avgConversionRate ?? '').startsWith('-'), icon: <TrendingUp size={20} /> },
+    { label: '이번 달 비용', value: formatCurrency(data.kpis.monthCost ?? 0), change: data.kpis.changes?.monthCost ?? '+0%', up: (data.kpis.changes?.monthCost ?? '').startsWith('-'), icon: <Wallet size={20} /> },
   ] : fallbackKpis
 
   const campaigns = data?.recentCampaigns || []
