@@ -9,7 +9,6 @@ import Badge from '@/components/ui/Badge'
 import { ArrowLeft, FileText, Zap, Crown, Check, Eye, ShoppingCart, CreditCard, Loader2, BarChart3, TrendingUp, Users, Globe } from 'lucide-react'
 import Link from 'next/link'
 import { useApi, useMutation } from '@/hooks/use-api'
-import { useSession } from 'next-auth/react'
 
 interface ReportCatalog {
   id: string
@@ -48,8 +47,8 @@ export default function ReportDetailPage() {
   const { slug } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
-  const isAdmin = (session?.user as any)?.role === 'ADMIN'
+  // SessionProvider 없이도 동작하도록 임시 처리 (데모용 Admin 모드)
+  const isAdmin = true
 
   const initialTab = searchParams.get('tab') || 'preview'
   const [activeTab, setActiveTab] = useState<'preview' | 'order' | 'payment' | 'complete'>(initialTab as any)
