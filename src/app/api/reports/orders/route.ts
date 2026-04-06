@@ -118,6 +118,8 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/reports/orders
  * 새로운 리포트 주문 생성
+ * - ADMIN: 0원 테스트 주문 (크레딧 체크 스킵)
+ * - SPONSOR: 크레딧 차감 후 주문
  */
 export async function POST(req: NextRequest) {
   try {
@@ -160,11 +162,17 @@ export async function POST(req: NextRequest) {
       PREMIUM: catalog.pricePremium,
     }
 
-    const price = priceMap[body.tier]
+    const originalPrice = priceMap[body.tier]
 
-    // 사용자의 조직 조회 및 크레딧 확인
+    // ADMIN: 0원 테스트 주문 (크레딧 체크 스킵)
+    // SPONSOR: 크레딧 확인 후 주문
+    let finalPrice = originalPrice
     let userOrg = null
-    if (user.role === 'SPONSOR') {
+
+    if (user.role === 'ADMIN') {
+      // 관리자는 0원 테스트 주문
+      finalPrice = 0
+    } else if (user.role === 'SPONSOR') {
       const userRecord = await prisma.user.findUnique({
         where: { id: user.id },
         select: { orgId: true, org: true },
@@ -175,19 +183,30 @@ export async function POST(req: NextRequest) {
       }
 
       userOrg = userRecord.org
-      if (userOrg.creditBalance < price) {
+      if (userOrg.creditBalance < originalPrice) {
         return forbidden('크레딧이 부족합니다.')
       }
     }
+
+    // DB에서 유저 조회, 없으면 자동 생성 (DB 리셋 대응)
+    const dbUser = await prisma.user.upsert({
+      where: { email: user.email || '' },
+      update: {},
+      create: {
+        email: user.email || '',
+        name: user.name || 'Unknown',
+        role: user.role || 'ADMIN',
+      },
+    })
 
     // 주문 생성
     const order = await prisma.reportOrder.create({
       data: {
         catalogId: body.catalogId,
-        userId: user.id,
-        orgId: userOrg?.id,
+        userId: dbUser.id,
+        orgId: userOrg?.id || dbUser.orgId || undefined,
         tier: body.tier as 'BASIC' | 'PRO' | 'PREMIUM',
-        price,
+        price: finalPrice,
         customPrompt: body.customPrompt,
         status: 'PENDING',
         progress: 0,
