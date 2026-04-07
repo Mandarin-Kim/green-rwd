@@ -8,12 +8,12 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  directUrl = env("DIRECT_URL")
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 1. AUTH & USER
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 enum Role {
   ADMIN
@@ -76,9 +76,9 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 2. ORGANIZATION
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 model Organization {
   id          String    @id @default(cuid())
@@ -93,9 +93,9 @@ model Organization {
   reportOrders ReportOrder[]
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 3. CAMPAIGN
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 enum CampaignStatus {
   DRAFT
@@ -124,27 +124,27 @@ model Campaign {
   status          CampaignStatus @default(DRAFT)
   channelType     ChannelType    @default(SMS)
 
-  // Step 1: ëª©í
+  // Step 1: 목표
   objective       String?
   kpiTarget       Json?
 
-  // Step 2: íê²
+  // Step 2: 타겟
   segmentId       String?
   segment         Segment?       @relation(fields: [segmentId], references: [id])
   targetCount     Int            @default(0)
 
-  // Step 3: ì½íì¸ 
+  // Step 3: 콘텐츠
   contentTitle    String?
   contentBody     String?        @db.Text
   contentJson     Json?
   templateId      String?
 
-  // Step 4: ì¼ì 
+  // Step 4: 일정
   scheduledAt     DateTime?
   sendingDays     Json?
   sendingTime     String?
 
-  // Step 5: ê²ì/ì¹ì¸
+  // Step 5: 검수/승인
   approvedBy      String?
   approvedAt      DateTime?
   rejectionReason String?
@@ -165,9 +165,9 @@ model Campaign {
   updatedAt       DateTime       @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 4. SEGMENT
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 model Segment {
   id            String     @id @default(cuid())
@@ -210,9 +210,9 @@ model PatientSegment {
   @@unique([patientId, segmentId])
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 5. SENDING
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 enum SendingStatus {
   PENDING
@@ -245,9 +245,9 @@ model Sending {
   updatedAt     DateTime      @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 6. CAMPAIGN ANALYTICS
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 model CampaignAnalytics {
   id              String   @id @default(cuid())
@@ -272,9 +272,9 @@ model CampaignAnalytics {
   updatedAt       DateTime @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 7. AI REPORT
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 enum ReportTier {
   BASIC
@@ -336,9 +336,9 @@ model ReportOrder {
   updatedAt       DateTime     @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
-// 8. DATA SOURCE (ì¤í¬ëí/API ì°ë)
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
+// 8. DATA SOURCE (스크래핑/API 연동)
+// ──────────────────────────────────────
 
 enum DataSourceType {
   API
@@ -377,9 +377,9 @@ model DataCache {
   @@index([expiresAt])
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 9. eClinical (CTMS / EDC)
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 enum StudyStatus {
   PLANNING
@@ -434,9 +434,9 @@ model EcrfTemplate {
   updatedAt  DateTime @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 10. NOTIFICATION & AUDIT
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 model Notification {
   id        String   @id @default(cuid())
@@ -465,9 +465,9 @@ model AuditLog {
   @@index([userId, createdAt])
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
-// 11. TEMPLATE (ìº íì¸ ì½íì¸  ííë¦¿)
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
+// 11. TEMPLATE (캠페인 콘텐츠 템플릿)
+// ──────────────────────────────────────
 
 model ContentTemplate {
   id          String      @id @default(cuid())
@@ -483,9 +483,9 @@ model ContentTemplate {
   updatedAt   DateTime    @updatedAt
 }
 
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 // 12. CREDIT & BILLING
-// ââââââââââââââââââââââââââââââââââââââ
+// ──────────────────────────────────────
 
 model CreditTransaction {
   id          String   @id @default(cuid())
@@ -496,4 +496,421 @@ model CreditTransaction {
   description String?
   reference   String?
   createdAt   DateTime @default(now())
+}
+
+// ══════════════════════════════════════════════════════════
+// 13. HIRA 공공데이터 DB 캐싱 (12개 API, 52 엔드포인트)
+// ══════════════════════════════════════════════════════════
+
+// ── 동기화 관리 (전체 API 공통) ──
+
+enum HiraSyncStatus {
+  IDLE
+  SYNCING
+  SUCCESS
+  FAILED
+}
+
+/// HIRA API 동기화 이력 관리
+model HiraSyncLog {
+  id            String         @id @default(cuid())
+  apiName       String
+  operation     String
+  status        HiraSyncStatus @default(IDLE)
+  recordCount   Int            @default(0)
+  params        Json?
+  errorMessage  String?        @db.Text
+  startedAt     DateTime?
+  completedAt   DateTime?
+  nextSyncAt    DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@index([apiName, operation])
+  @@index([status])
+}
+
+// ── B-1. 의약품사용정보 (12 엔드포인트) ──
+
+model HiraDrugUsage {
+  id              String   @id @default(cuid())
+  diagYm          String
+  analysisType    String
+  componentCode   String?
+  componentName   String?
+  targetCode      String?
+  targetName      String?
+  usageAmount     Float    @default(0)
+  usageRate       Float    @default(0)
+  patientCount    Int      @default(0)
+  claimAmount     BigInt   @default(0)
+  rawData         Json?
+  syncedAt        DateTime @default(now())
+
+  @@unique([diagYm, analysisType, componentCode, targetCode])
+  @@index([diagYm])
+  @@index([analysisType])
+  @@index([componentCode])
+  @@index([targetCode])
+}
+
+// ── B-2. 질병정보 (5 엔드포인트) ──
+
+model HiraDisease {
+  id              String   @id @default(cuid())
+  diseaseCode     String   @unique
+  diseaseName     String
+  diseaseEngName  String?
+  patientCount    Int      @default(0)
+  visitCount      Int      @default(0)
+  claimAmount     BigInt   @default(0)
+  syncedAt        DateTime @default(now())
+
+  genderStats     HiraDiseaseGenderStats[]
+  ageStats        HiraDiseaseAgeStats[]
+  yearTrends      HiraDiseaseYearTrend[]
+  areaStats       HiraDiseaseAreaStats[]
+}
+
+model HiraDiseaseGenderStats {
+  id              String      @id @default(cuid())
+  diseaseCode     String
+  disease         HiraDisease @relation(fields: [diseaseCode], references: [diseaseCode], onDelete: Cascade)
+  period          String
+  gender          String
+  inpatientCount  Int         @default(0)
+  outpatientCount Int         @default(0)
+  totalCount      Int         @default(0)
+  syncedAt        DateTime    @default(now())
+
+  @@unique([diseaseCode, period, gender])
+}
+
+model HiraDiseaseAgeStats {
+  id              String      @id @default(cuid())
+  diseaseCode     String
+  disease         HiraDisease @relation(fields: [diseaseCode], references: [diseaseCode], onDelete: Cascade)
+  period          String
+  gender          String
+  ageGroup        String
+  patientCount    Int         @default(0)
+  visitCount      Int         @default(0)
+  claimAmount     BigInt      @default(0)
+  syncedAt        DateTime    @default(now())
+
+  @@unique([diseaseCode, period, gender, ageGroup])
+  @@index([diseaseCode, period])
+}
+
+model HiraDiseaseYearTrend {
+  id              String      @id @default(cuid())
+  diseaseCode     String
+  disease         HiraDisease @relation(fields: [diseaseCode], references: [diseaseCode], onDelete: Cascade)
+  year            String
+  patientCount    Int         @default(0)
+  visitCount      Int         @default(0)
+  claimAmount     BigInt      @default(0)
+  avgClaimPerPt   Int         @default(0)
+  syncedAt        DateTime    @default(now())
+
+  @@unique([diseaseCode, year])
+}
+
+model HiraDiseaseAreaStats {
+  id              String      @id @default(cuid())
+  diseaseCode     String
+  disease         HiraDisease @relation(fields: [diseaseCode], references: [diseaseCode], onDelete: Cascade)
+  period          String
+  regionCode      String
+  regionName      String
+  patientCount    Int         @default(0)
+  visitCount      Int         @default(0)
+  claimAmount     BigInt      @default(0)
+  patientRate     Float       @default(0)
+  syncedAt        DateTime    @default(now())
+
+  @@unique([diseaseCode, period, regionCode])
+  @@index([regionCode])
+}
+
+// ── B-3. 진료행위정보 (4 엔드포인트) ──
+
+model HiraActionStats {
+  id              String   @id @default(cuid())
+  actionCode      String
+  actionName      String?
+  period          String
+  analysisType    String
+  targetCode      String?
+  targetName      String?
+  patientCount    Int      @default(0)
+  frequency       Int      @default(0)
+  claimAmount     BigInt   @default(0)
+  rawData         Json?
+  syncedAt        DateTime @default(now())
+
+  @@unique([actionCode, period, analysisType, targetCode])
+  @@index([actionCode])
+  @@index([period])
+}
+
+// ── B-4. 수가기준정보 (3 엔드포인트) ──
+
+model HiraMedicalFee {
+  id              String   @id @default(cuid())
+  feeCode         String
+  feeName         String
+  feeDivNo        String?
+  category        String
+  payTypeName     String?
+  unitPrice       Int      @default(0)
+  relativeValue   Float    @default(0)
+  effectiveDate   String?
+  syncedAt        DateTime @default(now())
+
+  @@unique([feeCode, category])
+  @@index([category])
+  @@index([feeName])
+}
+
+// ── B-5. 병원정보 (1 엔드포인트) ──
+
+model HiraHospital {
+  id              String   @id @default(cuid())
+  ykiho           String   @unique
+  hospitalName    String
+  classCode       String?
+  className       String?
+  sidoCode        String?
+  sidoName        String?
+  sgguCode        String?
+  sgguName        String?
+  address         String?
+  phone           String?
+  website         String?
+  establishDate   String?
+  doctorTotal     Int      @default(0)
+  mdSpecialist    Int      @default(0)
+  dtSpecialist    Int      @default(0)
+  cmSpecialist    Int      @default(0)
+  syncedAt        DateTime @default(now())
+
+  facility        HiraFacilityDetail?
+  departments     HiraHospitalDepartment[]
+  equipment       HiraHospitalEquipment[]
+
+  @@index([sidoCode])
+  @@index([classCode])
+  @@index([hospitalName])
+}
+
+// ── B-6. 약국정보 (1 엔드포인트) ──
+
+model HiraPharmacy {
+  id              String   @id @default(cuid())
+  ykiho           String   @unique
+  pharmacyName    String
+  classCode       String?
+  className       String?
+  sidoCode        String?
+  sidoName        String?
+  sgguCode        String?
+  sgguName        String?
+  address         String?
+  phone           String?
+  establishDate   String?
+  syncedAt        DateTime @default(now())
+
+  @@index([sidoCode])
+  @@index([pharmacyName])
+}
+
+// ── B-7. 의료기관별상세정보 (11 엔드포인트) ──
+
+model HiraFacilityDetail {
+  id              String       @id @default(cuid())
+  ykiho           String       @unique
+  hospital        HiraHospital @relation(fields: [ykiho], references: [ykiho], onDelete: Cascade)
+  totalBeds       Int          @default(0)
+  icuBeds         Int          @default(0)
+  operatingRooms  Int          @default(0)
+  nursingGrade    String?
+  parkingCount    Int          @default(0)
+  weekdayOpen     String?
+  weekdayClose    String?
+  satOpen         String?
+  satClose        String?
+  rawData         Json?
+  syncedAt        DateTime     @default(now())
+}
+
+model HiraHospitalDepartment {
+  id              String       @id @default(cuid())
+  ykiho           String
+  hospital        HiraHospital @relation(fields: [ykiho], references: [ykiho], onDelete: Cascade)
+  departmentCode  String
+  departmentName  String
+  syncedAt        DateTime     @default(now())
+
+  @@unique([ykiho, departmentCode])
+}
+
+model HiraHospitalEquipment {
+  id              String       @id @default(cuid())
+  ykiho           String
+  hospital        HiraHospital @relation(fields: [ykiho], references: [ykiho], onDelete: Cascade)
+  equipmentName   String
+  equipmentCode   String?
+  equipmentCount  Int          @default(1)
+  syncedAt        DateTime     @default(now())
+
+  @@unique([ykiho, equipmentName])
+}
+
+// ── B-8. 약가기준정보 (2 엔드포인트) ──
+
+model HiraDrugPrice {
+  id              String   @id @default(cuid())
+  productCode     String
+  productName     String
+  manufacturer    String?
+  category        String
+  specification   String?
+  dosageRoute     String?
+  payType         String?
+  unitPrice       Int      @default(0)
+  upperLimit      Int      @default(0)
+  mainIngredientCode String?
+  effectiveDate   String?
+  syncedAt        DateTime @default(now())
+
+  @@unique([productCode, category])
+  @@index([productName])
+  @@index([manufacturer])
+  @@index([mainIngredientCode])
+}
+
+// ── B-9. 비급여진료비정보 (7 엔드포인트) ──
+
+model HiraNonPaymentItem {
+  id              String   @id @default(cuid())
+  itemCode        String   @unique
+  itemName        String
+  categoryCode    String?
+  categoryName    String?
+  syncedAt        DateTime @default(now())
+
+  hospitalPrices  HiraNonPaymentPrice[]
+  classStats      HiraNonPaymentClassStats[]
+  regionStats     HiraNonPaymentRegionStats[]
+}
+
+model HiraNonPaymentPrice {
+  id              String              @id @default(cuid())
+  itemCode        String
+  item            HiraNonPaymentItem  @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  ykiho           String
+  hospitalName    String?
+  className       String?
+  sidoName        String?
+  price           Int        @default(0)
+  minPrice        Int        @default(0)
+  maxPrice        Int        @default(0)
+  syncedAt        DateTime   @default(now())
+
+  @@unique([itemCode, ykiho])
+  @@index([itemCode])
+}
+
+model HiraNonPaymentClassStats {
+  id              String              @id @default(cuid())
+  itemCode        String
+  item            HiraNonPaymentItem  @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  classCode       String
+  className       String
+  avgPrice        Int        @default(0)
+  minPrice        Int        @default(0)
+  maxPrice        Int        @default(0)
+  hospitalCount   Int        @default(0)
+  syncedAt        DateTime   @default(now())
+
+  @@unique([itemCode, classCode])
+}
+
+model HiraNonPaymentRegionStats {
+  id              String              @id @default(cuid())
+  itemCode        String
+  item            HiraNonPaymentItem  @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  sidoCode        String
+  sidoName        String
+  avgPrice        Int        @default(0)
+  minPrice        Int        @default(0)
+  maxPrice        Int        @default(0)
+  hospitalCount   Int        @default(0)
+  syncedAt        DateTime   @default(now())
+
+  @@unique([itemCode, sidoCode])
+}
+
+// ── B-10. 의약품성분약효정보 (1 엔드포인트) ──
+
+model HiraIngredient {
+  id              String   @id @default(cuid())
+  generalNameCode String   @unique
+  generalName     String
+  efficacyCode    String?
+  efficacyName    String?
+  content         String?
+  dosageRoute     String?
+  formCode        String?
+  formName        String?
+  syncedAt        DateTime @default(now())
+
+  @@index([efficacyCode])
+  @@index([generalName])
+}
+
+// ── B-11. DRG 별도보상항목 (4 엔드포인트) ──
+
+model HiraDrgMdfee {
+  id              String   @id @default(cuid())
+  feeCode         String   @unique
+  feeName         String
+  referenceName   String?
+  unitPrice       Int      @default(0)
+  effectiveDate   String?
+  payType         String?
+  syncedAt        DateTime @default(now())
+}
+
+model HiraDrgMaterial {
+  id              String   @id @default(cuid())
+  materialCode    String   @unique
+  materialName    String
+  categoryCode    String?
+  categoryName    String?
+  unitPrice       Int      @default(0)
+  manufacturer    String?
+  payType         String?
+  syncedAt        DateTime @default(now())
+
+  @@index([categoryCode])
+}
+
+// ── B-12. 신포괄기준정보 (1 엔드포인트) ──
+
+model HiraNdrgItem {
+  id              String   @id @default(cuid())
+  classCode       String
+  className       String?
+  itemType        String?
+  inclusionCode   String?
+  inclusionName   String?
+  startDate       String?
+  endDate         String?
+  isActive        Boolean  @default(true)
+  syncedAt        DateTime @default(now())
+
+  @@unique([classCode, itemType])
+  @@index([itemType])
+  @@index([isActive])
 }
