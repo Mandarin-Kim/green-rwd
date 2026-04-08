@@ -1,9 +1,16 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Printer, ChevronRight, FileText, BarChart3, Table2 } from 'lucide-react'
+import {
+  ArrowLeft, Download, Printer, ChevronRight, FileText,
+  BarChart3, Table2, Users, FlaskConical, ArrowRight,
+  TrendingUp, MapPin, Calendar, X
+} from 'lucide-react'
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Types
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 interface Section {
   id: string
   title: string
@@ -22,12 +29,534 @@ interface ReportData {
   drugName: string
   indication: string
   marketSize: string
+  marketSizeRaw?: number | null
   patientPool: string
+  patientPoolRaw?: number | null
   generatedAt: string
   tier: string
   sections: Section[]
 }
 
+interface ParsedTable {
+  headers: string[]
+  rows: string[][]
+}
+
+interface ChartCandidate {
+  title: string
+  type: 'bar' | 'horizontalBar' | 'donut' | 'progress'
+  data: { label: string; value: number; color: string }[]
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Color Palette (모던 2030 감성)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CHART_COLORS = [
+  '#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8',
+  '#4f46e5', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95',
+  '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16',
+]
+
+const GRADIENT_PAIRS = [
+  ['#6366f1', '#8b5cf6'],
+  ['#06b6d4', '#14b8a6'],
+  ['#f59e0b', '#f97316'],
+  ['#ec4899', '#f43f5e'],
+  ['#10b981', '#22c55e'],
+]
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Markdown Table Parser
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function parseMarkdownTables(content: string): { tables: ParsedTable[], positions: { start: number, end: number }[] } {
+  const tableRegex = /\|(.+)\|\n\|[-\s|:]+\|\n((?:\|.+\|\n?)+)/g
+  const tables: ParsedTable[] = []
+  const positions: { start: number, end: number }[] = []
+  let match
+
+  while ((match = tableRegex.exec(content)) !== null) {
+    const headerLine = match[1]
+    const bodyLines = match[2].trim().split('\n')
+
+    const headers = headerLine.split('|').map(h => h.trim()).filter(Boolean)
+    const rows = bodyLines.map(line =>
+      line.split('|').map(c => c.trim()).filter(Boolean)
+    )
+
+    tables.push({ headers, rows })
+    positions.push({ start: match.index, end: match.index + match[0].length })
+  }
+
+  return { tables, positions }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Table → Chart Candidate 변환
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function extractNumber(str: string): number | null {
+  const cleaned = str.replace(/,/g, '').replace(/명|원|%|건|억|만|조|개/g, '').trim()
+  const num = parseFloat(cleaned)
+  return isNaN(num) ? null : num
+}
+
+function tableToChart(table: ParsedTable, index: number): ChartCandidate | null {
+  if (table.rows.length < 2 || table.headers.length < 2) return null
+
+  // 숫자 데이터가 있는 컬럼 찾기
+  let numColIdx = -1
+  for (let c = 1; c < table.headers.length; c++) {
+    const hasNumbers = table.rows.filter(r => r[c] && extractNumber(r[c]) !== null).length
+    if (hasNumbers >= table.rows.length * 0.5) {
+      numColIdx = c
+      break
+    }
+  }
+  if (numColIdx === -1) return null
+
+  const data = table.rows
+    .map((row, i) => ({
+      label: row[0] || '',
+      value: extractNumber(row[numColIdx]) || 0,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }))
+    .filter(d => d.label && d.value > 0)
+
+  if (data.length < 2) return null
+
+  // 차트 타입 결정
+  const total = data.reduce((s, d) => s + d.value, 0)
+  const isPercentLike = data.every(d => d.value <= 100) && total > 50 && total <= 120
+  const isSmallSet = data.length <= 6
+
+  let type: ChartCandidate['type'] = 'bar'
+  if (isPercentLike && isSmallSet) type = 'donut'
+  else if (data.length <= 8) type = 'horizontalBar'
+  else type = 'bar'
+
+  // 제목 추정 (헤더에서)
+  const title = `${table.headers[0]} - ${table.headers[numColIdx]}`
+
+  return { title, type, data }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Chart Components (모던 2030 스타일)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function ModernBarChart({ chart }: { chart: ChartCandidate }) {
+  const maxVal = Math.max(...chart.data.map(d => d.value))
+  return (
+    <div className="my-6 p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100">
+      <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-indigo-500" />
+        {chart.title}
+      </h4>
+      <div className="space-y-3">
+        {chart.data.map((item, idx) => (
+          <div key={idx} className="group">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-slate-600">{item.label}</span>
+              <span className="text-xs font-bold text-slate-800">{item.value.toLocaleString()}</span>
+            </div>
+            <div className="h-7 bg-slate-100 rounded-lg overflow-hidden">
+              <div
+                className="h-full rounded-lg transition-all duration-700 ease-out group-hover:opacity-90"
+                style={{
+                  width: `${Math.max((item.value / maxVal) * 100, 3)}%`,
+                  background: `linear-gradient(135deg, ${GRADIENT_PAIRS[idx % GRADIENT_PAIRS.length][0]}, ${GRADIENT_PAIRS[idx % GRADIENT_PAIRS.length][1]})`,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ModernHorizontalBarChart({ chart }: { chart: ChartCandidate }) {
+  const maxVal = Math.max(...chart.data.map(d => d.value))
+  return (
+    <div className="my-6 p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100">
+      <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-indigo-500" />
+        {chart.title}
+      </h4>
+      <div className="space-y-2.5">
+        {chart.data.map((item, idx) => {
+          const pct = Math.max((item.value / maxVal) * 100, 4)
+          return (
+            <div key={idx} className="flex items-center gap-3 group">
+              <span className="text-xs text-slate-500 w-20 truncate text-right shrink-0">{item.label}</span>
+              <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-2"
+                  style={{
+                    width: `${pct}%`,
+                    background: `linear-gradient(90deg, ${item.color}88, ${item.color})`,
+                  }}
+                >
+                  {pct > 20 && (
+                    <span className="text-[10px] font-bold text-white/90">{item.value.toLocaleString()}</span>
+                  )}
+                </div>
+              </div>
+              {pct <= 20 && (
+                <span className="text-[10px] font-semibold text-slate-500">{item.value.toLocaleString()}</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ModernDonutChart({ chart }: { chart: ChartCandidate }) {
+  const total = chart.data.reduce((s, d) => s + d.value, 0)
+  let cumPct = 0
+  const arcs = chart.data.map((item, idx) => {
+    const pct = (item.value / total) * 100
+    const start = cumPct
+    cumPct += pct
+    return { ...item, pct, start, end: cumPct }
+  })
+  const gradientStops = arcs.map(a => `${a.color} ${a.start}% ${a.end}%`).join(', ')
+
+  return (
+    <div className="my-6 p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100">
+      <h4 className="text-sm font-semibold text-slate-700 mb-5 flex items-center gap-2">
+        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500" />
+        {chart.title}
+      </h4>
+      <div className="flex items-center gap-8">
+        <div className="relative shrink-0">
+          <div
+            className="w-36 h-36 rounded-full shadow-lg"
+            style={{ background: `conic-gradient(${gradientStops})` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-white shadow-inner flex items-center justify-center">
+              <span className="text-lg font-bold text-slate-800">{total > 100 ? total.toLocaleString() : `${Math.round(total)}%`}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 space-y-2">
+          {arcs.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2.5">
+              <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
+              <span className="text-xs text-slate-600 flex-1">{item.label}</span>
+              <span className="text-xs font-bold text-slate-800">{item.pct.toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChartRenderer({ chart }: { chart: ChartCandidate }) {
+  switch (chart.type) {
+    case 'donut': return <ModernDonutChart chart={chart} />
+    case 'horizontalBar': return <ModernHorizontalBarChart chart={chart} />
+    case 'bar': return <ModernBarChart chart={chart} />
+    default: return <ModernBarChart chart={chart} />
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Modern Table Renderer
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ModernTable({ table }: { table: ParsedTable }) {
+  return (
+    <div className="my-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gradient-to-r from-slate-50 to-slate-100">
+            {table.headers.map((h, i) => (
+              <th key={i} className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {table.rows.map((row, i) => (
+            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+              {row.map((cell, j) => (
+                <td key={j} className={`px-4 py-2.5 text-slate-700 ${j === 0 ? 'font-medium' : ''}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Content Renderer (테이블→차트 자동변환 포함)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SectionContent({ content }: { content: string }) {
+  const { segments, tables, charts } = useMemo(() => {
+    const { tables: parsedTables, positions } = parseMarkdownTables(content)
+    const charts: ChartCandidate[] = []
+    const tableList: ParsedTable[] = parsedTables
+
+    parsedTables.forEach((t, i) => {
+      const chart = tableToChart(t, i)
+      if (chart) charts.push(chart)
+    })
+
+    // content를 테이블 기준으로 분할
+    const segments: { type: 'text' | 'table', content: string, tableIdx?: number }[] = []
+    let lastEnd = 0
+
+    positions.forEach((pos, idx) => {
+      if (pos.start > lastEnd) {
+        segments.push({ type: 'text', content: content.slice(lastEnd, pos.start) })
+      }
+      segments.push({ type: 'table', content: '', tableIdx: idx })
+      lastEnd = pos.end
+    })
+
+    if (lastEnd < content.length) {
+      segments.push({ type: 'text', content: content.slice(lastEnd) })
+    }
+
+    if (positions.length === 0) {
+      segments.push({ type: 'text', content })
+    }
+
+    return { segments, tables: tableList, charts }
+  }, [content])
+
+  const renderText = (text: string) => {
+    let html = text
+      .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-6 mb-2 text-slate-800">$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-7 mb-3 text-slate-900">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-8 mb-3 text-slate-900">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em class="text-slate-700">$1</em>')
+      .replace(/^- (.+)$/gm, '<li class="ml-5 mb-1.5 text-slate-700 text-sm leading-relaxed list-disc">$1</li>')
+      .replace(/^\d+\. (.+)$/gm, '<li class="ml-5 mb-1.5 text-slate-700 text-sm leading-relaxed list-decimal">$1</li>')
+      .replace(/\n\n/g, '</p><p class="mb-3 text-slate-700 text-sm leading-relaxed">')
+      .replace(/\n/g, '<br/>')
+
+    return `<p class="mb-3 text-slate-700 text-sm leading-relaxed">${html}</p>`
+  }
+
+  // 차트와 테이블의 매핑 (tableIdx → chartIdx)
+  const tableToChartMap = useMemo(() => {
+    const map: Record<number, number> = {}
+    let chartIdx = 0
+    tables.forEach((t, tIdx) => {
+      const chart = tableToChart(t, tIdx)
+      if (chart) {
+        map[tIdx] = chartIdx
+        chartIdx++
+      }
+    })
+    return map
+  }, [tables])
+
+  return (
+    <div>
+      {segments.map((seg, idx) => {
+        if (seg.type === 'text') {
+          return <div key={idx} dangerouslySetInnerHTML={{ __html: renderText(seg.content) }} />
+        }
+
+        const tIdx = seg.tableIdx!
+        const chartIdx = tableToChartMap[tIdx]
+
+        return (
+          <div key={idx}>
+            <ModernTable table={tables[tIdx]} />
+            {chartIdx !== undefined && <ChartRenderer chart={charts[chartIdx]} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Cohort / Segment Modal
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function CohortSegmentModal({
+  report,
+  onClose,
+}: {
+  report: ReportData
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const [filters, setFilters] = useState([
+    { field: 'diagnosisCode', operator: 'in', value: report.indication || '' },
+    { field: 'drugCode', operator: 'in', value: report.drugName || '' },
+  ])
+  const [segmentName, setSegmentName] = useState(`${report.indication || report.title} 코호트`)
+
+  const addFilter = () => setFilters(prev => [...prev, { field: '', operator: 'equals', value: '' }])
+  const removeFilter = (i: number) => setFilters(prev => prev.filter((_, idx) => idx !== i))
+
+  const fieldOptions = [
+    { value: 'ageGroup', label: '연령대' },
+    { value: 'gender', label: '성별' },
+    { value: 'region', label: '지역' },
+    { value: 'diagnosisCode', label: '진단코드 (ICD-10)' },
+    { value: 'drugCode', label: '약물코드 (ATC)' },
+  ]
+
+  const operatorOptions = [
+    { value: 'equals', label: '=' },
+    { value: 'in', label: '포함' },
+    { value: 'gt', label: '>' },
+    { value: 'lt', label: '<' },
+    { value: 'between', label: '범위' },
+  ]
+
+  const handleCreateSegment = async () => {
+    const validFilters = filters.filter(f => f.field && f.value)
+    if (validFilters.length === 0) return
+
+    try {
+      const conditions: Record<string, unknown> = {}
+      validFilters.forEach(f => {
+        conditions[f.field] = { operator: f.operator, value: f.value }
+      })
+
+      const res = await fetch('/api/segments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: segmentName.trim(), conditions }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        router.push('/segments')
+      }
+    } catch {
+      // 에러 처리
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[80vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">코호트 세그먼트 설정</h3>
+            <p className="text-xs text-slate-500 mt-0.5">보고서 데이터 기반 자동 설정됨 - 수정/추가 가능</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Segment Name */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">세그먼트 이름</label>
+            <input
+              type="text"
+              value={segmentName}
+              onChange={e => setSegmentName(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+            />
+          </div>
+
+          {/* Filters */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-slate-600">필터 조건</label>
+              <button onClick={addFilter} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                + 조건 추가
+              </button>
+            </div>
+            <div className="space-y-2">
+              {filters.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-xl">
+                  <select
+                    value={f.field}
+                    onChange={e => { const next = [...filters]; next[i].field = e.target.value; setFilters(next) }}
+                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white min-w-[100px]"
+                  >
+                    <option value="">필드 선택</option>
+                    {fieldOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={f.operator}
+                    onChange={e => { const next = [...filters]; next[i].operator = e.target.value; setFilters(next) }}
+                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white w-16"
+                  >
+                    {operatorOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={f.value}
+                    onChange={e => { const next = [...filters]; next[i].value = e.target.value; setFilters(next) }}
+                    placeholder="값 입력..."
+                    className="flex-1 text-xs px-2.5 py-2 rounded-lg border border-slate-200 bg-white outline-none focus:ring-1 focus:ring-indigo-200"
+                  />
+                  {filters.length > 1 && (
+                    <button onClick={() => removeFilter(i)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview summary */}
+          <div className="p-4 bg-indigo-50 rounded-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Users className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm font-bold text-indigo-900">
+                예상 대상자: {report.patientPoolRaw ? report.patientPoolRaw.toLocaleString() : report.patientPool}명
+              </span>
+            </div>
+            <p className="text-xs text-indigo-600">
+              {report.indication} 관련 {report.drugName} 처방 대상 환자군
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleCreateSegment}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl transition-all shadow-md shadow-indigo-200"
+          >
+            세그먼트 생성
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Main Page Component
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function ReportViewPage() {
   const params = useParams()
   const router = useRouter()
@@ -35,27 +564,21 @@ export default function ReportViewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>('')
+  const [showCohortModal, setShowCohortModal] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
-    if (params.slug) {
-      fetchReport(params.slug as string)
-    }
+    if (params.slug) fetchReport(params.slug as string)
   }, [params.slug])
 
-  // Scroll spy
   useEffect(() => {
     const handleScroll = () => {
-      const scrollTop = window.scrollY + 120
+      const scrollTop = window.scrollY + 140
       let current = ''
       Object.entries(sectionRefs.current).forEach(([id, el]) => {
-        if (el && el.offsetTop <= scrollTop) {
-          current = id
-        }
+        if (el && el.offsetTop <= scrollTop) current = id
       })
-      if (current && current !== activeSection) {
-        setActiveSection(current)
-      }
+      if (current && current !== activeSection) setActiveSection(current)
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
@@ -67,13 +590,11 @@ export default function ReportViewPage() {
       const data = await res.json()
       if (data.success && data.data?.sections) {
         setReport(data.data)
-        if (data.data.sections.length > 0) {
-          setActiveSection(data.data.sections[0].id)
-        }
+        if (data.data.sections.length > 0) setActiveSection(data.data.sections[0].id)
       } else {
         setError('보고서 데이터를 불러올 수 없습니다')
       }
-    } catch (err) {
+    } catch {
       setError('보고서 로딩 중 오류가 발생했습니다')
     } finally {
       setLoading(false)
@@ -88,46 +609,23 @@ export default function ReportViewPage() {
     }
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
-  // Render markdown-like content to HTML
-  const renderContent = (content: string) => {
-    let html = content
-      // Headers
-      .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold mt-6 mb-3 text-gray-900">$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mt-8 mb-4 text-gray-900 border-b pb-2">$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-8 mb-4 text-gray-900">$1</h1>')
-      // Bold
-      .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-      // Italic
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      // List items
-      .replace(/^- (.+)$/gm, '<li class="ml-4 mb-1 text-gray-700 list-disc list-inside">$1</li>')
-      .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 mb-1 text-gray-700 list-decimal list-inside">$1</li>')
-      // Tables (basic)
-      .replace(/\|(.+)\|/g, (match) => {
-        const cells = match.split('|').filter(c => c.trim())
-        if (cells.some(c => /^[-:\s]+$/.test(c))) return ''
-        const isHeader = cells.every(c => c.trim().length > 0)
-        const cellTag = isHeader ? 'td' : 'td'
-        return `<tr>${cells.map(c => `<${cellTag} class="border px-3 py-2 text-sm">${c.trim()}</${cellTag}>`).join('')}</tr>`
-      })
-      // Paragraphs
-      .replace(/\n\n/g, '</p><p class="mb-4 text-gray-700 leading-relaxed">')
-      // Line breaks
-      .replace(/\n/g, '<br/>')
-
-    return `<div class="prose max-w-none"><p class="mb-4 text-gray-700 leading-relaxed">${html}</p></div>`
-  }
+  // 코호트 수 계산 (patientPool 기반)
+  const cohortSize = useMemo(() => {
+    if (!report) return 0
+    if (report.patientPoolRaw) return report.patientPoolRaw
+    const match = report.patientPool?.match(/([\d,.]+)/)
+    return match ? parseInt(match[1].replace(/,/g, '')) : 0
+  }, [report])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">보고서를 불러오는 중...</p>
+          <div className="relative w-16 h-16 mx-auto mb-4">
+            <div className="absolute inset-0 rounded-full border-2 border-indigo-100" />
+            <div className="absolute inset-0 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          </div>
+          <p className="text-sm text-slate-500">보고서를 불러오는 중...</p>
         </div>
       </div>
     )
@@ -135,10 +633,10 @@ export default function ReportViewPage() {
 
   if (error || !report) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || '보고서를 찾을 수 없습니다'}</p>
-          <button onClick={() => router.back()} className="text-blue-600 hover:underline">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-sm border max-w-sm">
+          <p className="text-red-500 mb-4 text-sm">{error || '보고서를 찾을 수 없습니다'}</p>
+          <button onClick={() => router.back()} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
             돌아가기
           </button>
         </div>
@@ -149,126 +647,166 @@ export default function ReportViewPage() {
   const tierLabel: Record<string, string> = { BASIC: 'Basic', PRO: 'Professional', PREMIUM: 'Premium' }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-30 print:static">
+    <div className="min-h-screen bg-slate-50">
+      {/* Sticky Header */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 print:static">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="p-2 hover:bg-gray-100 rounded-lg print:hidden"
-            >
-              <ArrowLeft className="w-5 h-5" />
+            <button onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-xl print:hidden transition-colors">
+              <ArrowLeft className="w-5 h-5 text-slate-500" />
             </button>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 line-clamp-1">{report.title}</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-base font-bold text-slate-900 line-clamp-1">{report.title}</h1>
+              <p className="text-xs text-slate-400">
                 {tierLabel[report.tier] || report.tier} Report
-                {report.generatedAt && ` | 생성일: ${new Date(report.generatedAt).toLocaleDateString('ko-KR')}`}
+                {report.generatedAt && ` | ${new Date(report.generatedAt).toLocaleDateString('ko-KR')}`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 print:hidden">
+            {/* Cohort Button (상단 고정) */}
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
+              onClick={() => setShowCohortModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all shadow-md shadow-indigo-200"
             >
-              <Printer className="w-4 h-4" />
-              인쇄
+              <FlaskConical className="w-4 h-4" />
+              코호트 {cohortSize > 0 ? cohortSize.toLocaleString() + '명' : '설정'}
             </button>
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
             >
               <Download className="w-4 h-4" />
-              PDF 다운로드
             </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
-        {/* Left sidebar - TOC */}
-        <aside className="w-64 shrink-0 hidden lg:block print:hidden">
+        {/* Left Sidebar */}
+        <aside className="w-60 shrink-0 hidden lg:block print:hidden">
           <div className="sticky top-20">
-            <h3 className="font-semibold text-sm text-gray-500 uppercase mb-3">목차</h3>
-            <nav className="space-y-1">
-              {report.sections.map((section) => (
+            {/* Cohort Card */}
+            <button
+              onClick={() => setShowCohortModal(true)}
+              className="w-full p-4 mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl text-white text-left hover:from-indigo-600 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 group"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <FlaskConical className="w-4 h-4 text-indigo-200" />
+                <span className="text-xs text-indigo-200 font-medium">필요 코호트 수</span>
+              </div>
+              <p className="text-2xl font-bold">{cohortSize > 0 ? cohortSize.toLocaleString() : '-'}
+                <span className="text-sm font-normal text-indigo-200 ml-1">명</span>
+              </p>
+              <div className="flex items-center gap-1 mt-2 text-xs text-indigo-200 group-hover:text-white transition-colors">
+                클릭하여 세그먼트 설정
+                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+
+            {/* TOC */}
+            <h3 className="font-semibold text-[11px] text-slate-400 uppercase tracking-wider mb-2 px-1">목차</h3>
+            <nav className="space-y-0.5">
+              {report.sections.map((section, idx) => (
                 <button
                   key={section.id}
                   onClick={() => scrollToSection(section.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all flex items-center gap-2 ${
                     activeSection === section.id
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-indigo-50 text-indigo-700 font-semibold shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span className="w-5 h-5 rounded-md bg-slate-100 text-[10px] font-bold flex items-center justify-center shrink-0 text-slate-400">
+                    {idx + 1}
+                  </span>
                   <span className="line-clamp-2">{section.title}</span>
-                  {section.hasCharts && <BarChart3 className="w-3 h-3 text-green-500 shrink-0" />}
-                  {section.hasTables && <Table2 className="w-3 h-3 text-orange-500 shrink-0" />}
                 </button>
               ))}
             </nav>
 
-            {/* Report info */}
-            <div className="mt-6 p-4 bg-white rounded-lg border">
-              <h4 className="font-semibold text-sm mb-2">보고서 정보</h4>
-              <dl className="space-y-2 text-xs text-gray-600">
-                <div>
-                  <dt className="font-medium">치료 영역</dt>
-                  <dd>{report.therapeuticArea}</dd>
+            {/* Report Info */}
+            <div className="mt-5 p-3.5 bg-white rounded-xl border border-slate-100">
+              <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">보고서 정보</h4>
+              <dl className="space-y-2 text-xs">
+                <div className="flex items-start gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <dt className="text-slate-400">시장 규모</dt>
+                    <dd className="font-semibold text-slate-700">{report.marketSize}</dd>
+                  </div>
                 </div>
-                <div>
-                  <dt className="font-medium">약물/치료제</dt>
-                  <dd>{report.drugName}</dd>
+                <div className="flex items-start gap-2">
+                  <Users className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <dt className="text-slate-400">환자 수</dt>
+                    <dd className="font-semibold text-slate-700">{report.patientPool}</dd>
+                  </div>
                 </div>
-                <div>
-                  <dt className="font-medium">적응증</dt>
-                  <dd>{report.indication}</dd>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <dt className="text-slate-400">치료 영역</dt>
+                    <dd className="font-semibold text-slate-700">{report.therapeuticArea}</dd>
+                  </div>
                 </div>
-                <div>
-                  <dt className="font-medium">시장 규모</dt>
-                  <dd>{report.marketSize}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium">환자 수</dt>
-                  <dd>{report.patientPool}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium">섹션 수</dt>
-                  <dd>{report.sections.length}개</dd>
+                <div className="flex items-start gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <div>
+                    <dt className="text-slate-400">섹션</dt>
+                    <dd className="font-semibold text-slate-700">{report.sections.length}개</dd>
+                  </div>
                 </div>
               </dl>
             </div>
           </div>
         </aside>
 
-        {/* Main content */}
+        {/* Main Content */}
         <main className="flex-1 min-w-0">
-          {/* Cover page */}
-          <div className="bg-gradient-to-br from-blue-900 to-indigo-900 text-white rounded-xl p-8 mb-8 print:rounded-none print:mb-16">
-            <div className="max-w-2xl">
-              <div className="inline-block px-3 py-1 bg-blue-500/30 rounded-full text-sm mb-4">
-                {report.therapeuticArea} | {tierLabel[report.tier] || report.tier}
+          {/* Cover */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white rounded-2xl p-8 mb-6 print:rounded-none">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-500/20 to-transparent rounded-full -translate-y-1/3 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-500/20 to-transparent rounded-full translate-y-1/3 -translate-x-1/3" />
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur rounded-full text-xs mb-4">
+                <span>{report.therapeuticArea}</span>
+                <span className="w-1 h-1 rounded-full bg-white/40" />
+                <span>{tierLabel[report.tier] || report.tier}</span>
               </div>
-              <h1 className="text-3xl font-bold mb-4">{report.title}</h1>
-              <p className="text-blue-200 mb-6">{report.description}</p>
-              <div className="flex flex-wrap gap-6 text-sm">
-                <div>
-                  <span className="text-blue-300">시장 규모</span>
-                  <p className="text-xl font-bold">{report.marketSize}</p>
+              <h1 className="text-2xl font-bold mb-3 leading-tight">{report.title}</h1>
+              <p className="text-indigo-200 text-sm mb-6 max-w-xl leading-relaxed">{report.description}</p>
+
+              {/* KPI Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-white/10 backdrop-blur rounded-xl">
+                  <span className="text-[10px] text-indigo-300 uppercase tracking-wider">시장 규모</span>
+                  <p className="text-lg font-bold mt-0.5">{report.marketSize}</p>
                 </div>
-                <div>
-                  <span className="text-blue-300">대상 환자</span>
-                  <p className="text-xl font-bold">{report.patientPool}</p>
+                <div className="p-3 bg-white/10 backdrop-blur rounded-xl">
+                  <span className="text-[10px] text-indigo-300 uppercase tracking-wider">대상 환자</span>
+                  <p className="text-lg font-bold mt-0.5">{report.patientPool}</p>
                 </div>
-                <div>
-                  <span className="text-blue-300">생성일</span>
-                  <p className="text-xl font-bold">
-                    {report.generatedAt
-                      ? new Date(report.generatedAt).toLocaleDateString('ko-KR')
-                      : '-'}
+                <button
+                  onClick={() => setShowCohortModal(true)}
+                  className="p-3 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 backdrop-blur rounded-xl text-left hover:from-emerald-500/40 hover:to-teal-500/40 transition-all border border-emerald-400/30 group"
+                >
+                  <span className="text-[10px] text-emerald-300 uppercase tracking-wider">필요 코호트</span>
+                  <p className="text-lg font-bold mt-0.5 flex items-center gap-1">
+                    {cohortSize > 0 ? cohortSize.toLocaleString() + '명' : '-'}
+                    <ArrowRight className="w-3.5 h-3.5 text-emerald-300 group-hover:translate-x-0.5 transition-transform" />
+                  </p>
+                </button>
+                <div className="p-3 bg-white/10 backdrop-blur rounded-xl">
+                  <span className="text-[10px] text-indigo-300 uppercase tracking-wider">생성일</span>
+                  <p className="text-lg font-bold mt-0.5">
+                    {report.generatedAt ? new Date(report.generatedAt).toLocaleDateString('ko-KR') : '-'}
                   </p>
                 </div>
               </div>
@@ -280,38 +818,37 @@ export default function ReportViewPage() {
             <div
               key={section.id}
               ref={(el) => { sectionRefs.current[section.id] = el }}
-              className="bg-white rounded-xl border p-8 mb-6 print:border-none print:shadow-none print:break-before-page"
+              className="bg-white rounded-2xl border border-slate-100 p-7 mb-4 shadow-sm print:border-none print:shadow-none print:break-before-page"
             >
-              <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
-                <span>Section {index + 1}</span>
-                <ChevronRight className="w-3 h-3" />
+              <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-2 uppercase tracking-wider">
+                <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-500 font-bold flex items-center justify-center text-[10px]">
+                  {index + 1}
+                </span>
                 <span>{report.therapeuticArea}</span>
-                {section.hasCharts && (
-                  <span className="ml-auto flex items-center gap-1 text-green-600">
-                    <BarChart3 className="w-3.5 h-3.5" /> 차트 포함
-                  </span>
-                )}
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b">
+              <h2 className="text-xl font-bold text-slate-900 mb-5 pb-3 border-b border-slate-100">
                 {section.title}
               </h2>
-              <div
-                className="report-content"
-                dangerouslySetInnerHTML={{ __html: renderContent(section.content) }}
-              />
-              <div className="mt-6 pt-4 border-t text-xs text-gray-400">
-                {section.wordCount.toLocaleString()}자 | Green-RWD AI Report Engine
+              <SectionContent content={section.content} />
+              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-300">
+                <span>{section.wordCount.toLocaleString()}자</span>
+                <span>Green-RWD AI Report Engine</span>
               </div>
             </div>
           ))}
 
           {/* Footer */}
-          <div className="text-center py-8 text-sm text-gray-400 print:mt-8">
+          <div className="text-center py-8 text-xs text-slate-400 print:mt-8">
             <p>본 보고서는 AI 기반으로 생성되었습니다. 투자 의사결정 시 추가 검증이 권장됩니다.</p>
             <p className="mt-1">Generated by Green-RWD Platform | {new Date().getFullYear()}</p>
           </div>
         </main>
       </div>
+
+      {/* Cohort Modal */}
+      {showCohortModal && (
+        <CohortSegmentModal report={report} onClose={() => setShowCohortModal(false)} />
+      )}
     </div>
   )
 }
