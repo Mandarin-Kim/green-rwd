@@ -1,6 +1,6 @@
 /**
  * /api/hira/test - HIRA API 연결 진단 엔드포인트
- * 다양한 오퍼레이션명 변형을 테스트하여 올바른 API명을 찾습니다.
+ * 2026-04-08 data.go.kr Swagger UI에서 확인한 정확한 오퍼레이션명으로 테스트
  */
 
 import { NextResponse } from 'next/server';
@@ -8,42 +8,33 @@ import { NextResponse } from 'next/server';
 const HIRA_KEY = process.env.HIRA_API_KEY || '';
 const BASE = 'https://apis.data.go.kr/B551182/diseaseInfoService1';
 
-// 질병코드 E11(2형당뇨) 기준으로 다양한 오퍼레이션명 테스트
+// Swagger UI에서 확인한 정확한 5개 오퍼레이션
 const TEST_ENDPOINTS = [
-  // ── 질병명코드조회 (확인됨) ──
-  { name: '질병명코드조회 (확인됨)', op: 'getDissNameCodeList1', params: { sickType: '1', medTp: '1', diseaseType: 'SICK_NM', searchText: '당뇨', numOfRows: '3', pageNo: '1' } },
-
-  // ── 성별입원외래 - 변형 시도 ──
-  { name: '성별입원외래 v1', op: 'getDissGenderTpInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별입원외래 v2 (+1)', op: 'getDissGenderTpInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별입원외래 v3 (Gndr)', op: 'getDissGndrTpInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별입원외래 v4 (Gndr+1)', op: 'getDissGndrTpInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별입원외래 v5 (SexTp)', op: 'getDissSexTpInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별입원외래 v6 (SexTp+1)', op: 'getDissSexTpInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-
-  // ── 성별연령별 - 변형 시도 ──
-  { name: '성별연령별 v1', op: 'getDissGenderAgeInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별연령별 v2 (+1)', op: 'getDissGenderAgeInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별연령별 v3 (Gndr)', op: 'getDissGndrAgeInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별연령별 v4 (Gndr+1)', op: 'getDissGndrAgeInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별연령별 v5 (SexAge)', op: 'getDissSexAgeInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '성별연령별 v6 (SexAge+1)', op: 'getDissSexAgeInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-
-  // ── 의료기관종별 - 변형 시도 ──
-  { name: '의료기관종별 v1', op: 'getDissItyInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '의료기관종별 v2 (+1)', op: 'getDissItyInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '의료기관종별 v3 (Cl)', op: 'getDissClInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '의료기관종별 v4 (Cl+1)', op: 'getDissClInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '의료기관종별 v5 (Inst)', op: 'getDissInstTpInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '의료기관종별 v6 (Inst+1)', op: 'getDissInstTpInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-
-  // ── 시도별 - 변형 시도 ──
-  { name: '시도별 v1', op: 'getDissAreaInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '시도별 v2 (+1)', op: 'getDissAreaInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '시도별 v3 (Sido)', op: 'getDissSidoInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '시도별 v4 (Sido+1)', op: 'getDissSidoInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '시도별 v5 (Rgn)', op: 'getDissRgnInfo', params: { sickCd: 'E11', diagYm: '2023' } },
-  { name: '시도별 v6 (Rgn+1)', op: 'getDissRgnInfo1', params: { sickCd: 'E11', diagYm: '2023' } },
+  {
+    name: '1. 질병명칭/코드조회',
+    op: 'getDissNameCodeList1',
+    params: { sickType: '1', medTp: '1', diseaseType: 'SICK_NM', searchText: '당뇨', numOfRows: '3', pageNo: '1' },
+  },
+  {
+    name: '2. 질병입원외래별통계',
+    op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' },
+  },
+  {
+    name: '3. 질병성별연령별통계',
+    op: 'getDissByGenderAgeStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' },
+  },
+  {
+    name: '4. 질병의료기관종별통계',
+    op: 'getDissByClassesStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' },
+  },
+  {
+    name: '5. 질병의료기관지역별통계',
+    op: 'getDissByAreaStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' },
+  },
 ];
 
 export async function GET() {
@@ -57,8 +48,6 @@ export async function GET() {
     try {
       const searchParams = new URLSearchParams();
       searchParams.set('serviceKey', HIRA_KEY);
-      searchParams.set('numOfRows', '3');
-      searchParams.set('pageNo', '1');
       Object.entries(ep.params).forEach(([k, v]) => searchParams.set(k, v));
 
       const fullUrl = `${BASE}/${ep.op}?${searchParams.toString()}`;
@@ -83,7 +72,7 @@ export async function GET() {
         totalCount,
         hasItems,
         resultCode,
-        preview: text.substring(0, 300),
+        preview: text.substring(0, 500),
       });
     } catch (error: any) {
       results.push({

@@ -6,12 +6,12 @@
  * 2. ReportCatalog의 marketSizeKrw, patientPool 등을 실제 수치로 업데이트
  * 3. AI 보고서 생성 시 프롬프트에 주입할 HIRA 데이터 컨텍스트 생성
  *
- * 사용하는 HIRA API 5개 오퍼레이션:
- * - getDissNameCodeList1 (질병명코드조회)
- * - getDissGenderTpInfo (성별입원외래)
- * - getDissGenderAgeInfo (성별연령별)
- * - getDissItyInfo (의료기관종별)
- * - getDissAreaInfo (시도별)
+ * 사용하는 HIRA API 5개 오퍼레이션 (2026-04-08 Swagger 확인):
+ * - getDissNameCodeList1       (질병명칭/코드조회)
+ * - getDissByHsptlzFrgnStats1  (질병입원외래별통계)
+ * - getDissByGenderAgeStats1   (질병성별연령별통계)
+ * - getDissByClassesStats1     (질병의료기관종별통계)
+ * - getDissByAreaStats1        (질병의료기관지역별통계)
  */
 
 import { PrismaClient } from '@prisma/client';

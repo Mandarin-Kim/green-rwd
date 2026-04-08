@@ -2,12 +2,17 @@
  * HIRA 질병정보서비스 OpenAPI 연동 모듈
  * 건강보험심사평가원 질병정보서비스 (data.go.kr #15119055)
  *
- * 올바른 오퍼레이션명 5개:
- * 1. getDissNameCodeList1 - 질병명코드조회 (질병명/코드 기반 검색)
- * 2. getDissGenderTpInfo  - 성별·입원/외래 통계
- * 3. getDissGenderAgeInfo - 성별·연령대별 통계
- * 4. getDissItyInfo       - 의료기관종별 통계
- * 5. getDissAreaInfo      - 시도별(지역별) 통계
+ * ★ 2026-04-08 data.go.kr Swagger UI에서 직접 확인한 정확한 오퍼레이션명 5개:
+ * 1. getDissNameCodeList1       - 질병명칭/코드조회
+ * 2. getDissByHsptlzFrgnStats1  - 질병입원외래별통계
+ * 3. getDissByGenderAgeStats1   - 질병성별연령별통계
+ * 4. getDissByClassesStats1     - 질병의료기관종별통계
+ * 5. getDissByAreaStats1        - 질병의료기관지역별통계
+ *
+ * 응답 필드 (Swagger 확인):
+ * - sickCd, sickNm, sex(남/여), inpatOpat(입원외래구분)
+ * - ptntCnt(환자수), vstDdcnt(내원일수), specCnt(명세서건수)
+ * - rvdRpeTamtAmt(심사결정요양급여비용총액), rvdInsupBrdnAmt(보험자부담금)
  */
 
 // ============================================
@@ -205,27 +210,31 @@ export const getDissNameCodeListByCode = (sickCd: string, p?: Record<string, str
     ...p,
   });
 
-/** 2. 질병별 성별·입원/외래 통계 */
-export const getDissGenderTpInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissGenderTpInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 2. 질병입원외래별통계 (Swagger: getDissByHsptlzFrgnStats1) */
+export const getDissByHsptlzFrgnStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByHsptlzFrgnStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
-/** 3. 질병별 성별·연령대별 통계 */
-export const getDissGenderAgeInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissGenderAgeInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 3. 질병성별연령별통계 (Swagger: getDissByGenderAgeStats1) */
+export const getDissByGenderAgeStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByGenderAgeStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
-/** 4. 질병별 의료기관종별 통계 */
-export const getDissItyInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissItyInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 4. 질병의료기관종별통계 (Swagger: getDissByClassesStats1) */
+export const getDissByClassesStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByClassesStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
-/** 5. 질병별 시도별(지역별) 통계 */
-export const getDissAreaInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissAreaInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 5. 질병의료기관지역별통계 (Swagger: getDissByAreaStats1) */
+export const getDissByAreaStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByAreaStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
 // ── 하위호환: 기존 함수명 유지 (deprecated) ──
 export const getDissInfoList = getDissNameCodeList1;
-export const getDissGenderTpStats = getDissGenderTpInfo;
-export const getDissGenderAgeStats = getDissGenderAgeInfo;
-export const getDissAreaStats = getDissAreaInfo;
+export const getDissGenderTpInfo = getDissByHsptlzFrgnStats1;
+export const getDissGenderTpStats = getDissByHsptlzFrgnStats1;
+export const getDissGenderAgeInfo = getDissByGenderAgeStats1;
+export const getDissGenderAgeStats = getDissByGenderAgeStats1;
+export const getDissItyInfo = getDissByClassesStats1;
+export const getDissAreaInfo = getDissByAreaStats1;
+export const getDissAreaStats = getDissByAreaStats1;
 
 // ============================================
 // 리포트용 분석 함수
@@ -244,68 +253,92 @@ export async function searchDiseases(keyword: string): Promise<DiseaseInfo[]> {
   }));
 }
 
-/** 질병별 성별·입원/외래 현황 */
+/** 질병별 성별·입원/외래 현황 (Swagger 필드: sex, inpatOpat, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
 export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2023'): Promise<DiseaseGenderStats[]> {
-  const { items } = await getDissGenderTpInfo(sickCd, diagYm);
-  return items.map(i => ({
-    diseaseCode: sickCd,
-    diseaseName: String(i.sickNm || i.dissNm || ''),
-    gender: String(i.gndrCdNm || i.gndrNm || ''),
-    genderCode: String(i.gndrCd || ''),
-    inpatientCount: Number(i.ipatCnt || 0),
-    outpatientCount: Number(i.opatCnt || 0),
-    totalCount: Number(i.patntCnt || i.totCnt || 0),
-    inpatientDays: Number(i.ipatVisnCnt || 0),
-    outpatientDays: Number(i.opatVisnCnt || 0),
-    period: diagYm,
-  }));
+  const { items } = await getDissByHsptlzFrgnStats1(sickCd, diagYm);
+
+  // 입원/외래 × 성별로 데이터가 옴 → 성별 기준으로 집계
+  const genderMap = new Map<string, DiseaseGenderStats>();
+  for (const i of items) {
+    const sex = String(i.sex || '');
+    const genderCode = sex.includes('남') ? 'M' : sex.includes('여') ? 'F' : '';
+    const inpatOpat = String(i.inpatOpat || '');
+    const isInpatient = inpatOpat.includes('입원');
+
+    if (!genderMap.has(sex)) {
+      genderMap.set(sex, {
+        diseaseCode: sickCd,
+        diseaseName: String(i.sickNm || ''),
+        gender: sex,
+        genderCode,
+        inpatientCount: 0,
+        outpatientCount: 0,
+        totalCount: 0,
+        inpatientDays: 0,
+        outpatientDays: 0,
+        period: diagYm,
+      });
+    }
+    const stat = genderMap.get(sex)!;
+    const cnt = Number(i.ptntCnt || 0);
+    const days = Number(i.vstDdcnt || 0);
+    if (isInpatient) {
+      stat.inpatientCount += cnt;
+      stat.inpatientDays += days;
+    } else {
+      stat.outpatientCount += cnt;
+      stat.outpatientDays += days;
+    }
+    stat.totalCount += cnt;
+  }
+  return Array.from(genderMap.values());
 }
 
-/** 질병별 성별·연령대별 현황 */
+/** 질병별 성별·연령대별 현황 (Swagger 필드 참조) */
 export async function fetchDiseaseAgeStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAgeStats[]> {
-  const { items } = await getDissGenderAgeInfo(sickCd, diagYm);
+  const { items } = await getDissByGenderAgeStats1(sickCd, diagYm);
   return items.map(i => ({
     diseaseCode: sickCd,
-    diseaseName: String(i.sickNm || i.dissNm || ''),
-    gender: String(i.gndrCdNm || i.gndrNm || ''),
-    ageGroup: String(i.ageCdNm || i.ageGrpNm || ''),
+    diseaseName: String(i.sickNm || ''),
+    gender: String(i.sex || i.gndrCdNm || ''),
+    ageGroup: String(i.ageCdNm || i.ageGrpNm || i.age || ''),
     ageGroupCode: String(i.ageCd || ''),
-    patientCount: Number(i.patntCnt || 0),
-    visitCount: Number(i.rcptCnt || i.visnCnt || 0),
-    claimAmount: Number(i.trsRcptAmt || 0),
+    patientCount: Number(i.ptntCnt || i.patntCnt || 0),
+    visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
+    claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
     period: diagYm,
   }));
 }
 
-/** 질병별 의료기관종별 현황 */
+/** 질병별 의료기관종별 현황 (Swagger 필드 참조) */
 export async function fetchDiseaseInstitutionStats(sickCd: string, diagYm = '2023'): Promise<DiseaseInstitutionStats[]> {
-  const { items } = await getDissItyInfo(sickCd, diagYm);
+  const { items } = await getDissByClassesStats1(sickCd, diagYm);
   return items.map(i => ({
     diseaseCode: sickCd,
-    diseaseName: String(i.sickNm || i.dissNm || ''),
-    institutionType: String(i.clCdNm || i.ityNm || ''),
-    institutionTypeCode: String(i.clCd || i.ityCd || ''),
-    patientCount: Number(i.patntCnt || 0),
-    visitCount: Number(i.rcptCnt || i.visnCnt || 0),
-    claimAmount: Number(i.trsRcptAmt || 0),
+    diseaseName: String(i.sickNm || ''),
+    institutionType: String(i.clCdNm || i.clNm || i.instClCdNm || ''),
+    institutionTypeCode: String(i.clCd || i.instClCd || ''),
+    patientCount: Number(i.ptntCnt || i.patntCnt || 0),
+    visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
+    claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
     period: diagYm,
   }));
 }
 
-/** 질병별 지역별 현황 */
+/** 질병별 지역별 현황 (Swagger 필드 참조) */
 export async function fetchDiseaseAreaStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAreaStats[]> {
-  const { items } = await getDissAreaInfo(sickCd, diagYm);
-  const total = items.reduce((s, i) => s + Number(i.patntCnt || 0), 0);
+  const { items } = await getDissByAreaStats1(sickCd, diagYm);
+  const total = items.reduce((s, i) => s + Number(i.ptntCnt || i.patntCnt || 0), 0);
   return items.map(i => {
-    const cnt = Number(i.patntCnt || 0);
+    const cnt = Number(i.ptntCnt || i.patntCnt || 0);
     return {
       diseaseCode: sickCd,
-      diseaseName: String(i.sickNm || i.dissNm || ''),
+      diseaseName: String(i.sickNm || ''),
       regionName: String(i.sidoCdNm || i.areaNm || ''),
       regionCode: String(i.sidoCd || i.areaCd || ''),
       patientCount: cnt,
-      visitCount: Number(i.rcptCnt || i.visnCnt || 0),
-      claimAmount: Number(i.trsRcptAmt || 0),
+      visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
+      claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
       patientRate: total > 0 ? Math.round((cnt / total) * 10000) / 100 : 0,
       period: diagYm,
     };
