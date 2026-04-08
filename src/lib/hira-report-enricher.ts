@@ -193,8 +193,8 @@ export async function enrichCatalogWithHira(slug: string): Promise<{
     await prisma.reportCatalog.updateMany({
       where: { slug },
       data: {
-        patientPool: hiraData.patientCount,
-        marketSizeKrw: estimatedMarketSize,
+        patientPool: hiraData.patientCount,          // Int (최대 ~21억, 환자수는 충분)
+        marketSizeKrw: BigInt(estimatedMarketSize),   // BigInt (요양급여비 기반 추정)
         updatedAt: new Date(),
       },
     });
