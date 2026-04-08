@@ -153,6 +153,7 @@ async function generateReportAsync(
 
     const sections = await generateReport({
       catalogId: catalog.id,
+      slug: catalog.slug || '',
       title: catalog.title,
       drugName: catalog.drugName || '',
       indication: catalog.indication || '',

@@ -1,9 +1,11 @@
 import { reportSections, ReportSection } from './report-templates'
+import { buildHiraContext, formatHiraContextForPrompt, type HiraReportContext } from './hira-report-enricher'
 
 export type ReportTier = 'BASIC' | 'PRO' | 'PREMIUM'
 
 interface GenerateReportParams {
   catalogId: string
+  slug?: string
   title: string
   drugName: string
   indication: string
@@ -98,13 +100,18 @@ async function generateSectionWithRetry(
   drugName: string,
   indication: string,
   therapeuticArea: string,
+  hiraContextStr: string = '',
   retries: number = 3
 ): Promise<string> {
+  const hiraBlock = hiraContextStr
+    ? `\n\n${hiraContextStr}\n\n위 HIRA 실측 데이터를 반드시 활용하여 작성하세요. 수치 인용 시 "건강보험심사평가원 자료 기준"으로 출처를 표기하세요.\n`
+    : ''
+
   const userPrompt = `
 약물/치료제: ${drugName}
 적응증: ${indication}
 치료 영역: ${therapeuticArea}
-
+${hiraBlock}
 위 정보를 기반으로 "${section.title}" 섹션을 작성해주세요.
 한국 제약/바이오 시장 데이터를 중심으로, 글로벌 시장과의 비교도 포함해주세요.
 전문 리서치 보고서 수준의 상세하고 데이터 기반의 분석을 제공해주세요.
@@ -195,12 +202,29 @@ function extractChartsAndTables(content: string) {
 
 // Main report generation function
 export async function generateReport(params: GenerateReportParams): Promise<GeneratedSection[]> {
-  const { title, drugName, indication, therapeuticArea, tier, onProgress } = params
+  const { title, slug, drugName, indication, therapeuticArea, tier, onProgress } = params
   const sectionCount = TIER_SECTION_COUNT[tier]
   const sectionsToGenerate = reportSections.slice(0, sectionCount)
   const generatedSections: GeneratedSection[] = []
 
   console.log(`[ReportGenerator] Starting generation: ${title}, Tier: ${tier}, Sections: ${sectionCount}`)
+
+  // ── HIRA 실측 데이터 조회 ──
+  let hiraContextStr = ''
+  if (slug) {
+    try {
+      console.log(`[ReportGenerator] HIRA 데이터 조회 중: ${slug}`)
+      const hiraContext = await buildHiraContext(slug)
+      if (hiraContext) {
+        hiraContextStr = formatHiraContextForPrompt(hiraContext)
+        console.log(`[ReportGenerator] HIRA 데이터 확보: 환자 ${hiraContext.rawData.patientCount.toLocaleString()}명`)
+      } else {
+        console.log(`[ReportGenerator] HIRA 데이터 없음 (${slug}), AI 자체 데이터로 생성`)
+      }
+    } catch (error) {
+      console.error(`[ReportGenerator] HIRA 데이터 조회 실패:`, error)
+    }
+  }
 
   for (let i = 0; i < sectionsToGenerate.length; i++) {
     const section = sectionsToGenerate[i]
@@ -212,7 +236,7 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
 
     console.log(`[ReportGenerator] Generating section ${i + 1}/${sectionCount}: ${section.title}`)
 
-    const content = await generateSectionWithRetry(section, drugName, indication, therapeuticArea)
+    const content = await generateSectionWithRetry(section, drugName, indication, therapeuticArea, hiraContextStr)
     const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(content)
 
     generatedSections.push({
