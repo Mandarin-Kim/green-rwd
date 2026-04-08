@@ -14,7 +14,7 @@ export const maxDuration = 120;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { catalogId, slug, tier = 'BASIC' } = body
+    const { catalogId, slug, tier = 'BASIC', forceRegenerate = false } = body
 
     if (!catalogId && !slug) {
       return NextResponse.json({ error: '카탈로그 ID 또는 slug가 필요합니다' }, { status: 400 })
@@ -61,22 +61,26 @@ export async function POST(request: NextRequest) {
         throw new Error('CATALOG_NOT_FOUND')
       }
 
-      // 3) 이미 완료된 보고서가 있으면 반환
-      const completedOrder = await tx.reportOrder.findFirst({
-        where: {
-          catalogId: catalog.id,
-          tier: tier as ReportTier,
-          status: 'COMPLETED',
-        },
-        orderBy: { completedAt: 'desc' },
-      })
+      // 3) 이미 완료된 보고서가 있으면 반환 (forceRegenerate=true면 무시하고 새로 생성)
+      if (!forceRegenerate) {
+        const completedOrder = await tx.reportOrder.findFirst({
+          where: {
+            catalogId: catalog.id,
+            tier: tier as ReportTier,
+            status: 'COMPLETED',
+          },
+          orderBy: { completedAt: 'desc' },
+        })
 
-      if (completedOrder) {
-        return {
-          alreadyCompleted: true as const,
-          order: completedOrder,
-          catalog,
+        if (completedOrder) {
+          return {
+            alreadyCompleted: true as const,
+            order: completedOrder,
+            catalog,
+          }
         }
+      } else {
+        console.log(`[Report Generation] 강제 재생성 모드 (forceRegenerate=true)`)
       }
 
       // 4) 새 주문 생성 (이전 실패/생성중 주문은 무시)
@@ -137,14 +141,15 @@ export async function POST(request: NextRequest) {
     const catalog = txResult.catalog
 
     try {
-      console.log(`[Report Generation] Starting: ${catalog.title} (${tier})`)
+      console.log(`[Report Generation] Starting: ${catalog.title} (${tier}) forceRegenerate=${forceRegenerate}`)
 
       // DB에 캐시된 HIRA/ClinicalTrials 데이터가 있으면 전달
       // → 캐시가 있으면 API 호출 건너뜀 (타임아웃 방지)
       // → 캐시가 없으면 API 호출 → 결과 DB 자동 저장 (다음번에는 캐시 사용)
+      // forceRegenerate 시에는 HIRA/ClinicalTrials 캐시는 재사용하되, PubMed는 새로 조회
       const cachedHiraData = (catalog as any).hiraData || undefined
       const cachedClinicalTrialsData = (catalog as any).clinicalTrialsData || undefined
-      const cachedPubMedData = (catalog as any).pubMedData || undefined
+      const cachedPubMedData = forceRegenerate ? undefined : ((catalog as any).pubMedData || undefined)
 
       if (cachedHiraData) console.log(`[Report Generation] HIRA 캐시 활용 (${catalog.slug})`)
       if (cachedClinicalTrialsData) console.log(`[Report Generation] ClinicalTrials 캐시 활용 (${catalog.slug})`)
