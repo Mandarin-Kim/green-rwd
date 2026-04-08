@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import { Search, Star, ShoppingCart, Eye, Loader2, TrendingUp, FileText } from 'lucide-react'
+import { Search, Star, ShoppingCart, Eye, Loader2, TrendingUp, FileText, Plus, X, Sparkles, Tag } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 
 interface Report {
@@ -41,6 +41,12 @@ const categoryColors: Record<string, string> = {
 export default function MarketPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('전체')
+  const [showCustomModal, setShowCustomModal] = useState(false)
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [keywordInput, setKeywordInput] = useState('')
+  const [selectedTier, setSelectedTier] = useState<'BASIC' | 'PRO' | 'PREMIUM'>('BASIC')
+  const [customGenerating, setCustomGenerating] = useState(false)
+  const [customError, setCustomError] = useState<string | null>(null)
   const router = useRouter()
 
   const apiParams: Record<string, string | undefined> = {
@@ -51,6 +57,44 @@ export default function MarketPage() {
   const { data: reports, loading, error } = useApi<Report[]>('/api/reports', apiParams)
 
   const items = reports || []
+
+  // 키워드 추가
+  const addKeyword = () => {
+    const trimmed = keywordInput.trim()
+    if (trimmed && !keywords.includes(trimmed) && keywords.length < 10) {
+      setKeywords([...keywords, trimmed])
+      setKeywordInput('')
+    }
+  }
+
+  const removeKeyword = (idx: number) => {
+    setKeywords(keywords.filter((_, i) => i !== idx))
+  }
+
+  // 커스텀 보고서 생성
+  const handleCustomGenerate = async () => {
+    if (keywords.length === 0) {
+      setCustomError('최소 1개 이상의 키워드를 입력해주세요')
+      return
+    }
+    setCustomGenerating(true)
+    setCustomError(null)
+    try {
+      const res = await fetch('/api/reports/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywords, tier: selectedTier }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '보고서 생성 실패')
+      if (data.success && data.data?.catalogSlug) {
+        router.push(`/market/${data.data.catalogSlug}/view?orderId=${data.data.orderId}`)
+      }
+    } catch (err) {
+      setCustomError(err instanceof Error ? err.message : '보고서 생성 중 오류 발생')
+      setCustomGenerating(false)
+    }
+  }
 
   // Category counts
   const categoryCounts: Record<string, number> = {}
@@ -72,15 +116,24 @@ export default function MarketPage() {
         <p className="text-blue-200 mb-6">
           RWD 기반 의약품/건강식품 시장 분석 보고서를 검색하고, AI로 실시간 생성하세요
         </p>
-        <div className="flex gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-blue-300" />
-            <span>{items.length}개 보고서</span>
+        <div className="flex items-center justify-between">
+          <div className="flex gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-300" />
+              <span>{items.length}개 보고서</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-300" />
+              <span>IQVIA/GlobalData 수준 퀄리티</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Star className="w-4 h-4 text-yellow-300" />
-            <span>IQVIA/GlobalData 수준 퀄리티</span>
-          </div>
+          <button
+            onClick={() => { setShowCustomModal(true); setCustomError(null); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-blue-900 font-semibold rounded-xl hover:bg-blue-50 transition-colors shadow-lg"
+          >
+            <Plus size={18} />
+            새 보고서 만들기
+          </button>
         </div>
       </div>
 
@@ -210,6 +263,149 @@ export default function MarketPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── 커스텀 보고서 생성 모달 ── */}
+      {showCustomModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={20} />
+                  <h2 className="text-lg font-bold">새 보고서 만들기</h2>
+                </div>
+                <button
+                  onClick={() => { setShowCustomModal(false); setCustomGenerating(false); }}
+                  className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-blue-100 text-sm">
+                질환명, 약품명, 키워드를 입력하면 AI가 시장 분석 보고서를 자동 생성합니다
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* 키워드 입력 */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  키워드 입력 <span className="text-slate-400 font-normal">(질환, 약품, 특정 키워드)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
+                    placeholder="예: 비만, 위고비, GLP-1..."
+                    className="flex-1 px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={customGenerating}
+                  />
+                  <button
+                    onClick={addKeyword}
+                    disabled={!keywordInput.trim() || keywords.length >= 10 || customGenerating}
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    추가
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Enter로 추가 (최대 10개)</p>
+              </div>
+
+              {/* 키워드 태그 */}
+              <div className="flex flex-wrap gap-2 mb-5 min-h-[36px]">
+                {keywords.length === 0 && (
+                  <p className="text-sm text-slate-300 italic">키워드를 입력해주세요</p>
+                )}
+                {keywords.map((kw, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200"
+                  >
+                    <Tag size={12} />
+                    {kw}
+                    {!customGenerating && (
+                      <button onClick={() => removeKeyword(idx)} className="hover:text-red-500 transition-colors">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+
+              {/* 티어 선택 */}
+              <div className="mb-5">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">보고서 등급</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { key: 'BASIC' as const, label: 'Basic', price: '₩50만', color: 'emerald', desc: '핵심 5섹션' },
+                    { key: 'PRO' as const, label: 'Pro', price: '₩150만', color: 'blue', desc: '상세 10섹션' },
+                    { key: 'PREMIUM' as const, label: 'Premium', price: '₩300만', color: 'purple', desc: '전체 15섹션' },
+                  ]).map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => !customGenerating && setSelectedTier(t.key)}
+                      disabled={customGenerating}
+                      className={`p-3 rounded-xl border-2 text-center transition-all ${
+                        selectedTier === t.key
+                          ? t.color === 'emerald' ? 'border-emerald-500 bg-emerald-50'
+                            : t.color === 'blue' ? 'border-blue-500 bg-blue-50'
+                            : 'border-purple-500 bg-purple-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className={`text-xs font-bold uppercase ${
+                        selectedTier === t.key
+                          ? t.color === 'emerald' ? 'text-emerald-600'
+                            : t.color === 'blue' ? 'text-blue-600'
+                            : 'text-purple-600'
+                          : 'text-slate-400'
+                      }`}>{t.label}</div>
+                      <div className="text-lg font-bold text-slate-900 mt-0.5">{t.price}</div>
+                      <div className="text-xs text-slate-400">{t.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 에러 메시지 */}
+              {customError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                  {customError}
+                </div>
+              )}
+
+              {/* 생성 버튼 */}
+              <button
+                onClick={handleCustomGenerate}
+                disabled={keywords.length === 0 || customGenerating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200"
+              >
+                {customGenerating ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    AI가 보고서를 생성하고 있습니다... (약 1~2분)
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    보고서 생성하기
+                  </>
+                )}
+              </button>
+
+              {customGenerating && (
+                <p className="text-center text-xs text-slate-400 mt-3">
+                  HIRA 데이터 + ClinicalTrials.gov + PubMed 논문을 검색하고 AI가 분석합니다
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
