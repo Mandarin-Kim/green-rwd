@@ -3,10 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
-// Vercel: Hobby 최대 60초, Pro 최대 300초 (5분)
-// PubMed 논문 검색/인용 + HIRA + ClinicalTrials + AI 섹션 생성 고려
-// Pro 플랜 필요 (Hobby에서는 60초로 자동 제한됨)
-export const maxDuration = 300;
+// Vercel Hobby: 최대 60초 제한
+// 새로 생성 시 prepare API(5단계 분리)를 권장하나, 레거시 호환용 유지
+export const maxDuration = 60;
 
 // POST /api/reports/generate - 보고서 생성 (동기 방식)
 // Vercel Serverless에서는 응답 후 함수가 즉시 종료되므로

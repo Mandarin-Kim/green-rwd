@@ -894,7 +894,19 @@ export default function ReportViewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, tier, forceRegenerate: true }),
       })
-      const data = await response.json()
+
+      // 서버 타임아웃 등으로 JSON이 아닌 응답이 올 수 있음
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error('서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.')
+      }
+
+      let data
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error('서버 응답을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.')
+      }
       if (!response.ok) throw new Error(data.error || '보고서 생성 실패')
 
       if (data.success && data.data?.orderId) {
@@ -910,7 +922,10 @@ export default function ReportViewPage() {
           await new Promise(r => setTimeout(r, 2000))
           try {
             const res = await fetch(`/api/reports/generate?orderId=${data.data.orderId}`)
-            const pollData = await res.json()
+            const pollContentType = res.headers.get('content-type') || ''
+            if (!pollContentType.includes('application/json')) continue
+            let pollData
+            try { pollData = await res.json() } catch { continue }
             if (pollData.data?.status === 'COMPLETED') {
               setRegenProgress('생성 완료! 페이지를 새로고침합니다...')
               window.location.href = `/market/${slug}/view?orderId=${pollData.data.orderId}`

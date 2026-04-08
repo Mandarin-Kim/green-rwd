@@ -15,7 +15,7 @@ export const reportSections: ReportSection[] = [
     description: '보고서 전체 핵심 내용 요약',
     aiProvider: 'anthropic',
     tier: 'BASIC',
-    systemPrompt: `당신은 글로벌 제약/바이오 시장 분석 전문가입니다. IQVIA, GlobalData 수준의 경영진 요약(Executive Summary)을 작성합니다.
+    systemPrompt: `당신은 글로벌 제약/바이오 시장 분석 전문가입니다. 전문 시장조사 보고서 수준의 경영진 요약(Executive Summary)을 작성합니다. 단, 특정 시장조사 기관명이나 경쟁사 서비스명은 절대 언급하지 않습니다.
 포함 내용:
 - 시장 규모 및 성장률 핵심 수치
 - 주요 시장 동인과 기회
