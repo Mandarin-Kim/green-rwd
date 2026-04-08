@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
-// Vercel Hobby: 최대 60초, Pro: 최대 300초
-// BASIC(5섹션)은 fallback 포함 ~30초, PRO/PREMIUM은 더 오래 걸릴 수 있음
-export const maxDuration = 60;
+// Vercel: Hobby 최대 60초, Pro 최대 300초
+// HIRA API(15~20초) + ClinicalTrials(8초) + AI 섹션 생성이 있으므로 120초 설정
+// 첫 생성 시 API 호출 → DB 캐시 저장, 이후 생성은 DB에서 즉시 읽어 훨씬 빠름
+export const maxDuration = 120;
 
 // POST /api/reports/generate - 보고서 생성 (동기 방식)
 // Vercel Serverless에서는 응답 후 함수가 즉시 종료되므로
@@ -138,6 +139,15 @@ export async function POST(request: NextRequest) {
     try {
       console.log(`[Report Generation] Starting: ${catalog.title} (${tier})`)
 
+      // DB에 캐시된 HIRA/ClinicalTrials 데이터가 있으면 전달
+      // → 캐시가 있으면 API 호출 건너뜀 (타임아웃 방지)
+      // → 캐시가 없으면 API 호출 → 결과 DB 자동 저장 (다음번에는 캐시 사용)
+      const cachedHiraData = (catalog as any).hiraData || undefined
+      const cachedClinicalTrialsData = (catalog as any).clinicalTrialsData || undefined
+
+      if (cachedHiraData) console.log(`[Report Generation] HIRA 캐시 활용 (${catalog.slug})`)
+      if (cachedClinicalTrialsData) console.log(`[Report Generation] ClinicalTrials 캐시 활용 (${catalog.slug})`)
+
       const sections = await generateReport({
         catalogId: catalog.id,
         slug: catalog.slug || '',
@@ -146,6 +156,8 @@ export async function POST(request: NextRequest) {
         indication: catalog.indication || '',
         therapeuticArea: catalog.therapeuticArea || '',
         tier: tier as ReportTier,
+        cachedHiraData,
+        cachedClinicalTrialsData,
         onProgress: async (progress: number, sectionTitle: string) => {
           try {
             await prisma.reportOrder.update({
