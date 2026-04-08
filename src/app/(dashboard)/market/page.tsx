@@ -47,6 +47,8 @@ export default function MarketPage() {
   const [selectedTier, setSelectedTier] = useState<'BASIC' | 'PRO' | 'PREMIUM'>('BASIC')
   const [customGenerating, setCustomGenerating] = useState(false)
   const [customError, setCustomError] = useState<string | null>(null)
+  const [customProgress, setCustomProgress] = useState(0)
+  const [customProgressText, setCustomProgressText] = useState('')
   const router = useRouter()
 
   const apiParams: Record<string, string | undefined> = {
@@ -71,7 +73,7 @@ export default function MarketPage() {
     setKeywords(keywords.filter((_, i) => i !== idx))
   }
 
-  // 커스텀 보고서 생성
+  // 커스텀 보고서 생성 (비동기: 주문생성 → 생성트리거 + 폴링)
   const handleCustomGenerate = async () => {
     if (keywords.length === 0) {
       setCustomError('최소 1개 이상의 키워드를 입력해주세요')
@@ -79,16 +81,115 @@ export default function MarketPage() {
     }
     setCustomGenerating(true)
     setCustomError(null)
+    setCustomProgress(0)
+    setCustomProgressText('주문 생성 중...')
+
     try {
-      const res = await fetch('/api/reports/custom', {
+      // Step 1: 주문 생성 (즉시 반환, 1~2초)
+      const createRes = await fetch('/api/reports/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keywords, tier: selectedTier }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || '보고서 생성 실패')
-      if (data.success && data.data?.catalogSlug) {
-        router.push(`/market/${data.data.catalogSlug}/view?orderId=${data.data.orderId}`)
+      let createData
+      try {
+        createData = await createRes.json()
+      } catch {
+        throw new Error('서버 응답 오류. 잠시 후 다시 시도해주세요.')
+      }
+      if (!createRes.ok) throw new Error(createData.error || '주문 생성 실패')
+
+      const { orderId, catalogId, catalogSlug } = createData.data
+      setCustomProgress(5)
+      setCustomProgressText('데이터 수집 및 AI 분석 시작...')
+
+      // Step 2: 생성 트리거 (별도 호출, 최대 5분) + 폴링 동시 실행
+      let generationDone = false
+      let pollTimer: ReturnType<typeof setInterval> | null = null
+
+      // 폴링: 3초마다 진행률 확인
+      const startPolling = () => {
+        pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await fetch(`/api/reports/generate?orderId=${orderId}`)
+            const pollData = await pollRes.json()
+            if (pollData.success && pollData.data) {
+              const { status, progress } = pollData.data
+              setCustomProgress(Math.max(5, progress))
+
+              if (progress < 30) setCustomProgressText('HIRA/PubMed 데이터 수집 중...')
+              else if (progress < 70) setCustomProgressText('AI가 보고서를 작성하고 있습니다...')
+              else if (progress < 100) setCustomProgressText('최종 검토 및 참고문헌 정리 중...')
+
+              if (status === 'COMPLETED') {
+                generationDone = true
+                if (pollTimer) clearInterval(pollTimer)
+                setCustomProgress(100)
+                setCustomProgressText('완료! 보고서로 이동합니다...')
+                setTimeout(() => {
+                  router.push(`/market/${catalogSlug}/view?orderId=${orderId}`)
+                }, 800)
+              } else if (status === 'FAILED') {
+                generationDone = true
+                if (pollTimer) clearInterval(pollTimer)
+                setCustomError(pollData.data.errorMessage || '보고서 생성에 실패했습니다')
+                setCustomGenerating(false)
+              }
+            }
+          } catch {
+            // 폴링 실패는 무시 (네트워크 일시 오류 등)
+          }
+        }, 3000)
+      }
+
+      startPolling()
+
+      // 생성 요청 (최대 5분 대기)
+      try {
+        const genController = new AbortController()
+        const genTimeout = setTimeout(() => genController.abort(), 5 * 60 * 1000)
+
+        const genRes = await fetch('/api/reports/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalogId, tier: selectedTier, orderId }),
+          signal: genController.signal,
+        })
+        clearTimeout(genTimeout)
+
+        let genData
+        try {
+          genData = await genRes.json()
+        } catch {
+          // 504 등 비-JSON 응답 → 폴링에서 상태 확인
+          console.warn('Generate response was not JSON, relying on polling')
+          return
+        }
+
+        if (genData.success && !generationDone) {
+          if (pollTimer) clearInterval(pollTimer)
+          setCustomProgress(100)
+          setCustomProgressText('완료! 보고서로 이동합니다...')
+          setTimeout(() => {
+            router.push(`/market/${catalogSlug}/view?orderId=${genData.data?.orderId || orderId}`)
+          }, 800)
+        } else if (!genData.success && !generationDone) {
+          if (pollTimer) clearInterval(pollTimer)
+          setCustomError(genData.error || '보고서 생성 실패')
+          setCustomGenerating(false)
+        }
+      } catch (genErr) {
+        // AbortError (타임아웃) 또는 네트워크 에러
+        // 폴링이 계속 돌고 있으므로, 폴링에서 최종 상태를 확인
+        if (!generationDone) {
+          // 10초 더 기다려본 후 폴링 결과 확인
+          await new Promise(r => setTimeout(r, 10000))
+          if (!generationDone) {
+            if (pollTimer) clearInterval(pollTimer)
+            setCustomError('보고서 생성 시간이 초과되었습니다. 잠시 후 마켓에서 확인해주세요.')
+            setCustomGenerating(false)
+          }
+        }
       }
     } catch (err) {
       setCustomError(err instanceof Error ? err.message : '보고서 생성 중 오류 발생')
@@ -379,6 +480,25 @@ export default function MarketPage() {
                 </div>
               )}
 
+              {/* 진행률 표시 */}
+              {customGenerating && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-600">{customProgressText}</span>
+                    <span className="text-sm font-bold text-blue-600">{customProgress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                      style={{ width: `${customProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-center text-xs text-slate-400 mt-2">
+                    HIRA 데이터 + ClinicalTrials.gov + PubMed 논문 검색 + AI 분석 (최대 5분)
+                  </p>
+                </div>
+              )}
+
               {/* 생성 버튼 */}
               <button
                 onClick={handleCustomGenerate}
@@ -388,7 +508,7 @@ export default function MarketPage() {
                 {customGenerating ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    AI가 보고서를 생성하고 있습니다... (약 1~2분)
+                    AI가 보고서를 생성하고 있습니다...
                   </>
                 ) : (
                   <>
@@ -397,12 +517,6 @@ export default function MarketPage() {
                   </>
                 )}
               </button>
-
-              {customGenerating && (
-                <p className="text-center text-xs text-slate-400 mt-3">
-                  HIRA 데이터 + ClinicalTrials.gov + PubMed 논문을 검색하고 AI가 분석합니다
-                </p>
-              )}
             </div>
           </div>
         </div>

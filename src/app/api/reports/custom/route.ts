@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
-import { generateReport, ReportTier } from '@/lib/report-generator'
+import { ReportTier } from '@/lib/report-generator'
 
-export const maxDuration = 120;
+// 이 엔드포인트는 DB 생성만 담당 → 생성은 /api/reports/generate에서 수행
+export const maxDuration = 30;
 
 // 키워드로 slug 생성 (한글 → 영문 간단 변환)
 function generateSlug(keywords: string[]): string {
@@ -164,67 +165,20 @@ export async function POST(request: NextRequest) {
 
     const { catalog, order } = txResult
 
-    // ── 동기 보고서 생성 ──
-    try {
-      const sections = await generateReport({
+    // ── 즉시 반환 (생성은 프론트엔드에서 /api/reports/generate 호출) ──
+    console.log(`[Custom Report] Order created: ${order.id} → 생성은 /api/reports/generate에서 수행`)
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        orderId: order.id,
         catalogId: catalog.id,
-        slug: catalog.slug,
-        title: catalog.title,
-        drugName: catalog.drugName || '',
-        indication: catalog.indication || '',
-        therapeuticArea: catalog.therapeuticArea || '',
-        tier: tier as ReportTier,
-        onProgress: async (progress: number, sectionTitle: string) => {
-          try {
-            await prisma.reportOrder.update({
-              where: { id: order.id },
-              data: { progress },
-            })
-            console.log(`[Custom Progress] ${slug}: ${progress}% - ${sectionTitle}`)
-          } catch (e) {
-            console.error('[Progress Update Error]', e)
-          }
-        },
-      })
-
-      // 완료
-      await prisma.reportOrder.update({
-        where: { id: order.id },
-        data: {
-          status: 'COMPLETED',
-          progress: 100,
-          sections: sections as any,
-          completedAt: new Date(),
-        },
-      })
-
-      console.log(`[Custom Report] Completed: ${title}`)
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          orderId: order.id,
-          catalogSlug: catalog.slug,
-          status: 'COMPLETED',
-          progress: 100,
-          message: '커스텀 보고서 생성이 완료되었습니다',
-        },
-      })
-    } catch (genError) {
-      console.error('[Custom Report Generation Error]', genError)
-      await prisma.reportOrder.update({
-        where: { id: order.id },
-        data: {
-          status: 'FAILED',
-          errorMessage: genError instanceof Error ? genError.message : '보고서 생성 실패',
-          completedAt: new Date(),
-        },
-      })
-      return NextResponse.json(
-        { error: '보고서 생성 중 오류가 발생했습니다', details: genError instanceof Error ? genError.message : '' },
-        { status: 500 }
-      )
-    }
+        catalogSlug: catalog.slug,
+        status: 'GENERATING',
+        progress: 0,
+        message: '주문이 생성되었습니다. 보고서 생성을 시작합니다.',
+      },
+    })
   } catch (error) {
     console.error('[Custom Report Error]', error)
     return NextResponse.json(

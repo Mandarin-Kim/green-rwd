@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
-// Vercel: Hobby 최대 60초, Pro 최대 300초
-// HIRA API(15~20초) + ClinicalTrials(8초) + AI 섹션 생성이 있으므로 120초 설정
-// 첫 생성 시 API 호출 → DB 캐시 저장, 이후 생성은 DB에서 즉시 읽어 훨씬 빠름
-export const maxDuration = 120;
+// Vercel: Hobby 최대 60초, Pro 최대 300초 (5분)
+// PubMed 논문 검색/인용 + HIRA + ClinicalTrials + AI 섹션 생성 고려
+// Pro 플랜 필요 (Hobby에서는 60초로 자동 제한됨)
+export const maxDuration = 300;
 
 // POST /api/reports/generate - 보고서 생성 (동기 방식)
 // Vercel Serverless에서는 응답 후 함수가 즉시 종료되므로
@@ -14,7 +14,7 @@ export const maxDuration = 120;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { catalogId, slug, tier = 'BASIC', forceRegenerate = false } = body
+    const { catalogId, slug, tier = 'BASIC', forceRegenerate = false, orderId: existingOrderId } = body
 
     if (!catalogId && !slug) {
       return NextResponse.json({ error: '카탈로그 ID 또는 slug가 필요합니다' }, { status: 400 })
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
     }
 
-    // ── 단일 트랜잭션으로 유저 확보 + 카탈로그 조회 + 주문 생성 ──
+    // ── 단일 트랜잭션으로 유저 확보 + 카탈로그 조회 + 주문 생성/조회 ──
     const txResult = await prisma.$transaction(async (tx) => {
       // 1) 인증: 세션 유저 → DB 존재 확인 → 없으면 게스트
       let userId: string | undefined
@@ -59,6 +59,27 @@ export async function POST(request: NextRequest) {
 
       if (!catalog) {
         throw new Error('CATALOG_NOT_FOUND')
+      }
+
+      // 2-1) 기존 주문이 있으면 그대로 사용 (커스텀 보고서에서 미리 생성한 경우)
+      if (existingOrderId) {
+        const existingOrder = await tx.reportOrder.findUnique({ where: { id: existingOrderId } })
+        if (existingOrder && existingOrder.status === 'GENERATING') {
+          console.log(`[Report Generation] Using existing order: ${existingOrderId}`)
+          return {
+            alreadyCompleted: false as const,
+            order: existingOrder,
+            catalog,
+          }
+        }
+        // 이미 완료된 주문이면 바로 반환
+        if (existingOrder && existingOrder.status === 'COMPLETED') {
+          return {
+            alreadyCompleted: true as const,
+            order: existingOrder,
+            catalog,
+          }
+        }
       }
 
       // 3) 이미 완료된 보고서가 있으면 반환 (forceRegenerate=true면 무시하고 새로 생성)
