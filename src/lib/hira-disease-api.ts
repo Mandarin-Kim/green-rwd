@@ -9,10 +9,19 @@
  * 4. getDissByClassesStats1     - 질병의료기관종별통계
  * 5. getDissByAreaStats1        - 질병의료기관지역별통계
  *
+ * 공통 요청 파라미터 (4개 통계 API 동일):
+ * - serviceKey* (필수), numOfRows, pageNo
+ * - year (연도, 예: "2023"), sickCd (상병코드)
+ * - sickType (1:3단상병, 2:4단상병), medTp (1:양방, 2:한방)
+ * ※ 주의: diagYm이 아닌 year 파라미터 사용!
+ *
  * 응답 필드 (Swagger 확인):
- * - sickCd, sickNm, sex(남/여), inpatOpat(입원외래구분)
- * - ptntCnt(환자수), vstDdcnt(내원일수), specCnt(명세서건수)
- * - rvdRpeTamtAmt(심사결정요양급여비용총액), rvdInsupBrdnAmt(보험자부담금)
+ * - 공통: sickCd, sickNm, ptntCnt(환자수), vstDdcnt(내원일수), specCnt(명세서건수),
+ *         rvdRpeTamtAmt(심사결정요양급여비용총액), rvdInsupBrdnAmt(보험자부담금)
+ * - 입원외래별: sex(남/여), inpatOpat(입원외래구분)
+ * - 성별연령별: sex(남/여), age(연령대)
+ * - 의료기관종별: grade(의료기관종)
+ * - 지역별: lcName(지역명)
  */
 
 // ============================================
@@ -210,21 +219,21 @@ export const getDissNameCodeListByCode = (sickCd: string, p?: Record<string, str
     ...p,
   });
 
-/** 2. 질병입원외래별통계 (Swagger: getDissByHsptlzFrgnStats1) */
-export const getDissByHsptlzFrgnStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissByHsptlzFrgnStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 2. 질병입원외래별통계 (Swagger: getDissByHsptlzFrgnStats1) - 파라미터: year, sickCd, sickType, medTp */
+export const getDissByHsptlzFrgnStats1 = (sickCd: string, year: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByHsptlzFrgnStats1', { sickCd, year, sickType: 1, medTp: 1, numOfRows: 100, pageNo: 1, ...p });
 
-/** 3. 질병성별연령별통계 (Swagger: getDissByGenderAgeStats1) */
-export const getDissByGenderAgeStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissByGenderAgeStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 3. 질병성별연령별통계 (Swagger: getDissByGenderAgeStats1) - 파라미터: year, sickCd, sickType, medTp */
+export const getDissByGenderAgeStats1 = (sickCd: string, year: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByGenderAgeStats1', { sickCd, year, sickType: 1, medTp: 1, numOfRows: 100, pageNo: 1, ...p });
 
-/** 4. 질병의료기관종별통계 (Swagger: getDissByClassesStats1) */
-export const getDissByClassesStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissByClassesStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 4. 질병의료기관종별통계 (Swagger: getDissByClassesStats1) - 파라미터: year, sickCd, sickType, medTp */
+export const getDissByClassesStats1 = (sickCd: string, year: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByClassesStats1', { sickCd, year, sickType: 1, medTp: 1, numOfRows: 100, pageNo: 1, ...p });
 
-/** 5. 질병의료기관지역별통계 (Swagger: getDissByAreaStats1) */
-export const getDissByAreaStats1 = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissByAreaStats1', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+/** 5. 질병의료기관지역별통계 (Swagger: getDissByAreaStats1) - 파라미터: year, sickCd, sickType, medTp */
+export const getDissByAreaStats1 = (sickCd: string, year: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissByAreaStats1', { sickCd, year, sickType: 1, medTp: 1, numOfRows: 100, pageNo: 1, ...p });
 
 // ── 하위호환: 기존 함수명 유지 (deprecated) ──
 export const getDissInfoList = getDissNameCodeList1;
@@ -254,8 +263,8 @@ export async function searchDiseases(keyword: string): Promise<DiseaseInfo[]> {
 }
 
 /** 질병별 성별·입원/외래 현황 (Swagger 필드: sex, inpatOpat, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
-export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2023'): Promise<DiseaseGenderStats[]> {
-  const { items } = await getDissByHsptlzFrgnStats1(sickCd, diagYm);
+export async function fetchDiseaseGenderStats(sickCd: string, year = '2023'): Promise<DiseaseGenderStats[]> {
+  const { items } = await getDissByHsptlzFrgnStats1(sickCd, year);
 
   // 입원/외래 × 성별로 데이터가 옴 → 성별 기준으로 집계
   const genderMap = new Map<string, DiseaseGenderStats>();
@@ -276,7 +285,7 @@ export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2023'): 
         totalCount: 0,
         inpatientDays: 0,
         outpatientDays: 0,
-        period: diagYm,
+        period: year,
       });
     }
     const stat = genderMap.get(sex)!;
@@ -294,64 +303,64 @@ export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2023'): 
   return Array.from(genderMap.values());
 }
 
-/** 질병별 성별·연령대별 현황 (Swagger 필드 참조) */
-export async function fetchDiseaseAgeStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAgeStats[]> {
-  const { items } = await getDissByGenderAgeStats1(sickCd, diagYm);
+/** 질병별 성별·연령대별 현황 (Swagger 필드: sex, age, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
+export async function fetchDiseaseAgeStats(sickCd: string, year = '2023'): Promise<DiseaseAgeStats[]> {
+  const { items } = await getDissByGenderAgeStats1(sickCd, year);
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || ''),
-    gender: String(i.sex || i.gndrCdNm || ''),
-    ageGroup: String(i.ageCdNm || i.ageGrpNm || i.age || ''),
-    ageGroupCode: String(i.ageCd || ''),
-    patientCount: Number(i.ptntCnt || i.patntCnt || 0),
-    visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
-    claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
-    period: diagYm,
+    gender: String(i.sex || ''),
+    ageGroup: String(i.age || ''),
+    ageGroupCode: '',
+    patientCount: Number(i.ptntCnt || 0),
+    visitCount: Number(i.vstDdcnt || 0),
+    claimAmount: Number(i.rvdRpeTamtAmt || 0),
+    period: year,
   }));
 }
 
-/** 질병별 의료기관종별 현황 (Swagger 필드 참조) */
-export async function fetchDiseaseInstitutionStats(sickCd: string, diagYm = '2023'): Promise<DiseaseInstitutionStats[]> {
-  const { items } = await getDissByClassesStats1(sickCd, diagYm);
+/** 질병별 의료기관종별 현황 (Swagger 필드: grade, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
+export async function fetchDiseaseInstitutionStats(sickCd: string, year = '2023'): Promise<DiseaseInstitutionStats[]> {
+  const { items } = await getDissByClassesStats1(sickCd, year);
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || ''),
-    institutionType: String(i.clCdNm || i.clNm || i.instClCdNm || ''),
-    institutionTypeCode: String(i.clCd || i.instClCd || ''),
-    patientCount: Number(i.ptntCnt || i.patntCnt || 0),
-    visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
-    claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
-    period: diagYm,
+    institutionType: String(i.grade || ''),
+    institutionTypeCode: '',
+    patientCount: Number(i.ptntCnt || 0),
+    visitCount: Number(i.vstDdcnt || 0),
+    claimAmount: Number(i.rvdRpeTamtAmt || 0),
+    period: year,
   }));
 }
 
-/** 질병별 지역별 현황 (Swagger 필드 참조) */
-export async function fetchDiseaseAreaStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAreaStats[]> {
-  const { items } = await getDissByAreaStats1(sickCd, diagYm);
-  const total = items.reduce((s, i) => s + Number(i.ptntCnt || i.patntCnt || 0), 0);
+/** 질병별 지역별 현황 (Swagger 필드: lcName(지역명), ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
+export async function fetchDiseaseAreaStats(sickCd: string, year = '2023'): Promise<DiseaseAreaStats[]> {
+  const { items } = await getDissByAreaStats1(sickCd, year);
+  const total = items.reduce((s, i) => s + Number(i.ptntCnt || 0), 0);
   return items.map(i => {
-    const cnt = Number(i.ptntCnt || i.patntCnt || 0);
+    const cnt = Number(i.ptntCnt || 0);
     return {
       diseaseCode: sickCd,
       diseaseName: String(i.sickNm || ''),
-      regionName: String(i.sidoCdNm || i.areaNm || ''),
-      regionCode: String(i.sidoCd || i.areaCd || ''),
+      regionName: String(i.lcName || ''),
+      regionCode: '',
       patientCount: cnt,
-      visitCount: Number(i.vstDdcnt || i.rcptCnt || 0),
-      claimAmount: Number(i.rvdRpeTamtAmt || i.trsRcptAmt || 0),
+      visitCount: Number(i.vstDdcnt || 0),
+      claimAmount: Number(i.rvdRpeTamtAmt || 0),
       patientRate: total > 0 ? Math.round((cnt / total) * 10000) / 100 : 0,
-      period: diagYm,
+      period: year,
     };
   });
 }
 
 /** 질병 종합분석 (4개 API 병렬 호출) */
-export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2023'): Promise<DiseaseAnalysisResult> {
+export async function fetchDiseaseAnalysis(sickCd: string, year = '2023'): Promise<DiseaseAnalysisResult> {
   const [genderStats, ageDistribution, institutionStats, regionalStats] = await Promise.all([
-    fetchDiseaseGenderStats(sickCd, diagYm),
-    fetchDiseaseAgeStats(sickCd, diagYm),
-    fetchDiseaseInstitutionStats(sickCd, diagYm),
-    fetchDiseaseAreaStats(sickCd, diagYm),
+    fetchDiseaseGenderStats(sickCd, year),
+    fetchDiseaseAgeStats(sickCd, year),
+    fetchDiseaseInstitutionStats(sickCd, year),
+    fetchDiseaseAreaStats(sickCd, year),
   ]);
 
   // 전체 환자수
@@ -372,7 +381,7 @@ export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2023'): Pro
   return {
     diseaseCode: sickCd,
     diseaseName: genderStats[0]?.diseaseName || ageDistribution[0]?.diseaseName || '미상',
-    period: diagYm,
+    period: year,
     totalPatients,
     genderStats,
     ageDistribution,

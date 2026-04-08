@@ -91,8 +91,8 @@ export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichme
     const allInstitution: Map<string, number> = new Map();
     const allRegion: Map<string, number> = new Map();
 
-    // diagYm: HIRA에서 가장 최근 데이터가 있는 연도 사용
-    const diagYm = '2023';
+    // year: HIRA에서 가장 최근 데이터가 있는 연도 사용
+    const year = '2023';
 
     for (const code of mapping.diseaseCodes) {
       console.log(`[HIRA Enricher] ${slug}: 질병코드 ${code} 데이터 조회 시작`);
@@ -108,25 +108,25 @@ export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichme
       }
 
       // 2) 성별·입원/외래 통계
-      const genderStats = await fetchDiseaseGenderStats(code, diagYm);
+      const genderStats = await fetchDiseaseGenderStats(code, year);
       for (const gs of genderStats) {
         allGender.set(gs.gender, (allGender.get(gs.gender) || 0) + gs.totalCount);
       }
 
       // 3) 연령대별 통계
-      const ageStats = await fetchDiseaseAgeStats(code, diagYm);
+      const ageStats = await fetchDiseaseAgeStats(code, year);
       for (const as_ of ageStats) {
         allAge.set(as_.ageGroup, (allAge.get(as_.ageGroup) || 0) + as_.patientCount);
       }
 
       // 4) 의료기관종별 통계
-      const instStats = await fetchDiseaseInstitutionStats(code, diagYm);
+      const instStats = await fetchDiseaseInstitutionStats(code, year);
       for (const is_ of instStats) {
         allInstitution.set(is_.institutionType, (allInstitution.get(is_.institutionType) || 0) + is_.patientCount);
       }
 
       // 5) 지역별 통계
-      const regionStats = await fetchDiseaseAreaStats(code, diagYm);
+      const regionStats = await fetchDiseaseAreaStats(code, year);
       for (const rs of regionStats) {
         allRegion.set(rs.regionName, (allRegion.get(rs.regionName) || 0) + rs.patientCount);
       }
