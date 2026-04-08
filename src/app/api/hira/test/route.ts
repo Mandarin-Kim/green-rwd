@@ -1,7 +1,6 @@
 /**
  * /api/hira/test - HIRA API 연결 진단 엔드포인트
- * 2026-04-08 data.go.kr Swagger UI에서 확인한 정확한 오퍼레이션명으로 테스트
- * diagYm 형식 변형도 함께 테스트 (YYYY vs YYYYMM)
+ * 통계 API 파라미터 조합 테스트 (sickType, medTp 추가 여부)
  */
 
 import { NextResponse } from 'next/server';
@@ -9,34 +8,41 @@ import { NextResponse } from 'next/server';
 const HIRA_KEY = process.env.HIRA_API_KEY || '';
 const BASE = 'https://apis.data.go.kr/B551182/diseaseInfoService1';
 
-// 5개 정확한 오퍼레이션 + diagYm 형식 변형 테스트
 const TEST_ENDPOINTS = [
-  // 1. 질병명칭/코드조회 (확인 완료)
+  // 1. 질병명칭/코드조회 (확인완료)
   {
-    name: '1. 질병명칭/코드조회',
+    name: '1. 질병명칭/코드조회 ✅',
     op: 'getDissNameCodeList1',
     params: { sickType: '1', medTp: '1', diseaseType: 'SICK_NM', searchText: '당뇨', numOfRows: '3', pageNo: '1' },
   },
 
-  // 2. 질병입원외래별통계 - diagYm 형식 변형
-  { name: '2a. 입원외래 diagYm=2023', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' } },
-  { name: '2b. 입원외래 diagYm=202301', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '202301', numOfRows: '3', pageNo: '1' } },
-  { name: '2c. 입원외래 diagYm=202306', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '202306', numOfRows: '3', pageNo: '1' } },
-  { name: '2d. 입원외래 diagYm=202312', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '202312', numOfRows: '3', pageNo: '1' } },
-  { name: '2e. 입원외래 diagYm=2022', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '2022', numOfRows: '3', pageNo: '1' } },
-  { name: '2f. 입원외래 diagYm=202206', op: 'getDissByHsptlzFrgnStats1', params: { sickCd: 'E11', diagYm: '202206', numOfRows: '3', pageNo: '1' } },
+  // 2. 입원외래 - 파라미터 조합 테스트
+  { name: '2a. 입원외래 (기본: sickCd+diagYm)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' } },
+  { name: '2b. 입원외래 (+sickType=1,medTp=1)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', diagYm: '2023', sickType: '1', medTp: '1', numOfRows: '3', pageNo: '1' } },
+  { name: '2c. 입원외래 (+sickType=2,medTp=1)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', diagYm: '2023', sickType: '2', medTp: '1', numOfRows: '3', pageNo: '1' } },
+  { name: '2d. 입원외래 (E11.0, 4단)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E110', diagYm: '2023', numOfRows: '3', pageNo: '1' } },
+  { name: '2e. 입원외래 (E11, no diagYm)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', numOfRows: '3', pageNo: '1' } },
+  { name: '2f. 입원외래 (no sickCd, diagYm only)', op: 'getDissByHsptlzFrgnStats1',
+    params: { diagYm: '2023', numOfRows: '3', pageNo: '1' } },
+  { name: '2g. 입원외래 (sickType+medTp only)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickType: '1', medTp: '1', numOfRows: '3', pageNo: '1' } },
+  { name: '2h. 입원외래 (E11+sickType=1+medTp=1 no diagYm)', op: 'getDissByHsptlzFrgnStats1',
+    params: { sickCd: 'E11', sickType: '1', medTp: '1', numOfRows: '3', pageNo: '1' } },
 
-  // 3. 성별연령별 - diagYm 형식 변형 (대표 2가지만)
-  { name: '3a. 성별연령별 diagYm=202301', op: 'getDissByGenderAgeStats1', params: { sickCd: 'E11', diagYm: '202301', numOfRows: '3', pageNo: '1' } },
-  { name: '3b. 성별연령별 diagYm=2022', op: 'getDissByGenderAgeStats1', params: { sickCd: 'E11', diagYm: '2022', numOfRows: '3', pageNo: '1' } },
-
-  // 4. 의료기관종별 - diagYm 형식 변형 (대표 2가지만)
-  { name: '4a. 의료기관종별 diagYm=202301', op: 'getDissByClassesStats1', params: { sickCd: 'E11', diagYm: '202301', numOfRows: '3', pageNo: '1' } },
-  { name: '4b. 의료기관종별 diagYm=2022', op: 'getDissByClassesStats1', params: { sickCd: 'E11', diagYm: '2022', numOfRows: '3', pageNo: '1' } },
-
-  // 5. 지역별 - diagYm 형식 변형 (대표 2가지만)
-  { name: '5a. 지역별 diagYm=202301', op: 'getDissByAreaStats1', params: { sickCd: 'E11', diagYm: '202301', numOfRows: '3', pageNo: '1' } },
-  { name: '5b. 지역별 diagYm=2022', op: 'getDissByAreaStats1', params: { sickCd: 'E11', diagYm: '2022', numOfRows: '3', pageNo: '1' } },
+  // 3. 지역별 - 대표 파라미터 조합
+  { name: '3a. 지역별 (기본)', op: 'getDissByAreaStats1',
+    params: { sickCd: 'E11', diagYm: '2023', numOfRows: '3', pageNo: '1' } },
+  { name: '3b. 지역별 (+sickType+medTp)', op: 'getDissByAreaStats1',
+    params: { sickCd: 'E11', diagYm: '2023', sickType: '1', medTp: '1', numOfRows: '3', pageNo: '1' } },
+  { name: '3c. 지역별 (no diagYm)', op: 'getDissByAreaStats1',
+    params: { sickCd: 'E11', numOfRows: '3', pageNo: '1' } },
+  { name: '3d. 지역별 (no sickCd)', op: 'getDissByAreaStats1',
+    params: { diagYm: '2023', numOfRows: '3', pageNo: '1' } },
 ];
 
 export async function GET() {
@@ -65,6 +71,7 @@ export async function GET() {
       const totalCount = totalMatch ? parseInt(totalMatch[1], 10) : 0;
       const resultCodeMatch = text.match(/<resultCode>(\d+)<\/resultCode>/);
       const resultCode = resultCodeMatch ? resultCodeMatch[1] : null;
+      const resultMsgMatch = text.match(/<resultMsg>([^<]*)<\/resultMsg>/);
 
       results.push({
         name: ep.name,
@@ -75,7 +82,8 @@ export async function GET() {
         totalCount,
         hasItems,
         resultCode,
-        preview: text.substring(0, 500),
+        resultMsg: resultMsgMatch ? resultMsgMatch[1] : null,
+        preview: text.substring(0, 400),
       });
     } catch (error: any) {
       results.push({
