@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Download, Printer, ChevronRight, FileText,
   BarChart3, Table2, Users, FlaskConical, ArrowRight,
-  TrendingUp, MapPin, Calendar, X, Clock, GitBranch, Check, Edit3, AlertCircle
+  TrendingUp, MapPin, Calendar, X, Clock, GitBranch, Check, Edit3, AlertCircle, RefreshCw, Loader2
 } from 'lucide-react'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -839,6 +839,8 @@ export default function ReportViewPage() {
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>('')
   const [showCohortModal, setShowCohortModal] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenProgress, setRegenProgress] = useState('')
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -872,6 +874,63 @@ export default function ReportViewPage() {
       setError('보고서 로딩 중 오류가 발생했습니다')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 보고서 재생성 (PubMed 논문 인용 포함)
+  const handleRegenerate = async (tier: 'BASIC' | 'PRO' | 'PREMIUM') => {
+    if (regenerating) return
+    const confirmed = window.confirm(
+      `${tier} 등급으로 보고서를 새로 생성합니다.\n(PubMed 논문 인용이 포함됩니다)\n\n진행하시겠습니까?`
+    )
+    if (!confirmed) return
+
+    try {
+      setRegenerating(true)
+      setRegenProgress('보고서 생성 요청 중...')
+      const slug = params.slug as string
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, tier }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '보고서 생성 실패')
+
+      if (data.success && data.data?.orderId) {
+        if (data.data.status === 'COMPLETED') {
+          setRegenProgress('생성 완료! 페이지를 새로고침합니다...')
+          window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`
+          return
+        }
+        // 폴링
+        setRegenProgress('AI가 보고서를 생성하고 있습니다...')
+        const maxAttempts = 30
+        for (let i = 0; i < maxAttempts; i++) {
+          await new Promise(r => setTimeout(r, 2000))
+          try {
+            const res = await fetch(`/api/reports/generate?orderId=${data.data.orderId}`)
+            const pollData = await res.json()
+            if (pollData.data?.status === 'COMPLETED') {
+              setRegenProgress('생성 완료! 페이지를 새로고침합니다...')
+              window.location.href = `/market/${slug}/view?orderId=${pollData.data.orderId}`
+              return
+            }
+            if (pollData.data?.status === 'FAILED') {
+              throw new Error(pollData.data.errorMessage || '보고서 생성 실패')
+            }
+            setRegenProgress(`AI가 보고서를 생성하고 있습니다... (${i + 1}/${maxAttempts})`)
+          } catch (pollErr) {
+            if (pollErr instanceof Error && pollErr.message.includes('실패')) throw pollErr
+          }
+        }
+        throw new Error('보고서 생성 시간 초과. 잠시 후 다시 시도해주세요.')
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '보고서 생성 중 오류 발생')
+    } finally {
+      setRegenerating(false)
+      setRegenProgress('')
     }
   }
 
@@ -938,6 +997,16 @@ export default function ReportViewPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 print:hidden">
+            {/* Regenerate Button */}
+            <button
+              onClick={() => handleRegenerate(report.tier as 'BASIC' | 'PRO' | 'PREMIUM' || 'BASIC')}
+              disabled={regenerating}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl transition-colors disabled:opacity-50"
+              title="PubMed 논문 인용이 포함된 새 보고서를 생성합니다"
+            >
+              {regenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {regenerating ? '생성 중...' : '새로 생성'}
+            </button>
             {/* Cohort Button (상단 고정) */}
             <button
               onClick={() => setShowCohortModal(true)}
@@ -961,6 +1030,21 @@ export default function ReportViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Regenerating Overlay */}
+      {regenerating && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center">
+            <div className="relative w-16 h-16 mx-auto mb-4">
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-100" />
+              <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">보고서 재생성 중</h3>
+            <p className="text-sm text-slate-500">{regenProgress}</p>
+            <p className="text-xs text-slate-400 mt-3">PubMed 논문 검색 및 AI 분석이 진행됩니다.<br/>약 1~2분 소요됩니다.</p>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
         {/* Left Sidebar */}

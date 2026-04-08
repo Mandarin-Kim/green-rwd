@@ -181,12 +181,21 @@ export default function MarketPage() {
                     >
                       <Eye size={13} />상세보기
                     </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}?tab=order`); }}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <ShoppingCart size={13} />주문하기
-                    </button>
+                    {report.isGenerated ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}/view`); }}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+                      >
+                        <FileText size={13} />보고서 보기
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}`); }}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <ShoppingCart size={13} />주문하기
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
