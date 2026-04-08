@@ -676,7 +676,7 @@ export default function ReportDetailPage() {
     }
   }, [slug]);
 
-  // Generate report
+  // Generate report (동기 방식: API가 생성 완료 후 응답)
   async function handleGenerateReport(tier: 'BASIC' | 'PRO' | 'PREMIUM' = 'BASIC') {
     try {
       setGenerating(true);
@@ -694,8 +694,16 @@ export default function ReportDetailPage() {
       }
 
       if (data.success && data.data?.orderId) {
-        // 생성이 시작됨 → 진행 상태 폴링
-        pollReportProgress(data.data.orderId);
+        const orderId = data.data.orderId;
+
+        if (data.data.status === 'COMPLETED') {
+          // 동기 생성 완료 → 바로 뷰어로 이동
+          window.location.href = `/market/${slug}/view?orderId=${orderId}`;
+          return;
+        }
+
+        // 혹시 아직 GENERATING이면 폴링 (동기 방식에서는 거의 없음)
+        pollReportProgress(orderId);
       } else {
         setReport(data);
       }
@@ -706,7 +714,7 @@ export default function ReportDetailPage() {
   }
 
   async function pollReportProgress(orderId: string) {
-    const maxAttempts = 120; // 최대 4분 (2초 간격)
+    const maxAttempts = 30; // 최대 1분 (2초 간격)
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
@@ -714,7 +722,6 @@ export default function ReportDetailPage() {
         const data = await res.json();
         if (data.data?.status === 'COMPLETED') {
           setGenerating(false);
-          // 보고서 뷰어로 이동
           window.location.href = `/market/${slug}/view?orderId=${orderId}`;
           return;
         }
@@ -723,12 +730,11 @@ export default function ReportDetailPage() {
           setGenerating(false);
           return;
         }
-        // 진행 중 - 계속 폴링
       } catch {
         // 네트워크 에러 시 계속 재시도
       }
     }
-    setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 확인해주세요.');
+    setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
     setGenerating(false);
   }
 

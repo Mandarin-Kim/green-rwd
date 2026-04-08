@@ -3,10 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
-// PREMIUM 보고서는 15섹션 × AI 호출 → 최대 5분 소요 가능
-export const maxDuration = 300;
+// Vercel Hobby: 최대 60초, Pro: 최대 300초
+// BASIC(5섹션)은 fallback 포함 ~30초, PRO/PREMIUM은 더 오래 걸릴 수 있음
+export const maxDuration = 60;
 
-// POST /api/reports/generate - Start report generation
+// POST /api/reports/generate - 보고서 생성 (동기 방식)
+// Vercel Serverless에서는 응답 후 함수가 즉시 종료되므로
+// fire-and-forget 패턴 대신 동기 생성 후 결과를 반환합니다.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -21,8 +24,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 단일 트랜잭션으로 유저 확보 + 카탈로그 조회 + 주문 생성 ──
-    // Neon pgBouncer 풀링 환경에서 FK constraint 에러를 방지하기 위해
-    // 모든 DB 작업을 하나의 트랜잭션 안에서 처리합니다.
     const txResult = await prisma.$transaction(async (tx) => {
       // 1) 인증: 세션 유저 → DB 존재 확인 → 없으면 게스트
       let userId: string | undefined
@@ -59,23 +60,38 @@ export async function POST(request: NextRequest) {
         throw new Error('CATALOG_NOT_FOUND')
       }
 
-      // 3) 이미 생성 중인 주문이 있는지 확인
-      const existingOrder = await tx.reportOrder.findFirst({
+      // 3) 이미 완료된 보고서가 있으면 반환
+      const completedOrder = await tx.reportOrder.findFirst({
         where: {
           catalogId: catalog.id,
-          status: { in: ['PENDING', 'GENERATING'] },
+          tier: tier as ReportTier,
+          status: 'COMPLETED',
         },
+        orderBy: { completedAt: 'desc' },
       })
 
-      if (existingOrder) {
+      if (completedOrder) {
         return {
-          isExisting: true as const,
-          order: existingOrder,
+          alreadyCompleted: true as const,
+          order: completedOrder,
           catalog,
         }
       }
 
-      // 4) 새 주문 생성
+      // 4) 새 주문 생성 (이전 실패/생성중 주문은 무시)
+      // 이전에 GENERATING 상태로 남은 주문을 FAILED로 정리
+      await tx.reportOrder.updateMany({
+        where: {
+          catalogId: catalog.id,
+          status: { in: ['PENDING', 'GENERATING'] },
+        },
+        data: {
+          status: 'FAILED',
+          errorMessage: '이전 생성 요청이 시간 초과되어 재시도합니다',
+          completedAt: new Date(),
+        },
+      })
+
       const priceMap: Record<string, number> = {
         BASIC: catalog.priceBasic,
         PRO: catalog.pricePro,
@@ -95,43 +111,98 @@ export async function POST(request: NextRequest) {
       })
 
       return {
-        isExisting: false as const,
+        alreadyCompleted: false as const,
         order: newOrder,
         catalog,
       }
     })
 
-    // 이미 생성 중인 주문이면 기존 정보 반환
-    if (txResult.isExisting) {
+    // 이미 완료된 보고서가 있으면 즉시 반환
+    if (txResult.alreadyCompleted) {
       return NextResponse.json({
         success: true,
         data: {
           orderId: txResult.order.id,
-          status: txResult.order.status,
-          progress: txResult.order.progress,
-          message: '이미 생성 중인 보고서가 있습니다',
+          status: 'COMPLETED',
+          progress: 100,
+          message: '이미 생성된 보고서가 있습니다',
         },
       })
     }
 
-    // 비동기 보고서 생성 시작 (fire-and-forget)
-    generateReportAsync(txResult.order.id, txResult.catalog, tier as ReportTier).catch((error) => {
-      console.error(`[Report Generation Failed] Order: ${txResult.order.id}`, error)
-    })
+    // ── 동기 보고서 생성 ──
+    // Vercel Serverless에서는 응답 전에 모든 작업을 완료해야 함
+    const orderId = txResult.order.id
+    const catalog = txResult.catalog
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        orderId: txResult.order.id,
-        status: 'GENERATING',
-        progress: 0,
-        message: '보고서 생성이 시작되었습니다',
-      },
-    }, { status: 202 })
+    try {
+      console.log(`[Report Generation] Starting: ${catalog.title} (${tier})`)
+
+      const sections = await generateReport({
+        catalogId: catalog.id,
+        slug: catalog.slug || '',
+        title: catalog.title,
+        drugName: catalog.drugName || '',
+        indication: catalog.indication || '',
+        therapeuticArea: catalog.therapeuticArea || '',
+        tier: tier as ReportTier,
+        onProgress: async (progress: number, sectionTitle: string) => {
+          try {
+            await prisma.reportOrder.update({
+              where: { id: orderId },
+              data: { progress },
+            })
+            console.log(`[Progress] ${catalog.slug}: ${progress}% - ${sectionTitle}`)
+          } catch (e) {
+            console.error('[Progress Update Error]', e)
+          }
+        },
+      })
+
+      // 완료 저장
+      await prisma.reportOrder.update({
+        where: { id: orderId },
+        data: {
+          status: 'COMPLETED',
+          progress: 100,
+          sections: sections as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          completedAt: new Date(),
+        },
+      })
+
+      console.log(`[Report Generation] Completed: ${catalog.title}`)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          orderId,
+          status: 'COMPLETED',
+          progress: 100,
+          message: '보고서 생성이 완료되었습니다',
+        },
+      })
+    } catch (genError) {
+      console.error(`[Report Generation] Failed: ${catalog.title}`, genError)
+
+      // 실패 상태 저장
+      await prisma.reportOrder.update({
+        where: { id: orderId },
+        data: {
+          status: 'FAILED',
+          errorMessage: genError instanceof Error ? genError.message : '보고서 생성 중 오류',
+          completedAt: new Date(),
+        },
+      })
+
+      return NextResponse.json({
+        success: false,
+        error: genError instanceof Error ? genError.message : '보고서 생성 중 오류가 발생했습니다',
+        data: { orderId, status: 'FAILED' },
+      }, { status: 500 })
+    }
   } catch (error) {
     console.error('[POST /api/reports/generate] Error:', error)
 
-    // 카탈로그 없음은 404로 반환
     if (error instanceof Error && error.message === 'CATALOG_NOT_FOUND') {
       return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
     }
@@ -182,61 +253,5 @@ export async function GET(request: NextRequest) {
       { success: false, error: '진행 상태 조회 중 오류가 발생했습니다' },
       { status: 500 }
     )
-  }
-}
-
-// Async report generation
-async function generateReportAsync(
-  orderId: string,
-  catalog: { id: string; slug: string; title: string; drugName: string | null; indication: string | null; therapeuticArea: string | null },
-  tier: ReportTier
-) {
-  try {
-    console.log(`[Async Generation] Starting: ${catalog.title} (${tier})`)
-
-    const sections = await generateReport({
-      catalogId: catalog.id,
-      slug: catalog.slug || '',
-      title: catalog.title,
-      drugName: catalog.drugName || '',
-      indication: catalog.indication || '',
-      therapeuticArea: catalog.therapeuticArea || '',
-      tier,
-      onProgress: async (progress: number, sectionTitle: string) => {
-        try {
-          await prisma.reportOrder.update({
-            where: { id: orderId },
-            data: { progress },
-          })
-          console.log(`[Progress] ${catalog.slug}: ${progress}% - ${sectionTitle}`)
-        } catch (e) {
-          console.error('[Progress Update Error]', e)
-        }
-      },
-    })
-
-    // Save completed report
-    await prisma.reportOrder.update({
-      where: { id: orderId },
-      data: {
-        status: 'COMPLETED',
-        progress: 100,
-        sections: sections as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-        completedAt: new Date(),
-      },
-    })
-
-    console.log(`[Async Generation] Completed: ${catalog.title}`)
-  } catch (error) {
-    console.error(`[Async Generation] Failed: ${catalog.title}`, error)
-
-    await prisma.reportOrder.update({
-      where: { id: orderId },
-      data: {
-        status: 'FAILED',
-        errorMessage: error instanceof Error ? error.message : '알 수 없는 오류',
-        completedAt: new Date(),
-      },
-    })
   }
 }
