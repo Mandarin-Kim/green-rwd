@@ -3,19 +3,34 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
+// PREMIUM 보고서는 15섹션 × AI 호출 → 최대 5분 소요 가능
+export const maxDuration = 300;
+
 // POST /api/reports/generate - Start report generation
 export async function POST(request: NextRequest) {
   try {
+    // 인증: 로그인 사용자 우선, 비로그인 시 시스템 게스트 사용자 사용
     const user = await getSessionUser(request)
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 })
+    let userId = user?.id
+    if (!userId) {
+      // 게스트 사용자 조회 또는 생성
+      const guestUser = await prisma.user.upsert({
+        where: { email: 'guest@green-rwd.system' },
+        update: {},
+        create: {
+          email: 'guest@green-rwd.system',
+          name: '게스트',
+          role: 'USER',
+        },
+      })
+      userId = guestUser.id
     }
 
     const body = await request.json()
-    const { catalogId, tier = 'BASIC' } = body
+    const { catalogId, slug, tier = 'BASIC' } = body
 
-    if (!catalogId) {
-      return NextResponse.json({ error: '카탈로그 ID가 필요합니다' }, { status: 400 })
+    if (!catalogId && !slug) {
+      return NextResponse.json({ error: '카탈로그 ID 또는 slug가 필요합니다' }, { status: 400 })
     }
 
     // Validate tier
@@ -23,10 +38,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
     }
 
-    // Get catalog
-    const catalog = await prisma.reportCatalog.findUnique({
-      where: { id: catalogId },
-    })
+    // Get catalog (slug 또는 catalogId로 조회)
+    const catalog = catalogId
+      ? await prisma.reportCatalog.findUnique({ where: { id: catalogId } })
+      : await prisma.reportCatalog.findUnique({ where: { slug } })
 
     if (!catalog) {
       return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
@@ -35,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Check for existing active order
     const existingOrder = await prisma.reportOrder.findFirst({
       where: {
-        catalogId,
+        catalogId: catalog.id,
         status: { in: ['PENDING', 'GENERATING'] },
       },
     })
@@ -63,7 +78,7 @@ export async function POST(request: NextRequest) {
     const order = await prisma.reportOrder.create({
       data: {
         catalogId: catalog.id,
-        userId: user.id,
+        userId,
         tier: tier as ReportTier,
         price: priceMap[tier],
         status: 'GENERATING',
@@ -89,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[POST /api/reports/generate] Error:', error)
     return NextResponse.json(
-      { success: false, error: '보고서 생성 요청 중 오류가 발생했습니다' },
+      { success: false, error: String(error) },
       { status: 500 }
     )
   }
@@ -98,11 +113,6 @@ export async function POST(request: NextRequest) {
 // GET /api/reports/generate?orderId=xxx - Check progress
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser(request)
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const orderId = searchParams.get('orderId')
 
@@ -182,27 +192,6 @@ async function generateReportAsync(
         completedAt: new Date(),
       },
     })
-
-    // Create notification
-    const order = await prisma.reportOrder.findUnique({
-      where: { id: orderId },
-      select: { userId: true },
-    })
-
-    if (order) {
-      try {
-        await prisma.notification.create({
-          data: {
-            userId: order.userId,
-            title: '보고서 생성 완료',
-            message: `"${catalog.title}" 보고서가 성공적으로 생성되었습니다.`,
-            type: 'SUCCESS',
-          },
-        })
-      } catch (e) {
-        console.error('[Notification Create Error]', e)
-      }
-    }
 
     console.log(`[Async Generation] Completed: ${catalog.title}`)
   } catch (error) {

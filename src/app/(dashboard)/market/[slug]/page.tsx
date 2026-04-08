@@ -687,14 +687,49 @@ export default function ReportDetailPage() {
         body: JSON.stringify({ slug, tier }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate report');
       const data = await response.json();
-      setReport(data);
+
+      if (!response.ok) {
+        throw new Error(data.error || `보고서 생성 실패 (${response.status})`);
+      }
+
+      if (data.success && data.data?.orderId) {
+        // 생성이 시작됨 → 진행 상태 폴링
+        pollReportProgress(data.data.orderId);
+      } else {
+        setReport(data);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate report');
-    } finally {
+      setError(err instanceof Error ? err.message : '보고서 생성 중 오류가 발생했습니다');
       setGenerating(false);
     }
+  }
+
+  async function pollReportProgress(orderId: string) {
+    const maxAttempts = 120; // 최대 4분 (2초 간격)
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const res = await fetch(`/api/reports/generate?orderId=${orderId}`);
+        const data = await res.json();
+        if (data.data?.status === 'COMPLETED') {
+          setGenerating(false);
+          // 보고서 뷰어로 이동
+          window.location.href = `/market/${slug}/view?orderId=${orderId}`;
+          return;
+        }
+        if (data.data?.status === 'FAILED') {
+          setError(data.data.errorMessage || '보고서 생성에 실패했습니다');
+          setGenerating(false);
+          return;
+        }
+        // 진행 중 - 계속 폴링
+      } catch {
+        // 네트워크 에러 시 계속 재시도
+      }
+    }
+    setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 확인해주세요.');
+    setGenerating(false);
   }
 
   if (loading) {
