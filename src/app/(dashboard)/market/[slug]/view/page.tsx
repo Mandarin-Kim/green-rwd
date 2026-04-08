@@ -1022,10 +1022,17 @@ export default function ReportViewPage() {
               <Printer className="w-4 h-4" />
             </button>
             <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              onClick={() => {
+                const slug = report.slug || params?.slug;
+                if (slug) {
+                  window.open(`/api/reports/export-csv?slug=${slug}&type=all`, '_blank');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-xl transition-colors"
+              title="Raw 데이터 CSV 다운로드 (HIRA + ClinicalTrials + PubMed)"
             >
               <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">CSV</span>
             </button>
           </div>
         </div>

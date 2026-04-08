@@ -5,6 +5,16 @@ import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, Repo
 // Vercel Hobby: 최대 60초 → 각 단계를 60초 이내로 분리
 export const maxDuration = 60;
 
+// 캐시 만료 기간 (7일)
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** DB 캐시가 유효한지 확인 (dataSyncedAt 기준 7일 이내) */
+function isCacheValid(dataSyncedAt: Date | null, data: any): boolean {
+  if (!data) return false;
+  if (!dataSyncedAt) return !!data; // 동기화 시각이 없으면 데이터가 있으면 유효
+  return (Date.now() - dataSyncedAt.getTime()) < CACHE_TTL_MS;
+}
+
 /**
  * POST /api/reports/prepare
  * 4단계 분리 보고서 생성 API
@@ -13,11 +23,13 @@ export const maxDuration = 60;
  * step=2: ClinicalTrials.gov 임상시험 데이터 수집
  * step=3: PubMed 논문 검색
  * step=4: AI 보고서 생성 (캐시된 데이터 활용)
+ *
+ * forceRefresh=true: 캐시를 무시하고 강제로 재수집
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { slug, step, tier = 'BASIC', orderId } = body
+    const { slug, step, tier = 'BASIC', orderId, forceRefresh = false } = body
 
     if (!slug) {
       return NextResponse.json({ error: 'slug가 필요합니다' }, { status: 400 })
@@ -33,12 +45,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
     }
 
+    const syncedAt = catalog.dataSyncedAt;
+
     // ── Step 1: HIRA 데이터 수집 ──
     if (step === 1) {
       console.log(`[Prepare Step 1] HIRA 데이터 수집 시작: ${slug}`)
-      const cachedHiraData = (catalog as any).hiraData || undefined
+      const existingData = (catalog as any).hiraData;
+      const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
-      const result = await getHiraData(slug, cachedHiraData)
+      // DB 캐시가 유효하면 API 호출 없이 바로 반환
+      const result = await getHiraData(slug, cacheValid ? existingData : undefined)
 
       return NextResponse.json({
         success: true,
@@ -46,7 +62,8 @@ export async function POST(request: NextRequest) {
         stepName: 'HIRA 건강보험심사평가원',
         data: {
           hasData: !!result.rawData,
-          cached: !!cachedHiraData,
+          cached: cacheValid && !!existingData,
+          freshlyFetched: !cacheValid || !existingData,
           summary: result.rawData
             ? `환자수 ${(result.rawData.patientCount || 0).toLocaleString()}명`
             : '데이터 없음',
@@ -57,9 +74,10 @@ export async function POST(request: NextRequest) {
     // ── Step 2: ClinicalTrials.gov 데이터 수집 ──
     if (step === 2) {
       console.log(`[Prepare Step 2] ClinicalTrials 데이터 수집 시작: ${slug}`)
-      const cachedCT = (catalog as any).clinicalTrialsData || undefined
+      const existingData = (catalog as any).clinicalTrialsData;
+      const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
-      const result = await getClinicalTrialsData(slug, cachedCT)
+      const result = await getClinicalTrialsData(slug, cacheValid ? existingData : undefined)
 
       return NextResponse.json({
         success: true,
@@ -67,7 +85,8 @@ export async function POST(request: NextRequest) {
         stepName: 'ClinicalTrials.gov',
         data: {
           hasData: !!result.data,
-          cached: !!cachedCT,
+          cached: cacheValid && !!existingData,
+          freshlyFetched: !cacheValid || !existingData,
           summary: result.data
             ? `임상시험 ${result.data.totalCount || 0}건`
             : '데이터 없음',
@@ -78,13 +97,14 @@ export async function POST(request: NextRequest) {
     // ── Step 3: PubMed 논문 검색 ──
     if (step === 3) {
       console.log(`[Prepare Step 3] PubMed 논문 검색 시작: ${slug}`)
-      const cachedPubMed = (catalog as any).pubMedData || undefined
+      const existingData = (catalog as any).pubMedData;
+      const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
       const result = await getPubMedData(
         slug,
         catalog.drugName || '',
         catalog.indication || '',
-        cachedPubMed
+        cacheValid ? existingData : undefined
       )
 
       return NextResponse.json({
@@ -93,7 +113,8 @@ export async function POST(request: NextRequest) {
         stepName: 'PubMed 논문',
         data: {
           hasData: !!result.data,
-          cached: !!cachedPubMed,
+          cached: cacheValid && !!existingData,
+          freshlyFetched: !cacheValid || !existingData,
           summary: result.data
             ? `논문 ${result.data.articles?.length || 0}편`
             : '데이터 없음',

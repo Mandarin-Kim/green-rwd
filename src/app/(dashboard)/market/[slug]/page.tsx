@@ -1074,6 +1074,38 @@ export default function ReportDetailPage() {
                     </div>
                   </div>
                 )}
+
+                {/* CSV Raw 데이터 다운로드 (데이터 수집 완료 시 표시) */}
+                {(steps[1].completed || steps[2].completed || steps[3].completed) && (
+                  <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>Raw 데이터 패키지</div>
+                        <div style={{ fontSize: '0.75rem', color: '#a16207', marginTop: '0.25rem' }}>
+                          수집된 원시 데이터를 CSV로 다운로드 (PREMIUM 전용)
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=all`, '_blank')}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#f59e0b',
+                          color: 'white',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          fontWeight: 600,
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                        }}
+                      >
+                        📥 CSV 다운로드
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
