@@ -651,6 +651,21 @@ export default function ReportDetailPage() {
   const [activeTab, setActiveTab] = useState<'preview' | 'order'>('preview');
   const [error, setError] = useState<string | null>(null);
 
+  // 4단계 준비 상태
+  interface StepStatus {
+    completed: boolean;
+    loading: boolean;
+    summary: string | null;
+    error: string | null;
+  }
+  const [steps, setSteps] = useState<Record<number, StepStatus>>({
+    1: { completed: false, loading: false, summary: null, error: null },
+    2: { completed: false, loading: false, summary: null, error: null },
+    3: { completed: false, loading: false, summary: null, error: null },
+    4: { completed: false, loading: false, summary: null, error: null },
+  });
+  const [selectedTier, setSelectedTier] = useState<'BASIC' | 'PRO' | 'PREMIUM'>('BASIC');
+
   // Fetch catalog data on mount
   useEffect(() => {
     async function fetchCatalog() {
@@ -674,101 +689,105 @@ export default function ReportDetailPage() {
 
     if (slug) {
       fetchCatalog();
+      // 캐시 상태도 로드
+      fetchStepStatus();
     }
   }, [slug]);
 
-  // Generate report (비동기: 생성 트리거 + 폴링)
-  async function handleGenerateReport(tier: 'BASIC' | 'PRO' | 'PREMIUM' = 'BASIC') {
+  // 캐시 상태 조회
+  async function fetchStepStatus() {
     try {
-      setGenerating(true);
-      setError(null);
-
-      // 생성 요청 (5분 타임아웃) + 폴링 동시 실행
-      let generationDone = false;
-
-      // 폴링 시작 (3초마다, 최대 100회 = 5분)
-      const pollPromise = (async () => {
-        // 생성 요청이 orderId를 받을 때까지 5초 대기
-        await new Promise(r => setTimeout(r, 5000));
-        for (let i = 0; i < 100; i++) {
-          if (generationDone) return;
-          try {
-            // slug 기반으로 최신 주문 조회
-            const res = await fetch(`/api/reports/generate?orderId=latest&slug=${slug}&tier=${tier}`);
-            let data;
-            try { data = await res.json(); } catch { continue; }
-            if (data.data?.status === 'COMPLETED') {
-              generationDone = true;
-              setGenerating(false);
-              window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
-              return;
-            }
-            if (data.data?.status === 'FAILED') {
-              generationDone = true;
-              setError(data.data.errorMessage || '보고서 생성에 실패했습니다');
-              setGenerating(false);
-              return;
-            }
-          } catch {
-            // 폴링 에러 무시
-          }
-          await new Promise(r => setTimeout(r, 3000));
-        }
-      })();
-
-      // 생성 요청 (최대 5분)
-      try {
-        const genController = new AbortController();
-        const genTimeout = setTimeout(() => genController.abort(), 5 * 60 * 1000);
-
-        const response = await fetch('/api/reports/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug, tier }),
-          signal: genController.signal,
-        });
-        clearTimeout(genTimeout);
-
-        let data;
-        try {
-          data = await response.json();
-        } catch {
-          // 504 등 비-JSON 응답 → 폴링에서 처리
-          console.warn('Generate response was not JSON, relying on polling');
-          await pollPromise;
-          return;
-        }
-
-        if (!response.ok) {
-          if (!generationDone) {
-            throw new Error(data.error || `보고서 생성 실패 (${response.status})`);
-          }
-          return;
-        }
-
-        if (data.success && data.data?.orderId && !generationDone) {
-          generationDone = true;
-          if (data.data.status === 'COMPLETED') {
-            window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
-            return;
-          }
-          // GENERATING 상태면 폴링 계속 대기
-          await pollPromise;
-        }
-      } catch (fetchErr) {
-        // AbortError(타임아웃) 또는 네트워크 에러
-        if (!generationDone) {
-          // 폴링이 아직 돌고 있으면 10초 더 대기
-          await new Promise(r => setTimeout(r, 10000));
-          if (!generationDone) {
-            setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
-            setGenerating(false);
-          }
-        }
+      const res = await fetch(`/api/reports/prepare?slug=${slug}`);
+      if (!res.ok) return;
+      const result = await res.json();
+      if (result.success && result.data?.steps) {
+        const s = result.data.steps;
+        setSteps(prev => ({
+          1: { ...prev[1], completed: s[1]?.completed || false, summary: s[1]?.summary || null },
+          2: { ...prev[2], completed: s[2]?.completed || false, summary: s[2]?.summary || null },
+          3: { ...prev[3], completed: s[3]?.completed || false, summary: s[3]?.summary || null },
+          4: { ...prev[4], completed: s[4]?.completed || false, summary: s[4]?.summary || null },
+        }));
       }
+    } catch {}
+  }
+
+  // 개별 단계 실행
+  async function handleRunStep(stepNum: number) {
+    setError(null);
+    setSteps(prev => ({
+      ...prev,
+      [stepNum]: { ...prev[stepNum], loading: true, error: null },
+    }));
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55000); // 55초 안전 마진
+
+      const response = await fetch('/api/reports/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          step: stepNum,
+          tier: selectedTier,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('서버 응답을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.');
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || `Step ${stepNum} 실패`);
+      }
+
+      // Step 4 완료 시 보고서 보기 페이지로 이동
+      if (stepNum === 4 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
+        setSteps(prev => ({
+          ...prev,
+          [stepNum]: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
+        }));
+        // 잠시 후 이동 (UI 확인용)
+        setTimeout(() => {
+          window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
+        }, 1000);
+        return;
+      }
+
+      setSteps(prev => ({
+        ...prev,
+        [stepNum]: {
+          completed: true,
+          loading: false,
+          summary: data.data?.summary || '완료',
+          error: null,
+        },
+      }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '보고서 생성 중 오류가 발생했습니다');
-      setGenerating(false);
+      const msg = err instanceof Error
+        ? (err.name === 'AbortError' ? '시간 초과 (55초). 다시 시도해주세요.' : err.message)
+        : '알 수 없는 오류';
+      setSteps(prev => ({
+        ...prev,
+        [stepNum]: { ...prev[stepNum], loading: false, error: msg },
+      }));
+      setError(`Step ${stepNum} 오류: ${msg}`);
+    }
+  }
+
+  // 전체 자동 실행 (1→2→3→4 순서대로)
+  async function handleRunAll() {
+    setError(null);
+    for (const stepNum of [1, 2, 3, 4]) {
+      if (steps[stepNum].completed && stepNum !== 4) continue; // 이미 완료된 데이터 수집은 건너뜀
+      await handleRunStep(stepNum);
+      if (steps[stepNum]?.error) break; // 에러 발생 시 중단
     }
   }
 
@@ -914,6 +933,7 @@ export default function ReportDetailPage() {
                 />
               </div>
 
+              {/* 4단계 보고서 생성 UI */}
               <div
                 style={{
                   backgroundColor: '#f0fdf4',
@@ -931,51 +951,129 @@ export default function ReportDetailPage() {
                     margin: '0 0 0.5rem 0',
                   }}
                 >
-                  보고서 생성
+                  보고서 생성 (4단계)
                 </h3>
                 <p style={{ color: '#1f2937', fontSize: '0.875rem', margin: '0 0 1rem 0' }}>
-                  아래 버튼을 클릭하여 AI 기반의 상세 시장 분석 보고서를 생성하세요.
-                  생성된 보고서는 최대 10개 섹션으로 구성됩니다.
+                  각 단계 버튼을 순서대로 클릭하세요. 한번 수집한 데이터는 DB에 캐시되어 다음에 즉시 사용됩니다.
                 </p>
 
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  {([
-                    { tier: 'BASIC' as const, price: catalogData.priceBasic, color: '#10b981', bgHover: '#059669' },
-                    { tier: 'PRO' as const, price: catalogData.pricePro, color: '#2563eb', bgHover: '#1d4ed8' },
-                    { tier: 'PREMIUM' as const, price: catalogData.pricePremium, color: '#7c3aed', bgHover: '#6d28d9' },
-                  ]).map(({ tier, price, color }) => (
+                {/* 티어 선택 */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {(['BASIC', 'PRO', 'PREMIUM'] as const).map((t) => (
                     <button
-                      key={tier}
-                      onClick={() => handleGenerateReport(tier)}
-                      disabled={generating}
+                      key={t}
+                      onClick={() => setSelectedTier(t)}
                       style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        backgroundColor: color,
-                        color: 'white',
-                        padding: '0.75rem 1.5rem',
-                        borderRadius: '0.75rem',
-                        border: 'none',
+                        padding: '0.4rem 1rem',
+                        borderRadius: '0.5rem',
+                        border: selectedTier === t ? '2px solid #0d9488' : '1px solid #d1d5db',
+                        backgroundColor: selectedTier === t ? '#ccfbf1' : 'white',
+                        color: selectedTier === t ? '#0d9488' : '#6b7280',
                         fontWeight: 600,
-                        cursor: generating ? 'not-allowed' : 'pointer',
-                        opacity: generating ? 0.6 : 1,
-                        minWidth: '140px',
-                        transition: 'transform 0.15s, box-shadow 0.15s',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
                       }}
-                      onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
-                      onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'; }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        {generating && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                        <span style={{ fontSize: '0.8125rem' }}>{tier}</span>
-                      </div>
-                      <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>₩{(price / 10000).toFixed(0)}만</span>
+                      {t}
                     </button>
                   ))}
                 </div>
+
+                {/* 4단계 버튼 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {([
+                    { num: 1, label: '① HIRA 건강보험심사평가원', icon: '🏥', desc: '환자수, 진료비, 연령/성별 분포' },
+                    { num: 2, label: '② ClinicalTrials.gov', icon: '🔬', desc: '임상시험 현황 (Phase, 스폰서)' },
+                    { num: 3, label: '③ PubMed 논문 검색', icon: '📄', desc: '최신 논문 인용 데이터' },
+                    { num: 4, label: '④ AI 보고서 생성', icon: '🤖', desc: '캐시 데이터 기반 AI 보고서 작성' },
+                  ]).map(({ num, label, icon, desc }) => {
+                    const s = steps[num];
+                    const anyLoading = Object.values(steps).some(st => st.loading);
+                    const isDisabled = s.loading || (anyLoading && !s.loading);
+                    return (
+                      <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button
+                          onClick={() => handleRunStep(num)}
+                          disabled={isDisabled}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.875rem 1.25rem',
+                            borderRadius: '0.75rem',
+                            border: s.completed ? '2px solid #10b981' : s.error ? '2px solid #ef4444' : '1px solid #d1d5db',
+                            backgroundColor: s.completed ? '#ecfdf5' : s.loading ? '#f0f9ff' : 'white',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            opacity: isDisabled && !s.loading ? 0.5 : 1,
+                            transition: 'all 0.2s',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{ fontSize: '1.5rem' }}>
+                            {s.loading ? '' : s.completed ? '✅' : s.error ? '❌' : icon}
+                          </span>
+                          {s.loading && (
+                            <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#0d9488' }} />
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#1f2937' }}>{label}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.125rem' }}>
+                              {s.loading ? '수집 중...' : s.completed ? s.summary : s.error ? s.error : desc}
+                            </div>
+                          </div>
+                          {s.completed && !s.loading && (
+                            <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>완료</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 전체 실행 버튼 */}
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    onClick={handleRunAll}
+                    disabled={Object.values(steps).some(s => s.loading)}
+                    style={{
+                      flex: 1,
+                      padding: '0.875rem',
+                      borderRadius: '0.75rem',
+                      border: 'none',
+                      backgroundColor: '#0d9488',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      cursor: Object.values(steps).some(s => s.loading) ? 'not-allowed' : 'pointer',
+                      opacity: Object.values(steps).some(s => s.loading) ? 0.6 : 1,
+                      boxShadow: '0 2px 8px rgba(13,148,136,0.3)',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {Object.values(steps).some(s => s.loading) ? '진행 중...' : '전체 자동 실행 (1→2→3→4)'}
+                  </button>
+                </div>
+
+                {/* 진행 바 */}
+                {Object.values(steps).some(s => s.loading || s.completed) && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <div style={{ height: '8px', backgroundColor: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${(Object.values(steps).filter(s => s.completed).length / 4) * 100}%`,
+                          backgroundColor: '#10b981',
+                          borderRadius: '4px',
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem', textAlign: 'center' }}>
+                      {Object.values(steps).filter(s => s.completed).length}/4 단계 완료
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

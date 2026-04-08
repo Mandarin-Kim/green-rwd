@@ -73,126 +73,197 @@ export default function MarketPage() {
     setKeywords(keywords.filter((_, i) => i !== idx))
   }
 
-  // 커스텀 보고서 생성 (비동기: 주문생성 → 생성트리거 + 폴링)
-  const handleCustomGenerate = async () => {
+  // 커스텀 보고서 4단계 상태
+  interface CustomStepStatus {
+    completed: boolean
+    loading: boolean
+    summary: string | null
+    error: string | null
+  }
+  const [customSteps, setCustomSteps] = useState<Record<number, CustomStepStatus>>({
+    1: { completed: false, loading: false, summary: null, error: null },
+    2: { completed: false, loading: false, summary: null, error: null },
+    3: { completed: false, loading: false, summary: null, error: null },
+    4: { completed: false, loading: false, summary: null, error: null },
+  })
+  const [customSlug, setCustomSlug] = useState<string | null>(null)
+
+  // 커스텀 보고서: 카탈로그+주문 생성 (Step 0)
+  const handleCustomCreate = async () => {
     if (keywords.length === 0) {
       setCustomError('최소 1개 이상의 키워드를 입력해주세요')
       return
     }
     setCustomGenerating(true)
     setCustomError(null)
-    setCustomProgress(0)
-    setCustomProgressText('주문 생성 중...')
+    setCustomProgressText('카탈로그 생성 중...')
+    setCustomSteps({
+      1: { completed: false, loading: false, summary: null, error: null },
+      2: { completed: false, loading: false, summary: null, error: null },
+      3: { completed: false, loading: false, summary: null, error: null },
+      4: { completed: false, loading: false, summary: null, error: null },
+    })
 
     try {
-      // Step 1: 주문 생성 (즉시 반환, 1~2초)
       const createRes = await fetch('/api/reports/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keywords, tier: selectedTier }),
       })
       let createData
-      try {
-        createData = await createRes.json()
-      } catch {
+      try { createData = await createRes.json() } catch {
         throw new Error('서버 응답 오류. 잠시 후 다시 시도해주세요.')
       }
-      if (!createRes.ok) throw new Error(createData.error || '주문 생성 실패')
+      if (!createRes.ok) throw new Error(createData.error || '카탈로그 생성 실패')
 
-      const { orderId, catalogId, catalogSlug } = createData.data
-      setCustomProgress(5)
-      setCustomProgressText('데이터 수집 및 AI 분석 시작...')
+      setCustomSlug(createData.data.catalogSlug)
+      setCustomProgressText('카탈로그가 생성되었습니다. 아래 단계를 실행하세요.')
+    } catch (err) {
+      setCustomError(err instanceof Error ? err.message : '카탈로그 생성 오류')
+      setCustomGenerating(false)
+    }
+  }
 
-      // Step 2: 생성 트리거 (별도 호출, 최대 5분) + 폴링 동시 실행
-      let generationDone = false
-      let pollTimer: ReturnType<typeof setInterval> | null = null
+  // 커스텀 보고서: 개별 단계 실행
+  const handleCustomStep = async (stepNum: number) => {
+    if (!customSlug) return
+    setCustomError(null)
+    setCustomSteps(prev => ({
+      ...prev,
+      [stepNum]: { ...prev[stepNum], loading: true, error: null },
+    }))
 
-      // 폴링: 3초마다 진행률 확인
-      const startPolling = () => {
-        pollTimer = setInterval(async () => {
-          try {
-            const pollRes = await fetch(`/api/reports/generate?orderId=${orderId}`)
-            const pollData = await pollRes.json()
-            if (pollData.success && pollData.data) {
-              const { status, progress } = pollData.data
-              setCustomProgress(Math.max(5, progress))
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000)
 
-              if (progress < 30) setCustomProgressText('HIRA/PubMed 데이터 수집 중...')
-              else if (progress < 70) setCustomProgressText('AI가 보고서를 작성하고 있습니다...')
-              else if (progress < 100) setCustomProgressText('최종 검토 및 참고문헌 정리 중...')
+      const response = await fetch('/api/reports/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: customSlug, step: stepNum, tier: selectedTier }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
 
-              if (status === 'COMPLETED') {
-                generationDone = true
-                if (pollTimer) clearInterval(pollTimer)
-                setCustomProgress(100)
-                setCustomProgressText('완료! 보고서로 이동합니다...')
-                setTimeout(() => {
-                  router.push(`/market/${catalogSlug}/view?orderId=${orderId}`)
-                }, 800)
-              } else if (status === 'FAILED') {
-                generationDone = true
-                if (pollTimer) clearInterval(pollTimer)
-                setCustomError(pollData.data.errorMessage || '보고서 생성에 실패했습니다')
-                setCustomGenerating(false)
-              }
-            }
-          } catch {
-            // 폴링 실패는 무시 (네트워크 일시 오류 등)
-          }
-        }, 3000)
+      let data
+      try { data = await response.json() } catch {
+        throw new Error('서버 응답 오류')
+      }
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || `Step ${stepNum} 실패`)
       }
 
-      startPolling()
+      if (stepNum === 4 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
+        setCustomSteps(prev => ({
+          ...prev,
+          4: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
+        }))
+        setTimeout(() => {
+          router.push(`/market/${customSlug}/view?orderId=${data.data.orderId}`)
+        }, 1000)
+        return
+      }
 
-      // 생성 요청 (최대 5분 대기)
+      setCustomSteps(prev => ({
+        ...prev,
+        [stepNum]: { completed: true, loading: false, summary: data.data?.summary || '완료', error: null },
+      }))
+    } catch (err) {
+      const msg = err instanceof Error
+        ? (err.name === 'AbortError' ? '시간 초과. 다시 시도해주세요.' : err.message)
+        : '알 수 없는 오류'
+      setCustomSteps(prev => ({
+        ...prev,
+        [stepNum]: { ...prev[stepNum], loading: false, error: msg },
+      }))
+      setCustomError(`Step ${stepNum}: ${msg}`)
+    }
+  }
+
+  // 커스텀 보고서: 전체 자동 실행
+  const handleCustomRunAll = async () => {
+    if (!customSlug) {
+      await handleCustomCreate()
+    }
+    // customSlug 갱신을 기다림
+    // (state가 비동기라 직접 참조 불가 → useEffect 대신 직접 처리)
+  }
+
+  // customSlug가 생기면 자동 실행 시작
+  const handleCustomAutoRun = async (theSlug: string) => {
+    for (const stepNum of [1, 2, 3, 4]) {
+      setCustomSteps(prev => ({
+        ...prev,
+        [stepNum]: { ...prev[stepNum], loading: true, error: null },
+      }))
       try {
-        const genController = new AbortController()
-        const genTimeout = setTimeout(() => genController.abort(), 5 * 60 * 1000)
-
-        const genRes = await fetch('/api/reports/generate', {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 55000)
+        const response = await fetch('/api/reports/prepare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ catalogId, tier: selectedTier, orderId }),
-          signal: genController.signal,
+          body: JSON.stringify({ slug: theSlug, step: stepNum, tier: selectedTier }),
+          signal: controller.signal,
         })
-        clearTimeout(genTimeout)
+        clearTimeout(timeout)
+        let data
+        try { data = await response.json() } catch { throw new Error('서버 응답 오류') }
+        if (!response.ok || !data.success) throw new Error(data.error || `Step ${stepNum} 실패`)
 
-        let genData
-        try {
-          genData = await genRes.json()
-        } catch {
-          // 504 등 비-JSON 응답 → 폴링에서 상태 확인
-          console.warn('Generate response was not JSON, relying on polling')
+        if (stepNum === 4 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
+          setCustomSteps(prev => ({ ...prev, 4: { completed: true, loading: false, summary: '완료!', error: null } }))
+          setTimeout(() => router.push(`/market/${theSlug}/view?orderId=${data.data.orderId}`), 1000)
           return
         }
-
-        if (genData.success && !generationDone) {
-          if (pollTimer) clearInterval(pollTimer)
-          setCustomProgress(100)
-          setCustomProgressText('완료! 보고서로 이동합니다...')
-          setTimeout(() => {
-            router.push(`/market/${catalogSlug}/view?orderId=${genData.data?.orderId || orderId}`)
-          }, 800)
-        } else if (!genData.success && !generationDone) {
-          if (pollTimer) clearInterval(pollTimer)
-          setCustomError(genData.error || '보고서 생성 실패')
-          setCustomGenerating(false)
-        }
-      } catch (genErr) {
-        // AbortError (타임아웃) 또는 네트워크 에러
-        // 폴링이 계속 돌고 있으므로, 폴링에서 최종 상태를 확인
-        if (!generationDone) {
-          // 10초 더 기다려본 후 폴링 결과 확인
-          await new Promise(r => setTimeout(r, 10000))
-          if (!generationDone) {
-            if (pollTimer) clearInterval(pollTimer)
-            setCustomError('보고서 생성 시간이 초과되었습니다. 잠시 후 마켓에서 확인해주세요.')
-            setCustomGenerating(false)
-          }
-        }
+        setCustomSteps(prev => ({
+          ...prev,
+          [stepNum]: { completed: true, loading: false, summary: data.data?.summary || '완료', error: null },
+        }))
+      } catch (err) {
+        const msg = err instanceof Error ? (err.name === 'AbortError' ? '시간 초과' : err.message) : '오류'
+        setCustomSteps(prev => ({ ...prev, [stepNum]: { ...prev[stepNum], loading: false, error: msg } }))
+        setCustomError(`Step ${stepNum}: ${msg}`)
+        break
       }
+    }
+  }
+
+  // 커스텀 보고서: 카탈로그 생성 + 전체 자동 실행
+  const handleCustomGenerateAll = async () => {
+    if (keywords.length === 0) {
+      setCustomError('최소 1개 이상의 키워드를 입력해주세요')
+      return
+    }
+    setCustomGenerating(true)
+    setCustomError(null)
+    setCustomProgressText('카탈로그 생성 중...')
+    setCustomSteps({
+      1: { completed: false, loading: false, summary: null, error: null },
+      2: { completed: false, loading: false, summary: null, error: null },
+      3: { completed: false, loading: false, summary: null, error: null },
+      4: { completed: false, loading: false, summary: null, error: null },
+    })
+
+    try {
+      const createRes = await fetch('/api/reports/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keywords, tier: selectedTier }),
+      })
+      let createData
+      try { createData = await createRes.json() } catch {
+        throw new Error('서버 응답 오류')
+      }
+      if (!createRes.ok) throw new Error(createData.error || '카탈로그 생성 실패')
+
+      const theSlug = createData.data.catalogSlug
+      setCustomSlug(theSlug)
+      setCustomProgressText('데이터 수집을 시작합니다...')
+
+      // 자동 4단계 실행
+      await handleCustomAutoRun(theSlug)
     } catch (err) {
-      setCustomError(err instanceof Error ? err.message : '보고서 생성 중 오류 발생')
+      setCustomError(err instanceof Error ? err.message : '오류 발생')
       setCustomGenerating(false)
     }
   }
@@ -480,43 +551,97 @@ export default function MarketPage() {
                 </div>
               )}
 
-              {/* 진행률 표시 */}
-              {customGenerating && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-600">{customProgressText}</span>
-                    <span className="text-sm font-bold text-blue-600">{customProgress}%</span>
+              {/* 4단계 진행 UI (카탈로그 생성 후) */}
+              {customSlug && (
+                <div className="mb-4 space-y-2">
+                  <p className="text-xs text-slate-500 mb-2">{customProgressText}</p>
+                  {([
+                    { num: 1, label: 'HIRA 건강보험심사평가원', icon: '🏥' },
+                    { num: 2, label: 'ClinicalTrials.gov', icon: '🔬' },
+                    { num: 3, label: 'PubMed 논문', icon: '📄' },
+                    { num: 4, label: 'AI 보고서 생성', icon: '🤖' },
+                  ]).map(({ num, label, icon }) => {
+                    const s = customSteps[num]
+                    const anyLoading = Object.values(customSteps).some(st => st.loading)
+                    return (
+                      <button
+                        key={num}
+                        onClick={() => handleCustomStep(num)}
+                        disabled={s.loading || (anyLoading && !s.loading)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                          s.completed ? 'border-emerald-400 bg-emerald-50' :
+                          s.loading ? 'border-blue-400 bg-blue-50' :
+                          s.error ? 'border-red-400 bg-red-50' :
+                          'border-slate-200 hover:border-slate-300'
+                        } ${(anyLoading && !s.loading) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      >
+                        <span className="text-xl">
+                          {s.loading ? '' : s.completed ? '✅' : s.error ? '❌' : icon}
+                        </span>
+                        {s.loading && <Loader2 size={20} className="animate-spin text-blue-500" />}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-slate-800">{label}</div>
+                          <div className="text-xs text-slate-500 truncate">
+                            {s.loading ? '수집 중...' : s.completed ? s.summary : s.error || '클릭하여 실행'}
+                          </div>
+                        </div>
+                        {s.completed && <span className="text-xs text-emerald-600 font-bold">완료</span>}
+                      </button>
+                    )
+                  })}
+                  {/* 진행 바 */}
+                  <div className="pt-2">
+                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${(Object.values(customSteps).filter(s => s.completed).length / 4) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-center text-xs text-slate-400 mt-1">
+                      {Object.values(customSteps).filter(s => s.completed).length}/4 단계 완료
+                    </p>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                      style={{ width: `${customProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-center text-xs text-slate-400 mt-2">
-                    HIRA 데이터 + ClinicalTrials.gov + PubMed 논문 검색 + AI 분석 (최대 5분)
-                  </p>
                 </div>
               )}
 
               {/* 생성 버튼 */}
-              <button
-                onClick={handleCustomGenerate}
-                disabled={keywords.length === 0 || customGenerating}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200"
-              >
-                {customGenerating ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    AI가 보고서를 생성하고 있습니다...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={18} />
-                    보고서 생성하기
-                  </>
-                )}
-              </button>
+              {!customSlug ? (
+                <button
+                  onClick={handleCustomGenerateAll}
+                  disabled={keywords.length === 0 || customGenerating}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200"
+                >
+                  {customGenerating ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      카탈로그 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      보고서 생성하기 (자동 4단계)
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleCustomAutoRun(customSlug)}
+                  disabled={Object.values(customSteps).some(s => s.loading)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-teal-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-teal-600 hover:to-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-teal-200"
+                >
+                  {Object.values(customSteps).some(s => s.loading) ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      진행 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      전체 자동 실행 (1→2→3→4)
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

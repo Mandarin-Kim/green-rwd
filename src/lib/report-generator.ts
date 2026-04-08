@@ -997,7 +997,7 @@ function extractChartsAndTables(content: string) {
 // 데이터 수집: DB 캐시 우선 → 없으면 API → 결과 DB 저장
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-async function getHiraData(slug: string, cachedHiraData?: any): Promise<{ contextStr: string; rawData: any }> {
+export async function getHiraData(slug: string, cachedHiraData?: any): Promise<{ contextStr: string; rawData: any }> {
   if (cachedHiraData) {
     console.log(`[ReportGenerator] HIRA 데이터: DB 캐시 사용 (${slug})`)
     try {
@@ -1027,7 +1027,7 @@ async function getHiraData(slug: string, cachedHiraData?: any): Promise<{ contex
   return { contextStr: '', rawData: null }
 }
 
-async function getClinicalTrialsData(slug: string, cachedClinicalTrialsData?: any): Promise<{ contextStr: string; data: ClinicalTrialsData | null }> {
+export async function getClinicalTrialsData(slug: string, cachedClinicalTrialsData?: any): Promise<{ contextStr: string; data: ClinicalTrialsData | null }> {
   if (cachedClinicalTrialsData) {
     console.log(`[ReportGenerator] ClinicalTrials 데이터: DB 캐시 사용 (${slug})`)
     try {
@@ -1061,7 +1061,7 @@ async function getClinicalTrialsData(slug: string, cachedClinicalTrialsData?: an
   return { contextStr: '', data: null }
 }
 
-async function saveCacheToDb(slug: string, field: 'hiraData' | 'clinicalTrialsData' | 'pubMedData', data: any) {
+export async function saveCacheToDb(slug: string, field: 'hiraData' | 'clinicalTrialsData' | 'pubMedData', data: any) {
   await prisma.reportCatalog.updateMany({
     where: { slug },
     data: { [field]: data, dataSyncedAt: new Date() },
@@ -1069,7 +1069,7 @@ async function saveCacheToDb(slug: string, field: 'hiraData' | 'clinicalTrialsDa
   console.log(`[ReportGenerator] ${field} DB 캐시 저장 완료: ${slug}`)
 }
 
-async function getPubMedData(
+export async function getPubMedData(
   slug: string,
   drugName: string,
   indication: string,
