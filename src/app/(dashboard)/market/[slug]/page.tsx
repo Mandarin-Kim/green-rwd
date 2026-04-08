@@ -76,6 +76,7 @@ interface CatalogData {
   marketSizeKrw?: number | null;
   patientPool?: string;
   patientPoolRaw?: number | null;
+  clinicalTrialsCount?: number | null;
   priceBasic: number;
   pricePro: number;
   pricePremium: number;
@@ -676,66 +677,99 @@ export default function ReportDetailPage() {
     }
   }, [slug]);
 
-  // Generate report (동기 방식: API가 생성 완료 후 응답)
+  // Generate report (비동기: 생성 트리거 + 폴링)
   async function handleGenerateReport(tier: 'BASIC' | 'PRO' | 'PREMIUM' = 'BASIC') {
     try {
       setGenerating(true);
       setError(null);
-      const response = await fetch('/api/reports/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, tier }),
-      });
 
-      const data = await response.json();
+      // 생성 요청 (5분 타임아웃) + 폴링 동시 실행
+      let generationDone = false;
 
-      if (!response.ok) {
-        throw new Error(data.error || `보고서 생성 실패 (${response.status})`);
-      }
+      // 폴링 시작 (3초마다, 최대 100회 = 5분)
+      const pollPromise = (async () => {
+        // 생성 요청이 orderId를 받을 때까지 5초 대기
+        await new Promise(r => setTimeout(r, 5000));
+        for (let i = 0; i < 100; i++) {
+          if (generationDone) return;
+          try {
+            // slug 기반으로 최신 주문 조회
+            const res = await fetch(`/api/reports/generate?orderId=latest&slug=${slug}&tier=${tier}`);
+            let data;
+            try { data = await res.json(); } catch { continue; }
+            if (data.data?.status === 'COMPLETED') {
+              generationDone = true;
+              setGenerating(false);
+              window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
+              return;
+            }
+            if (data.data?.status === 'FAILED') {
+              generationDone = true;
+              setError(data.data.errorMessage || '보고서 생성에 실패했습니다');
+              setGenerating(false);
+              return;
+            }
+          } catch {
+            // 폴링 에러 무시
+          }
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      })();
 
-      if (data.success && data.data?.orderId) {
-        const orderId = data.data.orderId;
+      // 생성 요청 (최대 5분)
+      try {
+        const genController = new AbortController();
+        const genTimeout = setTimeout(() => genController.abort(), 5 * 60 * 1000);
 
-        if (data.data.status === 'COMPLETED') {
-          // 동기 생성 완료 → 바로 뷰어로 이동
-          window.location.href = `/market/${slug}/view?orderId=${orderId}`;
+        const response = await fetch('/api/reports/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, tier }),
+          signal: genController.signal,
+        });
+        clearTimeout(genTimeout);
+
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          // 504 등 비-JSON 응답 → 폴링에서 처리
+          console.warn('Generate response was not JSON, relying on polling');
+          await pollPromise;
           return;
         }
 
-        // 혹시 아직 GENERATING이면 폴링 (동기 방식에서는 거의 없음)
-        pollReportProgress(orderId);
-      } else {
-        setReport(data);
+        if (!response.ok) {
+          if (!generationDone) {
+            throw new Error(data.error || `보고서 생성 실패 (${response.status})`);
+          }
+          return;
+        }
+
+        if (data.success && data.data?.orderId && !generationDone) {
+          generationDone = true;
+          if (data.data.status === 'COMPLETED') {
+            window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
+            return;
+          }
+          // GENERATING 상태면 폴링 계속 대기
+          await pollPromise;
+        }
+      } catch (fetchErr) {
+        // AbortError(타임아웃) 또는 네트워크 에러
+        if (!generationDone) {
+          // 폴링이 아직 돌고 있으면 10초 더 대기
+          await new Promise(r => setTimeout(r, 10000));
+          if (!generationDone) {
+            setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+            setGenerating(false);
+          }
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '보고서 생성 중 오류가 발생했습니다');
       setGenerating(false);
     }
-  }
-
-  async function pollReportProgress(orderId: string) {
-    const maxAttempts = 30; // 최대 1분 (2초 간격)
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      try {
-        const res = await fetch(`/api/reports/generate?orderId=${orderId}`);
-        const data = await res.json();
-        if (data.data?.status === 'COMPLETED') {
-          setGenerating(false);
-          window.location.href = `/market/${slug}/view?orderId=${orderId}`;
-          return;
-        }
-        if (data.data?.status === 'FAILED') {
-          setError(data.data.errorMessage || '보고서 생성에 실패했습니다');
-          setGenerating(false);
-          return;
-        }
-      } catch {
-        // 네트워크 에러 시 계속 재시도
-      }
-    }
-    setError('보고서 생성 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
-    setGenerating(false);
   }
 
   if (loading) {
@@ -873,7 +907,9 @@ export default function ReportDetailPage() {
                 <KPICard
                   icon={Zap}
                   label="임상시험"
-                  value="로드 중..."
+                  value={catalogData.clinicalTrialsCount != null
+                    ? catalogData.clinicalTrialsCount.toLocaleString()
+                    : '-'}
                   unit="개"
                 />
               </div>

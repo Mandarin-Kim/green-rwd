@@ -57,6 +57,17 @@ export async function GET(
       return `${count.toLocaleString()}명`
     }
 
+    // ClinicalTrials 데이터에서 임상시험 수 추출
+    const clinicalTrialsData = (catalog as any).clinicalTrialsData as any
+    let clinicalTrialsCount: number | null = null
+    if (clinicalTrialsData) {
+      if (typeof clinicalTrialsData === 'object' && clinicalTrialsData.totalCount !== undefined) {
+        clinicalTrialsCount = clinicalTrialsData.totalCount
+      } else if (Array.isArray(clinicalTrialsData?.studies)) {
+        clinicalTrialsCount = clinicalTrialsData.studies.length
+      }
+    }
+
     const response = {
       id: catalog.id,
       slug: catalog.slug,
@@ -70,6 +81,7 @@ export async function GET(
       marketSizeRaw: catalog.marketSizeKrw ? Number(catalog.marketSizeKrw) : null,
       patientPool: formatPatientPool(catalog.patientPool),
       patientPoolRaw: catalog.patientPool,
+      clinicalTrialsCount,
       availableTiers: catalog.availableTiers,
       priceBasic: catalog.priceBasic,
       pricePro: catalog.pricePro,

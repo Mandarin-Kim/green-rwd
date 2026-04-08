@@ -256,19 +256,40 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/reports/generate?orderId=xxx - Check progress
+// orderId=latest&slug=xxx&tier=xxx 형태도 지원 (slug 기반 최신 주문 조회)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const orderId = searchParams.get('orderId')
+    const slug = searchParams.get('slug')
+    const tier = searchParams.get('tier')
 
     if (!orderId) {
       return NextResponse.json({ error: 'orderId가 필요합니다' }, { status: 400 })
     }
 
-    const order = await prisma.reportOrder.findUnique({
-      where: { id: orderId },
-      include: { catalog: true },
-    })
+    let order;
+
+    if (orderId === 'latest' && slug) {
+      // slug 기반으로 최신 주문 조회
+      const catalog = await prisma.reportCatalog.findUnique({ where: { slug } })
+      if (!catalog) {
+        return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
+      }
+      order = await prisma.reportOrder.findFirst({
+        where: {
+          catalogId: catalog.id,
+          ...(tier ? { tier: tier as any } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { catalog: true },
+      })
+    } else {
+      order = await prisma.reportOrder.findUnique({
+        where: { id: orderId },
+        include: { catalog: true },
+      })
+    }
 
     if (!order) {
       return NextResponse.json({ error: '주문을 찾을 수 없습니다' }, { status: 404 })
