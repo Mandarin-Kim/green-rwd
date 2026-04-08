@@ -70,14 +70,18 @@ interface CatalogData {
   therapeuticArea: string;
   drugName: string;
   indication: string;
-  region: string;
-  marketSizeKrw: number;
-  patientPool: number;
+  region?: string;
+  marketSize?: string;
+  marketSizeRaw?: number | null;
+  marketSizeKrw?: number | null;
+  patientPool?: string;
+  patientPoolRaw?: number | null;
   priceBasic: number;
   pricePro: number;
   pricePremium: number;
   sampleUrl?: string;
   thumbnailUrl?: string;
+  isGenerated?: boolean;
 }
 
 // Simple markdown to HTML converter
@@ -802,20 +806,26 @@ export default function ReportDetailPage() {
                 <KPICard
                   icon={TrendingUp}
                   label="시장규모"
-                  value={catalogData.marketSizeKrw >= 100000000
-                    ? `${(catalogData.marketSizeKrw / 100000000).toFixed(0)}억원`
-                    : `${catalogData.marketSizeKrw.toLocaleString()}원`}
+                  value={catalogData.marketSize || (catalogData.marketSizeRaw
+                    ? (catalogData.marketSizeRaw >= 100000000
+                      ? `${(catalogData.marketSizeRaw / 100000000).toFixed(0)}억원`
+                      : `${catalogData.marketSizeRaw.toLocaleString()}원`)
+                    : '-')}
                 />
                 <KPICard
                   icon={Users}
                   label="환자풀"
-                  value={catalogData.patientPool.toLocaleString()}
-                  unit="명"
+                  value={catalogData.patientPool || (catalogData.patientPoolRaw
+                    ? catalogData.patientPoolRaw.toLocaleString()
+                    : '-')}
+                  unit={catalogData.patientPool ? '' : '명'}
                 />
                 <KPICard
                   icon={Target}
                   label="그린리본 컨택 가능"
-                  value={Math.floor(catalogData.patientPool * 0.25).toLocaleString()}
+                  value={catalogData.patientPoolRaw
+                    ? Math.floor(catalogData.patientPoolRaw * 0.25).toLocaleString()
+                    : '-'}
                   unit="명"
                   highlight
                 />
