@@ -651,7 +651,7 @@ export default function ReportDetailPage() {
   const [activeTab, setActiveTab] = useState<'preview' | 'order'>('preview');
   const [error, setError] = useState<string | null>(null);
 
-  // 4단계 준비 상태
+  // 5단계 준비 상태
   interface StepStatus {
     completed: boolean;
     loading: boolean;
@@ -663,6 +663,7 @@ export default function ReportDetailPage() {
     2: { completed: false, loading: false, summary: null, error: null },
     3: { completed: false, loading: false, summary: null, error: null },
     4: { completed: false, loading: false, summary: null, error: null },
+    5: { completed: false, loading: false, summary: null, error: null },
   });
   const [selectedTier, setSelectedTier] = useState<'BASIC' | 'PRO' | 'PREMIUM'>('BASIC');
 
@@ -707,6 +708,7 @@ export default function ReportDetailPage() {
           2: { ...prev[2], completed: s[2]?.completed || false, summary: s[2]?.summary || null },
           3: { ...prev[3], completed: s[3]?.completed || false, summary: s[3]?.summary || null },
           4: { ...prev[4], completed: s[4]?.completed || false, summary: s[4]?.summary || null },
+          5: { ...prev[5], completed: s[5]?.completed || false, summary: s[5]?.summary || null },
         }));
       }
     } catch {}
@@ -747,8 +749,8 @@ export default function ReportDetailPage() {
         throw new Error(data.error || `Step ${stepNum} 실패`);
       }
 
-      // Step 4 완료 시 보고서 보기 페이지로 이동
-      if (stepNum === 4 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
+      // Step 5 완료 시 보고서 보기 페이지로 이동
+      if (stepNum === 5 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
         setSteps(prev => ({
           ...prev,
           [stepNum]: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
@@ -781,11 +783,11 @@ export default function ReportDetailPage() {
     }
   }
 
-  // 전체 자동 실행 (1→2→3→4 순서대로)
+  // 전체 자동 실행 (1→2→3→4→5 순서대로)
   async function handleRunAll() {
     setError(null);
-    for (const stepNum of [1, 2, 3, 4]) {
-      if (steps[stepNum].completed && stepNum !== 4) continue; // 이미 완료된 데이터 수집은 건너뜀
+    for (const stepNum of [1, 2, 3, 4, 5]) {
+      if (steps[stepNum].completed && stepNum !== 5) continue; // 이미 완료된 데이터 수집은 건너뜀
       await handleRunStep(stepNum);
       if (steps[stepNum]?.error) break; // 에러 발생 시 중단
     }
@@ -951,7 +953,7 @@ export default function ReportDetailPage() {
                     margin: '0 0 0.5rem 0',
                   }}
                 >
-                  보고서 생성 (4단계)
+                  보고서 생성 (5단계)
                 </h3>
                 <p style={{ color: '#1f2937', fontSize: '0.875rem', margin: '0 0 1rem 0' }}>
                   각 단계 버튼을 순서대로 클릭하세요. 한번 수집한 데이터는 DB에 캐시되어 다음에 즉시 사용됩니다.
@@ -979,13 +981,14 @@ export default function ReportDetailPage() {
                   ))}
                 </div>
 
-                {/* 4단계 버튼 */}
+                {/* 5단계 버튼 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {([
                     { num: 1, label: '① HIRA 건강보험심사평가원', icon: '🏥', desc: '환자수, 진료비, 연령/성별 분포' },
                     { num: 2, label: '② ClinicalTrials.gov', icon: '🔬', desc: '임상시험 현황 (Phase, 스폰서)' },
                     { num: 3, label: '③ PubMed 논문 검색', icon: '📄', desc: '최신 논문 인용 데이터' },
-                    { num: 4, label: '④ AI 보고서 생성', icon: '🤖', desc: '캐시 데이터 기반 AI 보고서 작성' },
+                    { num: 4, label: '④ 글로벌 의료데이터', icon: '🌍', desc: 'CMS Medicare(미국) · PBS(호주) · NHS(영국)' },
+                    { num: 5, label: '⑤ AI 보고서 생성', icon: '🤖', desc: '캐시 데이터 기반 AI 보고서 작성' },
                   ]).map(({ num, label, icon, desc }) => {
                     const s = steps[num];
                     const anyLoading = Object.values(steps).some(st => st.loading);
@@ -1051,7 +1054,7 @@ export default function ReportDetailPage() {
                       transition: 'all 0.2s',
                     }}
                   >
-                    {Object.values(steps).some(s => s.loading) ? '진행 중...' : '전체 자동 실행 (1→2→3→4)'}
+                    {Object.values(steps).some(s => s.loading) ? '진행 중...' : '전체 자동 실행 (1→2→3→4→5)'}
                   </button>
                 </div>
 
@@ -1062,7 +1065,7 @@ export default function ReportDetailPage() {
                       <div
                         style={{
                           height: '100%',
-                          width: `${(Object.values(steps).filter(s => s.completed).length / 4) * 100}%`,
+                          width: `${(Object.values(steps).filter(s => s.completed).length / 5) * 100}%`,
                           backgroundColor: '#10b981',
                           borderRadius: '4px',
                           transition: 'width 0.5s ease',
@@ -1070,15 +1073,15 @@ export default function ReportDetailPage() {
                       />
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem', textAlign: 'center' }}>
-                      {Object.values(steps).filter(s => s.completed).length}/4 단계 완료
+                      {Object.values(steps).filter(s => s.completed).length}/5 단계 완료
                     </div>
                   </div>
                 )}
 
                 {/* CSV Raw 데이터 다운로드 (데이터 수집 완료 시 표시) */}
-                {(steps[1].completed || steps[2].completed || steps[3].completed) && (
+                {(steps[1].completed || steps[2].completed || steps[3].completed || steps[4].completed) && (
                   <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>Raw 데이터 패키지</div>
                         <div style={{ fontSize: '0.75rem', color: '#a16207', marginTop: '0.25rem' }}>
@@ -1101,8 +1104,45 @@ export default function ReportDetailPage() {
                           gap: '0.375rem',
                         }}
                       >
-                        📥 CSV 다운로드
+                        📥 전체 CSV 다운로드
                       </button>
+                    </div>
+                    {/* 개별 데이터 다운로드 버튼 */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {steps[1].completed && (
+                        <button
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=rowdata`, '_blank')}
+                          style={{
+                            padding: '0.375rem 0.75rem',
+                            backgroundColor: 'white',
+                            color: '#92400e',
+                            borderRadius: '0.375rem',
+                            border: '1px solid #fde68a',
+                            fontWeight: 500,
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🇰🇷 HIRA Row 데이터
+                        </button>
+                      )}
+                      {steps[4].completed && (
+                        <button
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=global`, '_blank')}
+                          style={{
+                            padding: '0.375rem 0.75rem',
+                            backgroundColor: 'white',
+                            color: '#92400e',
+                            borderRadius: '0.375rem',
+                            border: '1px solid #fde68a',
+                            fontWeight: 500,
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🌍 글로벌 데이터 (CMS·PBS·NHS)
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

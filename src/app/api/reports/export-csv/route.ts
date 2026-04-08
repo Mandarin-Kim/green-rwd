@@ -4,12 +4,14 @@ import { prisma } from '@/lib/prisma'
 export const maxDuration = 30;
 
 /**
- * GET /api/reports/export-csv?slug=xxx&type=all|hira|clinicaltrials|pubmed|rowdata
+ * GET /api/reports/export-csv?slug=xxx&type=all|hira|clinicaltrials|pubmed|rowdata|global|cms|pbs|nhs
  *
  * 프리미엄 보고서 전용: Raw 데이터를 CSV로 다운로드
  * - type=rowdata: HIRA 집계 분포 기반 환자별 Row-level 시뮬레이션 데이터
- * - type=all: 집계 통계 + Row-level 시뮬레이션 데이터 전부
+ * - type=all: 집계 통계 + Row-level 시뮬레이션 데이터 + 글로벌 데이터 전부
  * - type=hira|clinicaltrials|pubmed: 개별 집계 통계
+ * - type=global: 글로벌 의료데이터 전체 (CMS+PBS+NHS)
+ * - type=cms|pbs|nhs: 개별 국가 의료데이터
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
     const hiraData = (catalog as any).hiraData
     const clinicalTrialsData = (catalog as any).clinicalTrialsData
     const pubMedData = (catalog as any).pubMedData
+    const globalMedicalData = (catalog as any).globalMedicalData
 
     // CSV 생성
     const csvSections: string[] = []
@@ -51,6 +54,19 @@ export async function GET(request: NextRequest) {
     // ── PubMed 데이터 ──
     if ((type === 'all' || type === 'pubmed') && pubMedData) {
       csvSections.push(buildPubMedCsv(pubMedData, catalog.title))
+    }
+
+    // ── 글로벌 의료데이터 (CMS Medicare + PBS Australia + NHS UK) ──
+    if (globalMedicalData) {
+      if ((type === 'all' || type === 'global' || type === 'cms') && globalMedicalData.cms) {
+        csvSections.push(buildCmsMedicareCsv(globalMedicalData.cms, catalog.title, catalog.drugName || ''))
+      }
+      if ((type === 'all' || type === 'global' || type === 'pbs') && globalMedicalData.pbs) {
+        csvSections.push(buildPbsAustraliaCsv(globalMedicalData.pbs, catalog.title, catalog.drugName || ''))
+      }
+      if ((type === 'all' || type === 'global' || type === 'nhs') && globalMedicalData.nhs) {
+        csvSections.push(buildNhsUkCsv(globalMedicalData.nhs, catalog.title, catalog.drugName || ''))
+      }
     }
 
     if (csvSections.length === 0) {
@@ -525,6 +541,245 @@ function buildPubMedCsv(data: any, title: string): string {
       lines.push('')
     }
   }
+
+  return lines.join('\n')
+}
+
+// ────────────────────────────────────────
+// 🇺🇸 CMS Medicare (미국) CSV
+// ────────────────────────────────────────
+
+function buildCmsMedicareCsv(cmsData: any, title: string, drugName: string): string {
+  const lines: string[] = []
+
+  lines.push(`[🇺🇸 CMS Medicare 약물 지출 데이터 (미국)] ${escapeCsv(title)}`)
+  lines.push(`데이터 출처,CMS (Centers for Medicare & Medicaid Services) - Medicare Part D Drug Spending`)
+  lines.push(`검색 약물명,${escapeCsv(drugName)}`)
+  lines.push(`데이터 유형,Medicare Part D 약물 지출 및 활용 통계`)
+  lines.push(`생성일시,${new Date().toISOString().slice(0, 19).replace('T', ' ')}`)
+  lines.push('')
+
+  // 약물 지출 상세 데이터
+  const spending = cmsData.drugSpending || []
+  if (spending.length > 0) {
+    lines.push('Medicare Part D 약물 지출 상세')
+    lines.push('No,약물명(Brand),성분명(Generic),제조사,총 지출액($),총 청구건수,수혜자 수,1인당 평균비용($),30일 평균비용($),연도')
+
+    spending.forEach((item: any, idx: number) => {
+      const perBeneficiary = item.totalBeneficiaries > 0
+        ? Math.round((item.totalSpending || 0) / item.totalBeneficiaries)
+        : 0
+      lines.push([
+        idx + 1,
+        escapeCsv(item.brandName || item.drugName || ''),
+        escapeCsv(item.genericName || ''),
+        escapeCsv(item.manufacturer || ''),
+        formatNumber(Math.round(item.totalSpending || 0)),
+        formatNumber(item.totalClaims || 0),
+        formatNumber(item.totalBeneficiaries || 0),
+        formatNumber(perBeneficiary),
+        formatNumber(Math.round(item.avgCostPer30Days || item.averageCostPerUnit || 0)),
+        escapeCsv(item.year || ''),
+      ].join(','))
+    })
+    lines.push('')
+
+    // 요약 통계
+    const totalSpendingSum = spending.reduce((sum: number, item: any) => sum + (item.totalSpending || 0), 0)
+    const totalClaimsSum = spending.reduce((sum: number, item: any) => sum + (item.totalClaims || 0), 0)
+    const totalBeneficiariesSum = spending.reduce((sum: number, item: any) => sum + (item.totalBeneficiaries || 0), 0)
+    lines.push('[CMS 요약 통계]')
+    lines.push(`총 Medicare 지출액,$${formatNumber(Math.round(totalSpendingSum))}`)
+    lines.push(`총 청구건수,${formatNumber(totalClaimsSum)}건`)
+    lines.push(`총 수혜자 수,${formatNumber(totalBeneficiariesSum)}명`)
+    if (totalBeneficiariesSum > 0) {
+      lines.push(`수혜자 1인당 평균비용,$${formatNumber(Math.round(totalSpendingSum / totalBeneficiariesSum))}`)
+    }
+    lines.push('')
+  }
+
+  // 처방자(Provider) 통계
+  const providerStats = cmsData.providerStats || []
+  if (providerStats.length > 0) {
+    lines.push('처방 의료기관(Provider) 통계')
+    lines.push('No,의료기관명,전문분야,주(State),총 청구건수,총 수혜자수,총 비용($)')
+    providerStats.forEach((p: any, idx: number) => {
+      lines.push([
+        idx + 1,
+        escapeCsv(p.providerName || ''),
+        escapeCsv(p.specialty || ''),
+        escapeCsv(p.state || ''),
+        formatNumber(p.totalClaims || 0),
+        formatNumber(p.totalBeneficiaries || 0),
+        formatNumber(Math.round(p.totalCost || 0)),
+      ].join(','))
+    })
+    lines.push('')
+  }
+
+  lines.push('[데이터 면책사항]')
+  lines.push(`"CMS Medicare Part D 공개 데이터에 기반한 미국 약물 지출 통계입니다."`)
+  lines.push(`"Medicare 수혜자(65세 이상 및 특정 장애인)에 한정된 데이터이며, 미국 전체 인구를 대표하지 않습니다."`)
+  lines.push(`"Green-RWD by 그린리본 | ${new Date().toISOString().slice(0, 10)}"`)
+
+  return lines.join('\n')
+}
+
+// ────────────────────────────────────────
+// 🇦🇺 PBS Australia (호주) CSV
+// ────────────────────────────────────────
+
+function buildPbsAustraliaCsv(pbsData: any, title: string, drugName: string): string {
+  const lines: string[] = []
+
+  lines.push(`[🇦🇺 PBS 약가 및 급여 데이터 (호주)] ${escapeCsv(title)}`)
+  lines.push(`데이터 출처,PBS (Pharmaceutical Benefits Scheme) - Australian Government Department of Health`)
+  lines.push(`검색 약물명,${escapeCsv(drugName)}`)
+  lines.push(`데이터 유형,PBS 등재 약물 급여 정보 및 가격`)
+  lines.push(`생성일시,${new Date().toISOString().slice(0, 19).replace('T', ' ')}`)
+  lines.push('')
+
+  const items = pbsData.items || []
+  if (items.length > 0) {
+    lines.push('PBS 등재 약물 상세')
+    lines.push('No,약물명(Brand),성분명(Generic),제형/함량,PBS 코드,약물그룹,정부보조가(AUD),환자부담금(AUD),최대처방량,급여유형,제한사항')
+
+    items.forEach((item: any, idx: number) => {
+      lines.push([
+        idx + 1,
+        escapeCsv(item.brandName || item.tradeName || ''),
+        escapeCsv(item.genericName || item.drugName || ''),
+        escapeCsv(item.formStrength || item.form || ''),
+        escapeCsv(item.pbsCode || item.itemCode || ''),
+        escapeCsv(item.atcCode || item.therapeuticGroup || ''),
+        item.governmentPrice || item.dpmaPrice || '',
+        item.patientCopayment || item.patientPrice || '',
+        escapeCsv(item.maxQuantity || item.packSize || ''),
+        escapeCsv(item.benefitType || item.listingType || ''),
+        escapeCsv(item.restriction || item.note || '-'),
+      ].join(','))
+    })
+    lines.push('')
+
+    // 요약
+    lines.push('[PBS 요약 통계]')
+    lines.push(`등재 품목 수,${items.length}건`)
+    const avgGovPrice = items.reduce((sum: number, i: any) => sum + (parseFloat(i.governmentPrice || i.dpmaPrice || 0)), 0) / items.length
+    if (avgGovPrice > 0) {
+      lines.push(`평균 정부보조가,AUD $${avgGovPrice.toFixed(2)}`)
+    }
+    lines.push('')
+  }
+
+  // 처방 통계 (있을 경우)
+  const prescriptionStats = pbsData.prescriptionStats || []
+  if (prescriptionStats.length > 0) {
+    lines.push('PBS 처방 통계')
+    lines.push('No,약물명,처방건수,총 정부지출(AUD),총 환자부담(AUD),수혜자 수,연도')
+    prescriptionStats.forEach((p: any, idx: number) => {
+      lines.push([
+        idx + 1,
+        escapeCsv(p.drugName || ''),
+        formatNumber(p.prescriptionCount || 0),
+        formatNumber(Math.round(p.governmentCost || 0)),
+        formatNumber(Math.round(p.patientCost || 0)),
+        formatNumber(p.beneficiaryCount || 0),
+        escapeCsv(p.year || ''),
+      ].join(','))
+    })
+    lines.push('')
+  }
+
+  lines.push('[데이터 면책사항]')
+  lines.push(`"호주 PBS(Pharmaceutical Benefits Scheme) 공개 데이터에 기반한 약가 및 급여 정보입니다."`)
+  lines.push(`"PBS 등재 약물에 한정되며, 비등재 약물 또는 사보험 청구 데이터는 포함되지 않습니다."`)
+  lines.push(`"Green-RWD by 그린리본 | ${new Date().toISOString().slice(0, 10)}"`)
+
+  return lines.join('\n')
+}
+
+// ────────────────────────────────────────
+// 🇬🇧 NHS UK (영국) CSV
+// ────────────────────────────────────────
+
+function buildNhsUkCsv(nhsData: any, title: string, drugName: string): string {
+  const lines: string[] = []
+
+  lines.push(`[🇬🇧 NHS 처방 데이터 (영국)] ${escapeCsv(title)}`)
+  lines.push(`데이터 출처,NHS Business Services Authority - Prescription Cost Analysis (England)`)
+  lines.push(`검색 약물명,${escapeCsv(drugName)}`)
+  lines.push(`데이터 유형,NHS 잉글랜드 지역 처방전 비용 분석`)
+  lines.push(`생성일시,${new Date().toISOString().slice(0, 19).replace('T', ' ')}`)
+  lines.push('')
+
+  // 처방 요약
+  const prescriptionSummary = nhsData.prescriptionSummary || []
+  if (prescriptionSummary.length > 0) {
+    lines.push('NHS 처방전 비용 분석')
+    lines.push('No,약물명(BNF Name),BNF 코드,처방건수,조제건수,총 비용(GBP),평균 단가(GBP),기간')
+
+    prescriptionSummary.forEach((item: any, idx: number) => {
+      const avgCost = item.items > 0 ? (item.totalCost || item.actualCost || 0) / item.items : 0
+      lines.push([
+        idx + 1,
+        escapeCsv(item.bnfName || item.drugName || ''),
+        escapeCsv(item.bnfCode || ''),
+        formatNumber(item.prescriptionCount || item.items || 0),
+        formatNumber(item.dispensingCount || item.quantity || 0),
+        formatNumber(Math.round(item.totalCost || item.actualCost || 0)),
+        avgCost.toFixed(2),
+        escapeCsv(item.period || item.date || ''),
+      ].join(','))
+    })
+    lines.push('')
+
+    // 요약 통계
+    const totalNhsCost = prescriptionSummary.reduce((sum: number, i: any) =>
+      sum + (i.totalCost || i.actualCost || 0), 0)
+    const totalNhsItems = prescriptionSummary.reduce((sum: number, i: any) =>
+      sum + (i.prescriptionCount || i.items || 0), 0)
+    lines.push('[NHS 요약 통계]')
+    lines.push(`총 처방 비용,£${formatNumber(Math.round(totalNhsCost))}`)
+    lines.push(`총 처방건수,${formatNumber(totalNhsItems)}건`)
+    if (totalNhsItems > 0) {
+      lines.push(`건당 평균 비용,£${(totalNhsCost / totalNhsItems).toFixed(2)}`)
+    }
+    lines.push('')
+  }
+
+  // 지역(CCG/ICB)별 통계
+  const regionalData = nhsData.regionalData || nhsData.ccgData || []
+  if (regionalData.length > 0) {
+    lines.push('지역(ICB/CCG)별 처방 통계')
+    lines.push('No,지역명,지역코드,처방건수,총 비용(GBP),환자 수')
+    regionalData.forEach((r: any, idx: number) => {
+      lines.push([
+        idx + 1,
+        escapeCsv(r.regionName || r.ccgName || r.orgName || ''),
+        escapeCsv(r.regionCode || r.ccgCode || r.orgCode || ''),
+        formatNumber(r.prescriptionCount || r.items || 0),
+        formatNumber(Math.round(r.totalCost || r.actualCost || 0)),
+        formatNumber(r.patientCount || 0),
+      ].join(','))
+    })
+    lines.push('')
+  }
+
+  // 월별 추이 (있을 경우)
+  const monthlyTrend = nhsData.monthlyTrend || []
+  if (monthlyTrend.length > 0) {
+    lines.push('월별 처방 추이')
+    lines.push('기간,처방건수,총 비용(GBP)')
+    monthlyTrend.forEach((m: any) => {
+      lines.push(`${escapeCsv(m.period || m.date || '')},${formatNumber(m.items || 0)},${formatNumber(Math.round(m.totalCost || m.actualCost || 0))}`)
+    })
+    lines.push('')
+  }
+
+  lines.push('[데이터 면책사항]')
+  lines.push(`"NHS Business Services Authority의 잉글랜드 지역 처방전 비용 분석 공개 데이터입니다."`)
+  lines.push(`"NHS 잉글랜드 공공의료 처방에 한정되며, 사보험 및 자비 부담 처방은 포함되지 않습니다."`)
+  lines.push(`"Green-RWD by 그린리본 | ${new Date().toISOString().slice(0, 10)}"`)
 
   return lines.join('\n')
 }

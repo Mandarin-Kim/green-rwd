@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, ReportTier } from '@/lib/report-generator'
+import { fetchGlobalMedicalData } from '@/lib/global-medical-apis'
 
 // Vercel Hobby: 최대 60초 → 각 단계를 60초 이내로 분리
 export const maxDuration = 60;
@@ -22,7 +23,8 @@ function isCacheValid(dataSyncedAt: Date | null, data: any): boolean {
  * step=1: HIRA 데이터 수집 (건강보험심사평가원)
  * step=2: ClinicalTrials.gov 임상시험 데이터 수집
  * step=3: PubMed 논문 검색
- * step=4: AI 보고서 생성 (캐시된 데이터 활용)
+ * step=4: 글로벌 의료데이터 수집 (CMS Medicare + PBS Australia + NHS UK)
+ * step=5: AI 보고서 생성 (캐시된 데이터 활용)
  *
  * forceRefresh=true: 캐시를 무시하고 강제로 재수집
  */
@@ -35,8 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'slug가 필요합니다' }, { status: 400 })
     }
 
-    if (!step || ![1, 2, 3, 4].includes(step)) {
-      return NextResponse.json({ error: 'step은 1~4 사이여야 합니다' }, { status: 400 })
+    if (!step || ![1, 2, 3, 4, 5].includes(step)) {
+      return NextResponse.json({ error: 'step은 1~5 사이여야 합니다' }, { status: 400 })
     }
 
     // 카탈로그 조회
@@ -122,9 +124,76 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ── Step 4: AI 보고서 생성 (캐시된 데이터 활용) ──
+    // ── Step 4: 글로벌 의료데이터 수집 (CMS + PBS + NHS) ──
     if (step === 4) {
-      console.log(`[Prepare Step 4] AI 보고서 생성 시작: ${slug} (tier: ${tier})`)
+      console.log(`[Prepare Step 4] 글로벌 의료데이터 수집 시작: ${slug}`)
+      const existingGlobalData = (catalog as any).globalMedicalData;
+      const globalCacheValid = !forceRefresh && isCacheValid(syncedAt, existingGlobalData);
+
+      if (globalCacheValid && existingGlobalData) {
+        // 캐시 유효 → API 호출 없이 반환
+        const cmsCount = existingGlobalData.cms?.drugSpending?.length || 0;
+        const pbsCount = existingGlobalData.pbs?.items?.length || 0;
+        const nhsCount = existingGlobalData.nhs?.prescriptionSummary?.length || 0;
+        return NextResponse.json({
+          success: true,
+          step: 4,
+          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          data: {
+            hasData: true,
+            cached: true,
+            freshlyFetched: false,
+            summary: `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`,
+          },
+        });
+      }
+
+      try {
+        const globalData = await fetchGlobalMedicalData(
+          catalog.drugName || '',
+          catalog.indication || ''
+        );
+
+        // DB에 캐시 저장
+        await prisma.reportCatalog.updateMany({
+          where: { slug },
+          data: { globalMedicalData: globalData as any, dataSyncedAt: new Date() },
+        });
+
+        const cmsCount = globalData.cms?.drugSpending?.length || 0;
+        const pbsCount = globalData.pbs?.items?.length || 0;
+        const nhsCount = globalData.nhs?.prescriptionSummary?.length || 0;
+
+        return NextResponse.json({
+          success: true,
+          step: 4,
+          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          data: {
+            hasData: cmsCount > 0 || pbsCount > 0 || nhsCount > 0,
+            cached: false,
+            freshlyFetched: true,
+            summary: `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`,
+          },
+        });
+      } catch (globalError) {
+        console.error(`[Prepare Step 4] 글로벌 데이터 수집 실패:`, globalError);
+        return NextResponse.json({
+          success: true,
+          step: 4,
+          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          data: {
+            hasData: false,
+            cached: false,
+            freshlyFetched: false,
+            summary: '글로벌 데이터 수집 실패 (보고서 생성에는 영향 없음)',
+          },
+        });
+      }
+    }
+
+    // ── Step 5: AI 보고서 생성 (캐시된 데이터 활용) ──
+    if (step === 5) {
+      console.log(`[Prepare Step 5] AI 보고서 생성 시작: ${slug} (tier: ${tier})`)
 
       if (!['BASIC', 'PRO', 'PREMIUM'].includes(tier)) {
         return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
@@ -166,7 +235,7 @@ export async function POST(request: NextRequest) {
         if (existingOrder && existingOrder.status === 'COMPLETED') {
           return NextResponse.json({
             success: true,
-            step: 4,
+            step: 5,
             stepName: 'AI 보고서 생성',
             data: {
               orderId: existingOrder.id,
@@ -244,7 +313,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          step: 4,
+          step: 5,
           stepName: 'AI 보고서 생성',
           data: {
             orderId: newOrder.id,
@@ -253,7 +322,7 @@ export async function POST(request: NextRequest) {
           },
         })
       } catch (genError) {
-        console.error(`[Prepare Step 4] 생성 실패:`, genError)
+        console.error(`[Prepare Step 5] 생성 실패:`, genError)
         await prisma.reportOrder.update({
           where: { id: newOrder.id },
           data: {
@@ -264,7 +333,7 @@ export async function POST(request: NextRequest) {
         })
         return NextResponse.json({
           success: false,
-          step: 4,
+          step: 5,
           error: genError instanceof Error ? genError.message : '보고서 생성 중 오류가 발생했습니다',
           data: { orderId: newOrder.id, status: 'FAILED' },
         }, { status: 500 })
@@ -302,6 +371,7 @@ export async function GET(request: NextRequest) {
     const hiraData = (catalog as any).hiraData
     const clinicalTrialsData = (catalog as any).clinicalTrialsData
     const pubMedData = (catalog as any).pubMedData
+    const globalMedicalData = (catalog as any).globalMedicalData
 
     // 완료된 보고서가 있는지 확인
     const completedOrder = await prisma.reportOrder.findFirst({
@@ -311,6 +381,12 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { completedAt: 'desc' },
     })
+
+    // 글로벌 데이터 요약 생성
+    const cmsCount = globalMedicalData?.cms?.drugSpending?.length || 0;
+    const pbsCount = globalMedicalData?.pbs?.items?.length || 0;
+    const nhsCount = globalMedicalData?.nhs?.prescriptionSummary?.length || 0;
+    const globalHasData = cmsCount > 0 || pbsCount > 0 || nhsCount > 0;
 
     return NextResponse.json({
       success: true,
@@ -339,6 +415,13 @@ export async function GET(request: NextRequest) {
               : null,
           },
           4: {
+            name: '글로벌 의료데이터 (CMS·PBS·NHS)',
+            completed: !!globalMedicalData,
+            summary: globalMedicalData
+              ? `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`
+              : null,
+          },
+          5: {
             name: 'AI 보고서 생성',
             completed: !!completedOrder,
             summary: completedOrder
