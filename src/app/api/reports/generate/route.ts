@@ -9,26 +9,6 @@ export const maxDuration = 300;
 // POST /api/reports/generate - Start report generation
 export async function POST(request: NextRequest) {
   try {
-    // 인증: 로그인 사용자 우선, 비로그인 시 시스템 게스트 사용자 사용
-    const user = await getSessionUser(request)
-    let userId = user?.id
-    if (!userId) {
-      // 게스트 사용자 조회
-      let guestUser = await prisma.user.findUnique({ where: { email: 'guest@green-rwd.system' } })
-      if (!guestUser) {
-        // 게스트 사용자 생성
-        guestUser = await prisma.user.create({
-          data: {
-            email: 'guest@green-rwd.system',
-            name: '게스트',
-            role: 'USER',
-          },
-        })
-        console.log('[Auth] Guest user created:', guestUser.id)
-      }
-      userId = guestUser.id
-    }
-
     const body = await request.json()
     const { catalogId, slug, tier = 'BASIC' } = body
 
@@ -36,69 +16,113 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '카탈로그 ID 또는 slug가 필요합니다' }, { status: 400 })
     }
 
-    // Validate tier
     if (!['BASIC', 'PRO', 'PREMIUM'].includes(tier)) {
       return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
     }
 
-    // Get catalog (slug 또는 catalogId로 조회)
-    const catalog = catalogId
-      ? await prisma.reportCatalog.findUnique({ where: { id: catalogId } })
-      : await prisma.reportCatalog.findUnique({ where: { slug } })
+    // ── 단일 트랜잭션으로 유저 확보 + 카탈로그 조회 + 주문 생성 ──
+    // Neon pgBouncer 풀링 환경에서 FK constraint 에러를 방지하기 위해
+    // 모든 DB 작업을 하나의 트랜잭션 안에서 처리합니다.
+    const txResult = await prisma.$transaction(async (tx) => {
+      // 1) 인증: 세션 유저 → DB 존재 확인 → 없으면 게스트
+      let userId: string | undefined
+      const sessionUser = await getSessionUser(request)
 
-    if (!catalog) {
-      return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
-    }
+      if (sessionUser?.id) {
+        const dbUser = await tx.user.findUnique({ where: { id: sessionUser.id } })
+        if (dbUser) userId = dbUser.id
+      }
 
-    // Check for existing active order
-    const existingOrder = await prisma.reportOrder.findFirst({
-      where: {
-        catalogId: catalog.id,
-        status: { in: ['PENDING', 'GENERATING'] },
-      },
+      if (!userId) {
+        let guestUser = await tx.user.findUnique({
+          where: { email: 'guest@green-rwd.system' },
+        })
+        if (!guestUser) {
+          guestUser = await tx.user.create({
+            data: {
+              email: 'guest@green-rwd.system',
+              name: '게스트',
+              role: 'USER',
+            },
+          })
+          console.log('[Auth] Guest user created:', guestUser.id)
+        }
+        userId = guestUser.id
+      }
+
+      // 2) 카탈로그 조회
+      const catalog = catalogId
+        ? await tx.reportCatalog.findUnique({ where: { id: catalogId } })
+        : await tx.reportCatalog.findUnique({ where: { slug } })
+
+      if (!catalog) {
+        throw new Error('CATALOG_NOT_FOUND')
+      }
+
+      // 3) 이미 생성 중인 주문이 있는지 확인
+      const existingOrder = await tx.reportOrder.findFirst({
+        where: {
+          catalogId: catalog.id,
+          status: { in: ['PENDING', 'GENERATING'] },
+        },
+      })
+
+      if (existingOrder) {
+        return {
+          isExisting: true as const,
+          order: existingOrder,
+          catalog,
+        }
+      }
+
+      // 4) 새 주문 생성
+      const priceMap: Record<string, number> = {
+        BASIC: catalog.priceBasic,
+        PRO: catalog.pricePro,
+        PREMIUM: catalog.pricePremium,
+      }
+
+      const newOrder = await tx.reportOrder.create({
+        data: {
+          catalogId: catalog.id,
+          userId,
+          tier: tier as ReportTier,
+          price: priceMap[tier],
+          status: 'GENERATING',
+          progress: 0,
+          startedAt: new Date(),
+        },
+      })
+
+      return {
+        isExisting: false as const,
+        order: newOrder,
+        catalog,
+      }
     })
 
-    if (existingOrder) {
+    // 이미 생성 중인 주문이면 기존 정보 반환
+    if (txResult.isExisting) {
       return NextResponse.json({
         success: true,
         data: {
-          orderId: existingOrder.id,
-          status: existingOrder.status,
-          progress: existingOrder.progress,
+          orderId: txResult.order.id,
+          status: txResult.order.status,
+          progress: txResult.order.progress,
           message: '이미 생성 중인 보고서가 있습니다',
         },
       })
     }
 
-    // Get price for tier
-    const priceMap: Record<string, number> = {
-      BASIC: catalog.priceBasic,
-      PRO: catalog.pricePro,
-      PREMIUM: catalog.pricePremium,
-    }
-
-    // Create order
-    const order = await prisma.reportOrder.create({
-      data: {
-        catalogId: catalog.id,
-        userId,
-        tier: tier as ReportTier,
-        price: priceMap[tier],
-        status: 'GENERATING',
-        progress: 0,
-        startedAt: new Date(),
-      },
-    })
-
-    // Start async generation (fire-and-forget)
-    generateReportAsync(order.id, catalog, tier as ReportTier).catch((error) => {
-      console.error(`[Report Generation Failed] Order: ${order.id}`, error)
+    // 비동기 보고서 생성 시작 (fire-and-forget)
+    generateReportAsync(txResult.order.id, txResult.catalog, tier as ReportTier).catch((error) => {
+      console.error(`[Report Generation Failed] Order: ${txResult.order.id}`, error)
     })
 
     return NextResponse.json({
       success: true,
       data: {
-        orderId: order.id,
+        orderId: txResult.order.id,
         status: 'GENERATING',
         progress: 0,
         message: '보고서 생성이 시작되었습니다',
@@ -106,6 +130,12 @@ export async function POST(request: NextRequest) {
     }, { status: 202 })
   } catch (error) {
     console.error('[POST /api/reports/generate] Error:', error)
+
+    // 카탈로그 없음은 404로 반환
+    if (error instanceof Error && error.message === 'CATALOG_NOT_FOUND') {
+      return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
+    }
+
     return NextResponse.json(
       { success: false, error: String(error) },
       { status: 500 }
@@ -158,7 +188,7 @@ export async function GET(request: NextRequest) {
 // Async report generation
 async function generateReportAsync(
   orderId: string,
-  catalog: any,
+  catalog: { id: string; slug: string; title: string; drugName: string | null; indication: string | null; therapeuticArea: string | null },
   tier: ReportTier
 ) {
   try {
@@ -191,7 +221,7 @@ async function generateReportAsync(
       data: {
         status: 'COMPLETED',
         progress: 100,
-        sections: sections as any,
+        sections: sections as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         completedAt: new Date(),
       },
     })
