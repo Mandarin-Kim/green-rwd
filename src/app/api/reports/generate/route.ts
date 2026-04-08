@@ -13,16 +13,19 @@ export async function POST(request: NextRequest) {
     const user = await getSessionUser(request)
     let userId = user?.id
     if (!userId) {
-      // 게스트 사용자 조회 또는 생성
-      const guestUser = await prisma.user.upsert({
-        where: { email: 'guest@green-rwd.system' },
-        update: {},
-        create: {
-          email: 'guest@green-rwd.system',
-          name: '게스트',
-          role: 'USER',
-        },
-      })
+      // 게스트 사용자 조회
+      let guestUser = await prisma.user.findUnique({ where: { email: 'guest@green-rwd.system' } })
+      if (!guestUser) {
+        // 게스트 사용자 생성
+        guestUser = await prisma.user.create({
+          data: {
+            email: 'guest@green-rwd.system',
+            name: '게스트',
+            role: 'USER',
+          },
+        })
+        console.log('[Auth] Guest user created:', guestUser.id)
+      }
       userId = guestUser.id
     }
 
