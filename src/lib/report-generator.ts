@@ -116,11 +116,32 @@ async function generateSectionWithRetry(
   pubMedContextStr: string,
   retries: number = 2
 ): Promise<string> {
-  const hasOpenAIKey = process.env.OPENAI_API_KEY?.trim()
-  const hasAnthropicKey = process.env.ANTHROPIC_API_KEY?.trim()
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY?.trim()
+  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY?.trim()
   if (!hasOpenAIKey && !hasAnthropicKey) {
-    console.log(`[Section: ${section.title}] No API keys, generating data-driven fallback`)
+    console.log(`[Section: ${section.title}] No API keys (OPENAI_API_KEY=${hasOpenAIKey}, ANTHROPIC_API_KEY=${hasAnthropicKey}), generating data-driven fallback`)
     return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData)
+  }
+
+  // 사용 가능한 AI 선택 (선호 provider → 대체 provider 순서)
+  // 핵심 수정: 키가 하나만 있어도 모든 섹션이 AI로 생성되도록
+  const preferredProvider = section.aiProvider
+  let primaryAI: typeof callOpenAI
+  let fallbackAI: typeof callOpenAI | null = null
+
+  if (preferredProvider === 'openai' && hasOpenAIKey) {
+    primaryAI = callOpenAI
+    if (hasAnthropicKey) fallbackAI = callAnthropicClaude
+  } else if (preferredProvider === 'anthropic' && hasAnthropicKey) {
+    primaryAI = callAnthropicClaude
+    if (hasOpenAIKey) fallbackAI = callOpenAI
+  } else if (hasOpenAIKey) {
+    // 선호 provider 키가 없으면 다른 provider 사용
+    console.log(`[Section: ${section.title}] ${preferredProvider} key missing, using OpenAI instead`)
+    primaryAI = callOpenAI
+  } else {
+    console.log(`[Section: ${section.title}] ${preferredProvider} key missing, using Anthropic instead`)
+    primaryAI = callAnthropicClaude
   }
 
   // AI에 실제 데이터를 구체적으로 주입
@@ -162,13 +183,32 @@ ${citationInstruction}
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const callAI = section.aiProvider === 'openai' ? callOpenAI : callAnthropicClaude
-      const content = await callAI(enhancedSystemPrompt, userPrompt)
-      if (content && content.length > 200) return content
+      // 1차: primary AI 시도
+      const content = await primaryAI(enhancedSystemPrompt, userPrompt)
+      if (content && content.length > 200) {
+        console.log(`[Section: ${section.title}] AI 생성 성공 (${content.length}자)`)
+        return content
+      }
       throw new Error('Generated content too short')
     } catch (error) {
-      console.error(`[Section: ${section.title}] attempt ${attempt}/${retries} failed:`, error)
+      console.error(`[Section: ${section.title}] primary attempt ${attempt}/${retries} failed:`, error)
+
+      // 2차: fallback AI가 있으면 시도
+      if (fallbackAI && attempt === 1) {
+        try {
+          console.log(`[Section: ${section.title}] Trying fallback AI provider...`)
+          const content = await fallbackAI(enhancedSystemPrompt, userPrompt)
+          if (content && content.length > 200) {
+            console.log(`[Section: ${section.title}] Fallback AI 생성 성공 (${content.length}자)`)
+            return content
+          }
+        } catch (fallbackError) {
+          console.error(`[Section: ${section.title}] fallback AI also failed:`, fallbackError)
+        }
+      }
+
       if (attempt === retries) {
+        console.log(`[Section: ${section.title}] All AI attempts failed, using data-driven fallback`)
         return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData)
       }
       await new Promise(resolve => setTimeout(resolve, 1000))
