@@ -101,17 +101,29 @@ async function generateSectionWithRetry(
   retries: number = 3
 ): Promise<string> {
   const userPrompt = `
-ì½ë¬¼/ì¹ë£ì : ${drugName}
-ì ìì¦: ${indication}
-ì¹ë£ ìì­: ${therapeuticArea}
+약물/치료제: ${drugName}
+적응증: ${indication}
+치료 영역: ${therapeuticArea}
 
-ì ì ë³´ë¥¼ ê¸°ë°ì¼ë¡ "${section.title}" ì¹ìì ìì±í´ì£¼ì¸ì.
-íêµ­ ì ì½/ë°ì´ì¤ ìì¥ ë°ì´í°ë¥¼ ì¤ì¬ì¼ë¡, ê¸ë¡ë² ìì¥ê³¼ì ë¹êµë í¬í¨í´ì£¼ì¸ì.
-ì ë¬¸ ë¦¬ìì¹ ë³´ê³ ì ìì¤ì ìì¸íê³  ë°ì´í° ê¸°ë°ì ë¶ìì ì ê³µí´ì£¼ì¸ì.
-ìµì 2000ì ì´ìì¼ë¡ ìì±í´ì£¼ì¸ì.
-ë§ík6³®.²jÐ¶bW².w²ró®p²zG²Ç¶Vc®B`°¶Fp°®ª§®t°²3²s®ª§²v²ªÞä¶fs²j§¶VÓ²ó²ã²jP¸)((½È¡±ÐÑÑµÁÐôÄìÑÑµÁÐðôÉÑÉ¥ÌìÑÑµÁÐ¬¬¤ì(ÑÉäì(½¹ÍÐ±±$ôÍÑ¥½¸¹¥AÉ½Ù¥Èôôô½Á¹¤ü±±=Á¹$è±±¹Ñ¡É½Á¥
-±Õ(½¹ÍÐ½¹Ñ¹ÐôÝ¥Ð±±$¡ÍÑ¥½¸¹ÍåÍÑµAÉ½µÁÐ°ÕÍÉAÉ½µÁÐ¤(¥¡½¹Ñ¹Ð½¹Ñ¹Ð¹±¹Ñ øÄÀÀ¤ì(ÉÑÕÉ¸½¹Ñ¹Ð(ô(Ñ¡É½Ü¹ÜÉÉ½È ¹ÉÑ½¹Ñ¹ÐÑ½¼Í¡½ÉÐ¤(ôÑ ¡ÉÉ½È¤ì(½¹Í½±¹ÉÉ½È¡mMÑ¥½¸èíÍÑ¥½¸¹Ñ¥Ñ±õtÑÑµÁÐíÑÑµÁÑô¼íÉÑÉ¥Íô¥±é°ÉÉ½È¤(¥¡ÑÑµÁÐôôôÉÑÉ¥Ì¤ì(ÉÑÕÉ¸¹ÉÑ±±­
-½¹Ñ¹Ð¡ÍÑ¥½¸°ÉÕ9µ°¥¹¥Ñ¥½¸°Ñ¡rapeuticArea)
+위 정보를 기반으로 "${section.title}" 섹션을 작성해주세요.
+한국 제약/바이오 시장 데이터를 중심으로, 글로벌 시장과의 비교도 포함해주세요.
+전문 리서치 보고서 수준의 상세하고 데이터 기반의 분석을 제공해주세요.
+최소 2000자 이상으로 작성해주세요.
+마크다운 형식으로 작성하되, 표와 수치 데이터를 적극 활용해주세요.
+`
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const callAI = section.aiProvider === 'openai' ? callOpenAI : callAnthropicClaude
+      const content = await callAI(section.systemPrompt, userPrompt)
+      if (content && content.length > 100) {
+        return content
+      }
+      throw new Error('Generated content too short')
+    } catch (error) {
+      console.error(`[Section: ${section.title}] attempt ${attempt}/${retries} failed:`, error)
+      if (attempt === retries) {
+        return generateFallbackContent(section, drugName, indication, therapeuticArea)
       }
       // Exponential backoff
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000))
@@ -129,24 +141,24 @@ function generateFallbackContent(
 ): string {
   return `# ${section.title}
 
-## ${drugName} - ${indication} ìì¥ ë¶ì
+## ${drugName} - ${indication} 시장 분석
 
-### ê°ì
-${therapeuticArea} ìì­ì ${indication} ì¹ë£ë¥¸ ìí ${drugName}ì ëí ë¶ììëë¤.
+### 개요
+${therapeuticArea} 영역의 ${indication} 치료를 위한 ${drugName}에 대한 분석입니다.
 
-ë³¸ ì¹ìì íì¬ ë°ì´í° ìì§ ë° ë¶ìì´ ì§í ì¤ì´ë©°, ê³§ ìë°ì´í¸ë  ìì ìëë¤.
+본 섹션은 현재 데이터 수집 및 분석이 진행 중이며, 곧 업데이트될 예정입니다.
 
-### ì£¼ì í¬ì¸í¸
-- íêµ­ ${therapeuticArea} ìì¥ì ì§ìì ì¼ë¡ ì±ì¥íê³  ììµëë¤
-- ${indication} ê´ë ¨ ì¹ë£ ììê° ì¦ê°íê³  ììµëë¤
-- ${drugName}ì ìì¥ í¬ì§ìëì ëí ìì¸ ë¶ìì´ íìí©ëë¤
+### 주요 포인트
+- 한국 ${therapeuticArea} 시장은 지속적으로 성장하고 있습니다
+- ${indication} 관련 치료 수요가 증가하고 있습니다
+- ${drugName}의 시장 포지셔닝에 대한 상세 분석이 필요합니다
 
-### ë°ì´í° ì¶ì²
-- ê±´ê°ë³´íì¬ì¬íê°ì (HIRA)
-- íêµ­ì ì½ë°ì´ì¤íí
-- ê¸ë¡ë² ìì¥ì¡°ì¬ ê¸°ê´ (IQVIA, GlobalData)
+### 데이터 출처
+- 건강보험심사평가원 (HIRA)
+- 한국제약바이오협회
+- 글로벌 시장조사 기관 (IQVIA, GlobalData)
 
-*ë³¸ ë³´ê³ ìë AI ê¸°ë°ì¼ë¡ ìì±ëìì¼ë©°, ì¶ê° ë°ì´í° íì¸ì´ ê¶ì¥ë©ëë¤.*
+*본 보고서는 AI 기반으로 생성되었으며, 추가 데이터 확인이 권장됩니다.*
 `
 }
 
@@ -166,13 +178,13 @@ function extractChartsAndTables(content: string) {
   }
 
   // Detect chart-like data patterns
-  const numberPatterns = content.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(%|ìµ|ì¡°|ë§)/g)
+  const numberPatterns = content.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(%|억|조|만)/g)
   if (numberPatterns && numberPatterns.length >= 3) {
     charts.push({
       type: 'bar',
-      title: 'ì£¼ì ìì¹',
+      title: '주요 수치',
       data: numberPatterns.slice(0, 6).map((p: string, i: number) => ({
-        label: `í­ëª© ${i + 1}`,
+        label: `항목 ${i + 1}`,
         value: parseFloat(p.replace(/[^0-9.]/g, '')),
       })),
     })
