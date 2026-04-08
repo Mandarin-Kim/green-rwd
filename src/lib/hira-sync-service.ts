@@ -191,22 +191,8 @@ export async function syncDiseaseInfo(sickCd: string, diagYm = '2024') {
       });
     }
 
-    // 연도별 추이
-    for (const y of analysis.yearTrend) {
-      await prisma.hiraDiseaseYearTrend.upsert({
-        where: { diseaseCode_year: { diseaseCode: sickCd, year: y.year } },
-        create: {
-          diseaseCode: sickCd, year: y.year,
-          patientCount: y.patientCount, visitCount: y.visitCount,
-          claimAmount: BigInt(y.claimAmount), avgClaimPerPt: y.avgClaimPerPatient,
-        },
-        update: {
-          patientCount: y.patientCount, visitCount: y.visitCount,
-          claimAmount: BigInt(y.claimAmount), avgClaimPerPt: y.avgClaimPerPatient,
-          syncedAt: new Date(),
-        },
-      });
-    }
+    // 의료기관종별 통계 (기존 연도별추이 API는 존재하지 않으므로 대체)
+    // NOTE: yearTrend DB 테이블은 향후 다른 데이터 소스로 채울 수 있도록 유지
 
     // 지역별 통계
     for (const r of analysis.regionalStats) {
@@ -227,7 +213,7 @@ export async function syncDiseaseInfo(sickCd: string, diagYm = '2024') {
     }
 
     const total = analysis.genderStats.length + analysis.ageDistribution.length
-      + analysis.yearTrend.length + analysis.regionalStats.length + 1;
+      + analysis.institutionStats.length + analysis.regionalStats.length + 1;
     await completeSyncLog(log.id, total);
     return { success: true, recordCount: total };
   } catch (err) {

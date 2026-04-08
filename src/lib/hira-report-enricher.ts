@@ -2,17 +2,24 @@
  * HIRA 데이터 → 보고서 카탈로그 연동 모듈
  *
  * 역할:
- * 1. HIRA API에서 질환별 실측 데이터(환자수, 진료비, 연도별추이 등) 조회
+ * 1. HIRA API에서 질환별 실측 데이터(환자수, 진료비, 성별, 연령별, 지역별 등) 조회
  * 2. ReportCatalog의 marketSizeKrw, patientPool 등을 실제 수치로 업데이트
  * 3. AI 보고서 생성 시 프롬프트에 주입할 HIRA 데이터 컨텍스트 생성
+ *
+ * 사용하는 HIRA API 5개 오퍼레이션:
+ * - getDissNameCodeList1 (질병명코드조회)
+ * - getDissGenderTpInfo (성별입원외래)
+ * - getDissGenderAgeInfo (성별연령별)
+ * - getDissItyInfo (의료기관종별)
+ * - getDissAreaInfo (시도별)
  */
 
 import { PrismaClient } from '@prisma/client';
 import {
-  searchDiseases,
+  getDissNameCodeListByCode,
   fetchDiseaseGenderStats,
   fetchDiseaseAgeStats,
-  fetchDiseaseYearTrend,
+  fetchDiseaseInstitutionStats,
   fetchDiseaseAreaStats,
 } from './hira-disease-api';
 import { DISEASE_MAPPING, getMappingBySlug, type DiseaseMapping } from './hira-disease-mapping';
@@ -38,10 +45,10 @@ export interface HiraEnrichmentResult {
     count: number;
     ratio: number;
   }>;
-  yearTrend: Array<{
-    year: string;
-    patientCount: number;
-    claimAmount: number;
+  institutionStats: Array<{
+    institutionType: string;
+    count: number;
+    ratio: number;
   }>;
   regionStats: Array<{
     region: string;
@@ -56,7 +63,7 @@ export interface HiraReportContext {
   patientSummary: string;
   genderAnalysis: string;
   ageAnalysis: string;
-  trendAnalysis: string;
+  institutionAnalysis: string;
   regionAnalysis: string;
   rawData: HiraEnrichmentResult;
 }
@@ -76,61 +83,65 @@ export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichme
   }
 
   try {
-    // 모든 질병코드에 대해 데이터 수집 후 합산
     let totalPatients = 0;
     let totalClaims = 0;
     let totalVisits = 0;
     const allGender: Map<string, number> = new Map();
     const allAge: Map<string, number> = new Map();
-    const allYear: Map<string, { patients: number; claims: number }> = new Map();
+    const allInstitution: Map<string, number> = new Map();
     const allRegion: Map<string, number> = new Map();
 
+    // diagYm: HIRA에서 가장 최근 데이터가 있는 연도 사용
+    const diagYm = '2023';
+
     for (const code of mapping.diseaseCodes) {
-      // 질병 기본정보 조회
-      const diseases = await searchDiseases(code);
-      const matched = diseases.find(d => d.diseaseCode.startsWith(code));
-      if (matched) {
-        totalPatients += matched.patientCount;
-        totalClaims += matched.claimAmount;
-        totalVisits += matched.visitCount;
+      console.log(`[HIRA Enricher] ${slug}: 질병코드 ${code} 데이터 조회 시작`);
+
+      // 1) 질병 기본정보 조회 (질병코드로 검색)
+      const diseaseResult = await getDissNameCodeListByCode(code);
+      if (diseaseResult.items.length > 0) {
+        const item = diseaseResult.items[0];
+        totalPatients += Number(item.patntCnt || 0);
+        totalClaims += Number(item.trsRcptAmt || 0);
+        totalVisits += Number(item.rcptCnt || item.visnCnt || 0);
+        console.log(`[HIRA Enricher] ${code}: 환자 ${Number(item.patntCnt || 0).toLocaleString()}명`);
       }
 
-      // 성별 통계
-      const genderStats = await fetchDiseaseGenderStats(code, '2024');
+      // 2) 성별·입원/외래 통계
+      const genderStats = await fetchDiseaseGenderStats(code, diagYm);
       for (const gs of genderStats) {
         allGender.set(gs.gender, (allGender.get(gs.gender) || 0) + gs.totalCount);
       }
 
-      // 연령대별 통계
-      const ageStats = await fetchDiseaseAgeStats(code, '2024');
+      // 3) 연령대별 통계
+      const ageStats = await fetchDiseaseAgeStats(code, diagYm);
       for (const as_ of ageStats) {
         allAge.set(as_.ageGroup, (allAge.get(as_.ageGroup) || 0) + as_.patientCount);
       }
 
-      // 연도별 추이
-      const yearTrend = await fetchDiseaseYearTrend(code);
-      for (const yt of yearTrend) {
-        const existing = allYear.get(yt.year) || { patients: 0, claims: 0 };
-        allYear.set(yt.year, {
-          patients: existing.patients + yt.patientCount,
-          claims: existing.claims + yt.claimAmount,
-        });
+      // 4) 의료기관종별 통계
+      const instStats = await fetchDiseaseInstitutionStats(code, diagYm);
+      for (const is_ of instStats) {
+        allInstitution.set(is_.institutionType, (allInstitution.get(is_.institutionType) || 0) + is_.patientCount);
       }
 
-      // 지역별 통계
-      const regionStats = await fetchDiseaseAreaStats(code, '2024');
+      // 5) 지역별 통계
+      const regionStats = await fetchDiseaseAreaStats(code, diagYm);
       for (const rs of regionStats) {
         allRegion.set(rs.regionName, (allRegion.get(rs.regionName) || 0) + rs.patientCount);
       }
 
       // API 호출 한도를 위한 딜레이
-      await delay(300);
+      await delay(500);
     }
 
     // 비율 계산
     const genderTotal = Array.from(allGender.values()).reduce((s, v) => s + v, 0) || 1;
     const ageTotal = Array.from(allAge.values()).reduce((s, v) => s + v, 0) || 1;
+    const instTotal = Array.from(allInstitution.values()).reduce((s, v) => s + v, 0) || 1;
     const regionTotal = Array.from(allRegion.values()).reduce((s, v) => s + v, 0) || 1;
+
+    console.log(`[HIRA Enricher] ${slug}: 조회 완료 - 환자 ${totalPatients.toLocaleString()}명, 급여비 ${formatKrw(totalClaims)}`);
 
     return {
       slug,
@@ -147,9 +158,9 @@ export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichme
           const numB = parseInt(b.ageGroup) || 0;
           return numA - numB;
         }),
-      yearTrend: Array.from(allYear.entries())
-        .map(([year, data]) => ({ year, patientCount: data.patients, claimAmount: data.claims }))
-        .sort((a, b) => a.year.localeCompare(b.year)),
+      institutionStats: Array.from(allInstitution.entries())
+        .map(([institutionType, count]) => ({ institutionType, count, ratio: Math.round((count / instTotal) * 1000) / 10 }))
+        .sort((a, b) => b.count - a.count),
       regionStats: Array.from(allRegion.entries())
         .map(([region, count]) => ({ region, count, ratio: Math.round((count / regionTotal) * 1000) / 10 }))
         .sort((a, b) => b.count - a.count),
@@ -268,7 +279,7 @@ export async function buildHiraContext(slug: string): Promise<HiraReportContext 
 
   // 환자 요약
   const patientSummary = [
-    `■ HIRA 실측 데이터 (건강보험심사평가원 2024년 기준)`,
+    `■ HIRA 실측 데이터 (건강보험심사평가원 2023년 기준)`,
     `  - ${diseaseLabel} 총 환자수: ${hiraData.patientCount.toLocaleString()}명`,
     `  - 요양급여비용 총액: ${formatKrw(hiraData.claimAmount)}`,
     `  - 추정 시장규모(급여+비급여+의약품): ${formatKrw(Math.round(hiraData.claimAmount * 1.6))}`,
@@ -291,17 +302,12 @@ export async function buildHiraContext(slug: string): Promise<HiraReportContext 
       ].join('\n')
     : '';
 
-  // 연도별 추이
-  const trendAnalysis = hiraData.yearTrend.length > 0
+  // 의료기관종별 분석
+  const institutionAnalysis = hiraData.institutionStats.length > 0
     ? [
-        `■ 연도별 환자수 추이 (HIRA 실측)`,
-        ...hiraData.yearTrend.map(t =>
-          `  - ${t.year}년: ${t.patientCount.toLocaleString()}명 (급여비 ${formatKrw(t.claimAmount)})`
-        ),
-        hiraData.yearTrend.length >= 2
-          ? `  → 최근 연간 증가율: ${calcGrowthRate(hiraData.yearTrend)}%`
-          : '',
-      ].filter(Boolean).join('\n')
+        `■ 의료기관종별 환자 분포 (HIRA 실측)`,
+        ...hiraData.institutionStats.map(i => `  - ${i.institutionType}: ${i.count.toLocaleString()}명 (${i.ratio}%)`),
+      ].join('\n')
     : '';
 
   // 지역별 분석
@@ -318,7 +324,7 @@ export async function buildHiraContext(slug: string): Promise<HiraReportContext 
     patientSummary,
     genderAnalysis,
     ageAnalysis,
-    trendAnalysis,
+    institutionAnalysis,
     regionAnalysis,
     rawData: hiraData,
   };
@@ -330,7 +336,7 @@ export async function buildHiraContext(slug: string): Promise<HiraReportContext 
 export function formatHiraContextForPrompt(context: HiraReportContext): string {
   const sections = [
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    '📊 HIRA 건강보험심사평가원 실측 데이터',
+    'HIRA 건강보험심사평가원 실측 데이터',
     '(아래 데이터는 실제 HIRA 보건의료빅데이터에서 조회한 공식 통계입니다)',
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
@@ -339,14 +345,14 @@ export function formatHiraContextForPrompt(context: HiraReportContext): string {
 
   if (context.genderAnalysis) sections.push('', context.genderAnalysis);
   if (context.ageAnalysis) sections.push('', context.ageAnalysis);
-  if (context.trendAnalysis) sections.push('', context.trendAnalysis);
+  if (context.institutionAnalysis) sections.push('', context.institutionAnalysis);
   if (context.regionAnalysis) sections.push('', context.regionAnalysis);
 
   sections.push(
     '',
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    '⚠️ 위 HIRA 데이터를 보고서의 근거 데이터로 반드시 활용하세요.',
-    '  수치를 인용할 때는 "건강보험심사평가원 자료 기준" 이라고 출처를 명시하세요.',
+    '위 HIRA 데이터를 보고서의 근거 데이터로 반드시 활용하세요.',
+    '수치를 인용할 때는 "건강보험심사평가원 자료 기준" 이라고 출처를 명시하세요.',
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
   );
 
@@ -366,13 +372,4 @@ function formatKrw(amount: number): string {
   if (amount >= 1_0000_0000) return `${Math.round(amount / 1_0000_0000).toLocaleString()}억 원`;
   if (amount >= 1_0000) return `${Math.round(amount / 1_0000).toLocaleString()}만 원`;
   return `${amount.toLocaleString()}원`;
-}
-
-function calcGrowthRate(yearTrend: Array<{ year: string; patientCount: number }>): string {
-  if (yearTrend.length < 2) return '0';
-  const sorted = [...yearTrend].sort((a, b) => a.year.localeCompare(b.year));
-  const latest = sorted[sorted.length - 1].patientCount;
-  const prev = sorted[sorted.length - 2].patientCount;
-  if (prev === 0) return '0';
-  return ((latest - prev) / prev * 100).toFixed(1);
 }

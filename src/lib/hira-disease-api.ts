@@ -1,13 +1,13 @@
 /**
  * HIRA 질병정보서비스 OpenAPI 연동 모듈
- * 건강보험심사평가원 질병정보서비스 5개 엔드포인트 지원
+ * 건강보험심사평가원 질병정보서비스 (data.go.kr #15119055)
  *
- * 엔드포인트 목록:
- * 1. getDissInfoList - 질병검색 (질병명/코드 기반)
- * 2. getDissGenderTpStats - 질병별 성별·입원/외래 통계
- * 3. getDissGenderAgeStats - 질병별 성별·연령대별 통계
- * 4. getDissOperYearStats - 질병별 연도별 추이 통계
- * 5. getDissAreaStats - 질병별 시도별(지역별) 통계
+ * 올바른 오퍼레이션명 5개:
+ * 1. getDissNameCodeList1 - 질병명코드조회 (질병명/코드 기반 검색)
+ * 2. getDissGenderTpInfo  - 성별·입원/외래 통계
+ * 3. getDissGenderAgeInfo - 성별·연령대별 통계
+ * 4. getDissItyInfo       - 의료기관종별 통계
+ * 5. getDissAreaInfo      - 시도별(지역별) 통계
  */
 
 // ============================================
@@ -51,15 +51,16 @@ export interface DiseaseAgeStats {
   period: string;
 }
 
-/** 질병별 연도별 추이 */
-export interface DiseaseYearTrend {
+/** 질병별 의료기관종별 통계 */
+export interface DiseaseInstitutionStats {
   diseaseCode: string;
   diseaseName: string;
-  year: string;
+  institutionType: string;   // 의료기관종 (상급종합, 종합병원, 병원, 의원 등)
+  institutionTypeCode: string;
   patientCount: number;
   visitCount: number;
   claimAmount: number;
-  avgClaimPerPatient: number;  // 1인당 요양급여비용
+  period: string;
 }
 
 /** 질병별 지역별 통계 */
@@ -83,13 +84,13 @@ export interface DiseaseAnalysisResult {
   totalPatients: number;
   genderStats: DiseaseGenderStats[];
   ageDistribution: DiseaseAgeStats[];
-  yearTrend: DiseaseYearTrend[];
+  institutionStats: DiseaseInstitutionStats[];
   regionalStats: DiseaseAreaStats[];
   insights: {
     topAgeGroup: string;
     genderRatio: string;
     topRegion: string;
-    yearOverYearGrowth: number;
+    topInstitution: string;
   };
 }
 
@@ -97,7 +98,7 @@ export interface DiseaseAnalysisResult {
 // API 설정
 // ============================================
 
-const DISEASE_ENDPOINT = process.env.HIRA_DISEASE_API_ENDPOINT || 'https://apis.data.go.kr/B551182/diseaseInfoService1';
+const DISEASE_ENDPOINT = 'https://apis.data.go.kr/B551182/diseaseInfoService1';
 const HIRA_KEY = process.env.HIRA_API_KEY || '';
 const TIMEOUT = 10000;
 
@@ -110,7 +111,7 @@ async function callDiseaseApi(
   params: Record<string, string | number>
 ): Promise<{ items: Record<string, string | number>[]; totalCount: number }> {
   if (!HIRA_KEY) {
-    console.warn('HIRA_API_KEY가 설정되지 않았습니다.');
+    console.warn('[HIRA Disease] HIRA_API_KEY가 설정되지 않았습니다.');
     return { items: [], totalCount: 0 };
   }
 
@@ -120,6 +121,8 @@ async function callDiseaseApi(
     Object.entries(params).forEach(([k, v]) => searchParams.set(k, String(v)));
 
     const url = `${DISEASE_ENDPOINT}/${operation}?${searchParams.toString()}`;
+    console.log(`[HIRA Disease] API 호출: ${operation}`);
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT);
 
@@ -127,14 +130,24 @@ async function callDiseaseApi(
     clearTimeout(timer);
 
     if (!res.ok) {
-      console.error(`HIRA Disease API ${res.status}: ${operation}`);
+      console.error(`[HIRA Disease] HTTP ${res.status}: ${operation}`);
       return { items: [], totalCount: 0 };
     }
 
     const xml = await res.text();
+
+    // 에러 응답 체크
+    const resultCodeMatch = xml.match(/<resultCode>(\d+)<\/resultCode>/);
+    const resultCode = resultCodeMatch ? resultCodeMatch[1] : null;
+    if (resultCode && resultCode !== '00') {
+      const resultMsgMatch = xml.match(/<resultMsg>([^<]*)<\/resultMsg>/);
+      console.error(`[HIRA Disease] API 에러 (${operation}): code=${resultCode}, msg=${resultMsgMatch?.[1] || 'unknown'}`);
+      return { items: [], totalCount: 0 };
+    }
+
     return parseXml(xml);
   } catch (err) {
-    console.error(`HIRA Disease API 실패 (${operation}):`, err);
+    console.error(`[HIRA Disease] API 실패 (${operation}):`, err);
     return { items: [], totalCount: 0 };
   }
 }
@@ -165,28 +178,54 @@ function parseXml(xml: string): { items: Record<string, string | number>[]; tota
 }
 
 // ============================================
-// 5개 엔드포인트 함수
+// 5개 오퍼레이션 함수 (수정된 API명)
 // ============================================
 
-/** 1. 질병검색 - 질병명 또는 코드로 검색 */
-export const getDissInfoList = (dissNm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissInfoList', { dissNm, numOfRows: 100, pageNo: 1, ...p });
+/** 1. 질병명코드조회 - 질병명 또는 코드로 검색 */
+export const getDissNameCodeList1 = (searchText: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissNameCodeList1', {
+    sickType: 1,        // 1: 양방, 2: 한방
+    medTp: 1,           // 1: 양방
+    diseaseType: 'SICK_NM',  // SICK_NM: 질병명, SICK_CD: 질병코드
+    searchText,
+    numOfRows: 100,
+    pageNo: 1,
+    ...p,
+  });
+
+/** 질병코드로 검색 */
+export const getDissNameCodeListByCode = (sickCd: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissNameCodeList1', {
+    sickType: 1,
+    medTp: 1,
+    diseaseType: 'SICK_CD',
+    searchText: sickCd,
+    numOfRows: 100,
+    pageNo: 1,
+    ...p,
+  });
 
 /** 2. 질병별 성별·입원/외래 통계 */
-export const getDissGenderTpStats = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissGenderTpStats', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+export const getDissGenderTpInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissGenderTpInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
 /** 3. 질병별 성별·연령대별 통계 */
-export const getDissGenderAgeStats = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissGenderAgeStats', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+export const getDissGenderAgeInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissGenderAgeInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
-/** 4. 질병별 연도별 추이 통계 */
-export const getDissOperYearStats = (sickCd: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissOperYearStats', { sickCd, numOfRows: 100, pageNo: 1, ...p });
+/** 4. 질병별 의료기관종별 통계 */
+export const getDissItyInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissItyInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
 
 /** 5. 질병별 시도별(지역별) 통계 */
-export const getDissAreaStats = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
-  callDiseaseApi('getDissAreaStats', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+export const getDissAreaInfo = (sickCd: string, diagYm: string, p?: Record<string, string>) =>
+  callDiseaseApi('getDissAreaInfo', { sickCd, diagYm, numOfRows: 100, pageNo: 1, ...p });
+
+// ── 하위호환: 기존 함수명 유지 (deprecated) ──
+export const getDissInfoList = getDissNameCodeList1;
+export const getDissGenderTpStats = getDissGenderTpInfo;
+export const getDissGenderAgeStats = getDissGenderAgeInfo;
+export const getDissAreaStats = getDissAreaInfo;
 
 // ============================================
 // 리포트용 분석 함수
@@ -194,7 +233,7 @@ export const getDissAreaStats = (sickCd: string, diagYm: string, p?: Record<stri
 
 /** 질병 검색 (자동완성 등에 활용) */
 export async function searchDiseases(keyword: string): Promise<DiseaseInfo[]> {
-  const { items } = await getDissInfoList(keyword);
+  const { items } = await getDissNameCodeList1(keyword);
   return items.map(i => ({
     diseaseCode: String(i.sickCd || i.dissCd || ''),
     diseaseName: String(i.sickNm || i.dissNm || ''),
@@ -206,8 +245,8 @@ export async function searchDiseases(keyword: string): Promise<DiseaseInfo[]> {
 }
 
 /** 질병별 성별·입원/외래 현황 */
-export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2024'): Promise<DiseaseGenderStats[]> {
-  const { items } = await getDissGenderTpStats(sickCd, diagYm);
+export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2023'): Promise<DiseaseGenderStats[]> {
+  const { items } = await getDissGenderTpInfo(sickCd, diagYm);
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || i.dissNm || ''),
@@ -223,8 +262,8 @@ export async function fetchDiseaseGenderStats(sickCd: string, diagYm = '2024'): 
 }
 
 /** 질병별 성별·연령대별 현황 */
-export async function fetchDiseaseAgeStats(sickCd: string, diagYm = '2024'): Promise<DiseaseAgeStats[]> {
-  const { items } = await getDissGenderAgeStats(sickCd, diagYm);
+export async function fetchDiseaseAgeStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAgeStats[]> {
+  const { items } = await getDissGenderAgeInfo(sickCd, diagYm);
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || i.dissNm || ''),
@@ -238,23 +277,24 @@ export async function fetchDiseaseAgeStats(sickCd: string, diagYm = '2024'): Pro
   }));
 }
 
-/** 질병별 연도별 추이 */
-export async function fetchDiseaseYearTrend(sickCd: string): Promise<DiseaseYearTrend[]> {
-  const { items } = await getDissOperYearStats(sickCd);
+/** 질병별 의료기관종별 현황 */
+export async function fetchDiseaseInstitutionStats(sickCd: string, diagYm = '2023'): Promise<DiseaseInstitutionStats[]> {
+  const { items } = await getDissItyInfo(sickCd, diagYm);
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || i.dissNm || ''),
-    year: String(i.diagYy || i.year || ''),
+    institutionType: String(i.clCdNm || i.ityNm || ''),
+    institutionTypeCode: String(i.clCd || i.ityCd || ''),
     patientCount: Number(i.patntCnt || 0),
     visitCount: Number(i.rcptCnt || i.visnCnt || 0),
     claimAmount: Number(i.trsRcptAmt || 0),
-    avgClaimPerPatient: Number(i.avgTrsRcptAmt || 0),
+    period: diagYm,
   }));
 }
 
 /** 질병별 지역별 현황 */
-export async function fetchDiseaseAreaStats(sickCd: string, diagYm = '2024'): Promise<DiseaseAreaStats[]> {
-  const { items } = await getDissAreaStats(sickCd, diagYm);
+export async function fetchDiseaseAreaStats(sickCd: string, diagYm = '2023'): Promise<DiseaseAreaStats[]> {
+  const { items } = await getDissAreaInfo(sickCd, diagYm);
   const total = items.reduce((s, i) => s + Number(i.patntCnt || 0), 0);
   return items.map(i => {
     const cnt = Number(i.patntCnt || 0);
@@ -272,12 +312,12 @@ export async function fetchDiseaseAreaStats(sickCd: string, diagYm = '2024'): Pr
   });
 }
 
-/** 질병 종합분석 (5개 API 병렬 호출) */
-export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2024'): Promise<DiseaseAnalysisResult> {
-  const [genderStats, ageDistribution, yearTrend, regionalStats] = await Promise.all([
+/** 질병 종합분석 (4개 API 병렬 호출) */
+export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2023'): Promise<DiseaseAnalysisResult> {
+  const [genderStats, ageDistribution, institutionStats, regionalStats] = await Promise.all([
     fetchDiseaseGenderStats(sickCd, diagYm),
     fetchDiseaseAgeStats(sickCd, diagYm),
-    fetchDiseaseYearTrend(sickCd),
+    fetchDiseaseInstitutionStats(sickCd, diagYm),
     fetchDiseaseAreaStats(sickCd, diagYm),
   ]);
 
@@ -289,15 +329,7 @@ export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2024'): Pro
   const maleCount = genderStats.filter(g => g.genderCode === 'M' || g.gender.includes('남')).reduce((s, g) => s + g.totalCount, 0);
   const femaleCount = genderStats.filter(g => g.genderCode === 'F' || g.gender.includes('여')).reduce((s, g) => s + g.totalCount, 0);
   const topRegion = [...regionalStats].sort((a, b) => b.patientCount - a.patientCount)[0];
-
-  // 전년 대비 증감률
-  const sortedYears = [...yearTrend].sort((a, b) => b.year.localeCompare(a.year));
-  let yoyGrowth = 0;
-  if (sortedYears.length >= 2) {
-    const latest = sortedYears[0].patientCount;
-    const prev = sortedYears[1].patientCount;
-    yoyGrowth = prev > 0 ? Math.round(((latest - prev) / prev) * 10000) / 100 : 0;
-  }
+  const topInstitution = [...institutionStats].sort((a, b) => b.patientCount - a.patientCount)[0];
 
   const totalGender = maleCount + femaleCount;
   const genderRatio = totalGender > 0
@@ -311,13 +343,13 @@ export async function fetchDiseaseAnalysis(sickCd: string, diagYm = '2024'): Pro
     totalPatients,
     genderStats,
     ageDistribution,
-    yearTrend,
+    institutionStats,
     regionalStats,
     insights: {
       topAgeGroup: topAge?.ageGroup || '미상',
       genderRatio,
       topRegion: topRegion?.regionName || '미상',
-      yearOverYearGrowth: yoyGrowth,
+      topInstitution: topInstitution?.institutionType || '미상',
     },
   };
 }
