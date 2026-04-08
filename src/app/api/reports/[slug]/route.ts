@@ -7,13 +7,8 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   try {
-    const user = await getSessionUser(request)
-    if (!user) {
-      return NextResponse.json(
-        { error: '로그인이 필요합니다' },
-        { status: 401 }
-      )
-    }
+    // 카탈로그 조회는 인증 없이도 가능 (구매/생성 시에만 인증 필요)
+    const user = await getSessionUser(request).catch(() => null)
 
     const { slug } = params
 

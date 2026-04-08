@@ -653,8 +653,13 @@ export default function ReportDetailPage() {
         setLoading(true);
         const response = await fetch(`/api/reports/${slug}`);
         if (!response.ok) throw new Error('Catalog not found');
-        const data = await response.json();
-        setCatalogData(data);
+        const result = await response.json();
+        const catalogInfo = result.data || result;
+        // categories가 없으면 빈 배열로 보정
+        if (!catalogInfo.categories) {
+          catalogInfo.categories = [];
+        }
+        setCatalogData(catalogInfo);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load catalog');
       } finally {
