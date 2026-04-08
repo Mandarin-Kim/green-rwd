@@ -903,27 +903,40 @@ export default function ReportDetailPage() {
                 </p>
 
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  {(['BASIC', 'PRO', 'PREMIUM'] as const).map((tier) => (
+                  {([
+                    { tier: 'BASIC' as const, price: catalogData.priceBasic, color: '#10b981', bgHover: '#059669' },
+                    { tier: 'PRO' as const, price: catalogData.pricePro, color: '#2563eb', bgHover: '#1d4ed8' },
+                    { tier: 'PREMIUM' as const, price: catalogData.pricePremium, color: '#7c3aed', bgHover: '#6d28d9' },
+                  ]).map(({ tier, price, color }) => (
                     <button
                       key={tier}
                       onClick={() => handleGenerateReport(tier)}
                       disabled={generating}
                       style={{
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '0.5rem',
-                        backgroundColor: '#10b981',
+                        gap: '0.25rem',
+                        backgroundColor: color,
                         color: 'white',
-                        padding: '0.75rem 1.25rem',
-                        borderRadius: '0.5rem',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '0.75rem',
                         border: 'none',
                         fontWeight: 600,
                         cursor: generating ? 'not-allowed' : 'pointer',
                         opacity: generating ? 0.6 : 1,
+                        minWidth: '140px',
+                        transition: 'transform 0.15s, box-shadow 0.15s',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                       }}
+                      onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
+                      onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'; }}
                     >
-                      {generating && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
-                      {tier} 보고서 생성
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        {generating && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                        <span style={{ fontSize: '0.8125rem' }}>{tier}</span>
+                      </div>
+                      <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>₩{(price / 10000).toFixed(0)}만</span>
                     </button>
                   ))}
                 </div>

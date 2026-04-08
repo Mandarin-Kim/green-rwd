@@ -34,6 +34,9 @@ interface ReportData {
   patientPoolRaw?: number | null
   generatedAt: string
   tier: string
+  priceBasic?: number
+  pricePro?: number
+  pricePremium?: number
   sections: Section[]
 }
 
@@ -994,8 +997,29 @@ export default function ReportViewPage() {
               ))}
             </nav>
 
+            {/* Pricing */}
+            <div className="mt-4 p-3.5 bg-white rounded-xl border border-slate-100">
+              <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5">보고서 가격</h4>
+              <div className="space-y-1.5">
+                {[
+                  { tier: 'Basic', price: report.priceBasic || 500000, color: 'bg-emerald-500', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50', current: report.tier === 'BASIC' },
+                  { tier: 'Pro', price: report.pricePro || 1500000, color: 'bg-blue-500', textColor: 'text-blue-700', bgLight: 'bg-blue-50', current: report.tier === 'PRO' },
+                  { tier: 'Premium', price: report.pricePremium || 3000000, color: 'bg-purple-500', textColor: 'text-purple-700', bgLight: 'bg-purple-50', current: report.tier === 'PREMIUM' },
+                ].map(({ tier, price, color, textColor, bgLight, current }) => (
+                  <div key={tier} className={`flex items-center justify-between px-2.5 py-2 rounded-lg ${current ? bgLight + ' ring-1 ring-inset ring-slate-200' : 'hover:bg-slate-50'} transition-colors`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${color}`} />
+                      <span className={`text-xs font-semibold ${current ? textColor : 'text-slate-600'}`}>{tier}</span>
+                      {current && <span className="text-[9px] font-bold text-white bg-indigo-500 px-1.5 py-0.5 rounded-full">현재</span>}
+                    </div>
+                    <span className={`text-xs font-bold ${current ? textColor : 'text-slate-500'}`}>₩{(price / 10000).toFixed(0)}만</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Report Info */}
-            <div className="mt-5 p-3.5 bg-white rounded-xl border border-slate-100">
+            <div className="mt-3 p-3.5 bg-white rounded-xl border border-slate-100">
               <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">보고서 정보</h4>
               <dl className="space-y-2 text-xs">
                 <div className="flex items-start gap-2">
