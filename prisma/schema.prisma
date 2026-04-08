@@ -335,6 +335,7 @@ model ReportCatalog {
   isActive        Boolean       @default(true)
   hiraData        Json?         // HIRA 실측 데이터 캐시 (HiraEnrichmentResult)
   clinicalTrialsData Json?      // ClinicalTrials.gov 데이터 캐시 (ClinicalTrialsData)
+  pubMedData      Json?         // PubMed 논문 데이터 캐시 (PubMedSearchResult)
   dataSyncedAt    DateTime?     // 마지막 데이터 동기화 시각
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

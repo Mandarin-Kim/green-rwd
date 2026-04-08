@@ -144,9 +144,11 @@ export async function POST(request: NextRequest) {
       // → 캐시가 없으면 API 호출 → 결과 DB 자동 저장 (다음번에는 캐시 사용)
       const cachedHiraData = (catalog as any).hiraData || undefined
       const cachedClinicalTrialsData = (catalog as any).clinicalTrialsData || undefined
+      const cachedPubMedData = (catalog as any).pubMedData || undefined
 
       if (cachedHiraData) console.log(`[Report Generation] HIRA 캐시 활용 (${catalog.slug})`)
       if (cachedClinicalTrialsData) console.log(`[Report Generation] ClinicalTrials 캐시 활용 (${catalog.slug})`)
+      if (cachedPubMedData) console.log(`[Report Generation] PubMed 캐시 활용 (${catalog.slug})`)
 
       const sections = await generateReport({
         catalogId: catalog.id,
@@ -158,6 +160,7 @@ export async function POST(request: NextRequest) {
         tier: tier as ReportTier,
         cachedHiraData,
         cachedClinicalTrialsData,
+        cachedPubMedData,
         onProgress: async (progress: number, sectionTitle: string) => {
           try {
             await prisma.reportOrder.update({

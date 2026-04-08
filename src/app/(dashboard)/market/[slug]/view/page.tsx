@@ -343,6 +343,14 @@ function SectionContent({ content }: { content: string }) {
       .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-8 mb-3 text-slate-900">$1</h1>')
       .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>')
       .replace(/\*(.+?)\*/g, '<em class="text-slate-700">$1</em>')
+      // 마크다운 링크 [text](url) → 클릭 가능한 링크
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2">$1</a>')
+      // DOI 링크: DOI: 10.xxxx → 클릭 가능
+      .replace(/DOI:\s*(10\.\S+)/g, '<a href="https://doi.org/$1" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2 text-xs">DOI: $1</a>')
+      // PMID 링크: PMID: 12345678 → 클릭 가능
+      .replace(/PMID:\s*(\d+)/g, '<a href="https://pubmed.ncbi.nlm.nih.gov/$1/" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 underline underline-offset-2 text-xs">PMID: $1</a>')
+      // 인라인 인용 [1], [2] 등 → 상첨자 스타일
+      .replace(/\[(\d{1,2})\]/g, '<sup class="text-indigo-600 font-semibold cursor-default text-xs">[$1]</sup>')
       .replace(/^- (.+)$/gm, '<li class="ml-5 mb-1.5 text-slate-700 text-sm leading-relaxed list-disc">$1</li>')
       .replace(/^\d+\. (.+)$/gm, '<li class="ml-5 mb-1.5 text-slate-700 text-sm leading-relaxed list-decimal">$1</li>')
       .replace(/\n\n/g, '</p><p class="mb-3 text-slate-700 text-sm leading-relaxed">')

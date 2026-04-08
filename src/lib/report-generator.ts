@@ -2,6 +2,7 @@ import { reportSections, ReportSection } from './report-templates'
 import { buildHiraContext, formatHiraContextForPrompt, type HiraReportContext } from './hira-report-enricher'
 import { fetchClinicalTrials, formatClinicalTrialsForReport, type ClinicalTrialsData } from './clinicaltrials-api'
 import { getSearchParamsBySlug } from './clinicaltrials-mapping'
+import { searchPubMed, formatPubMedForPrompt, generateReferencesSection, type PubMedSearchResult } from './pubmed-api'
 import { prisma } from './prisma'
 
 export type ReportTier = 'BASIC' | 'PRO' | 'PREMIUM'
@@ -16,6 +17,7 @@ interface GenerateReportParams {
   tier: ReportTier
   cachedHiraData?: any
   cachedClinicalTrialsData?: any
+  cachedPubMedData?: any
   onProgress?: (progress: number, sectionTitle: string) => void
 }
 
@@ -111,6 +113,7 @@ async function generateSectionWithRetry(
   hiraContextStr: string,
   clinicalTrialsData: ClinicalTrialsData | null,
   hiraRawData: any,
+  pubMedContextStr: string,
   retries: number = 2
 ): Promise<string> {
   const hasOpenAIKey = process.env.OPENAI_API_KEY?.trim()
@@ -123,12 +126,21 @@ async function generateSectionWithRetry(
   // AI에 실제 데이터를 구체적으로 주입
   const dataContext = buildDetailedDataContext(hiraContextStr, clinicalTrialsData, drugName, indication)
 
+  // PubMed 논문 인용 지시 (논문 데이터가 있을 때만)
+  const citationInstruction = pubMedContextStr ? `
+8. 아래 제공된 PubMed 논문을 본문에서 [1], [2] 등의 인라인 번호로 인용하세요
+9. 각 섹션 끝에 "### 참고문헌" 소제목으로 해당 섹션에서 인용한 논문 목록을 정리하세요
+10. 형식: [번호] 저자 (연도). "제목". 저널명. DOI 또는 PMID
+11. 섹션당 최소 5개 이상의 논문을 인용하세요` : ''
+
   const userPrompt = `
 약물/치료제: ${drugName}
 적응증: ${indication}
 치료 영역: ${therapeuticArea}
 
 ${dataContext}
+
+${pubMedContextStr}
 
 위 실측 데이터를 기반으로 "${section.title}" 섹션을 작성해주세요.
 
@@ -140,12 +152,18 @@ ${dataContext}
 5. 전문 시장조사 기관(IQVIA, GlobalData) 수준의 분석 깊이
 6. 최소 3000자 이상, 구체적 수치와 근거 기반으로 작성
 7. 단순 나열이 아닌 인사이트와 시사점을 도출하세요
+${citationInstruction}
 `
+
+  // PubMed 논문이 있으면 systemPrompt에 인용 지시 추가
+  const enhancedSystemPrompt = pubMedContextStr
+    ? section.systemPrompt + `\n\n[학술 논문 인용 원칙]\n- 본문에서 관련 내용 서술 시 PubMed 논문을 [1], [2] 등의 번호로 인라인 인용하세요.\n- 각 섹션 끝에 "### 참고문헌" 소제목으로 인용한 논문 목록을 APA 스타일로 정리하세요.\n- 섹션당 최소 5개 이상의 논문을 인용하여 학술적 신뢰도를 높이세요.\n- 형식: [번호] 저자 (연도). "제목". 저널명. DOI 또는 PMID`
+    : section.systemPrompt
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const callAI = section.aiProvider === 'openai' ? callOpenAI : callAnthropicClaude
-      const content = await callAI(section.systemPrompt, userPrompt)
+      const content = await callAI(enhancedSystemPrompt, userPrompt)
       if (content && content.length > 200) return content
       throw new Error('Generated content too short')
     } catch (error) {
@@ -1003,12 +1021,51 @@ async function getClinicalTrialsData(slug: string, cachedClinicalTrialsData?: an
   return { contextStr: '', data: null }
 }
 
-async function saveCacheToDb(slug: string, field: 'hiraData' | 'clinicalTrialsData', data: any) {
+async function saveCacheToDb(slug: string, field: 'hiraData' | 'clinicalTrialsData' | 'pubMedData', data: any) {
   await prisma.reportCatalog.updateMany({
     where: { slug },
     data: { [field]: data, dataSyncedAt: new Date() },
   })
   console.log(`[ReportGenerator] ${field} DB 캐시 저장 완료: ${slug}`)
+}
+
+async function getPubMedData(
+  slug: string,
+  drugName: string,
+  indication: string,
+  cachedPubMedData?: any
+): Promise<{ contextStr: string; data: PubMedSearchResult | null }> {
+  // DB 캐시 우선
+  if (cachedPubMedData) {
+    console.log(`[ReportGenerator] PubMed 데이터: DB 캐시 사용 (${slug})`)
+    try {
+      const data = cachedPubMedData as PubMedSearchResult
+      const contextStr = formatPubMedForPrompt(data)
+      return { contextStr, data }
+    } catch (e) {
+      console.error(`[ReportGenerator] PubMed 캐시 파싱 실패:`, e)
+    }
+  }
+
+  // API 조회
+  try {
+    console.log(`[ReportGenerator] PubMed API 조회 중: ${indication} + ${drugName}`)
+    const data = await searchPubMed(indication, drugName, 20)
+    if (data && data.articles.length > 0) {
+      const contextStr = formatPubMedForPrompt(data)
+      // DB 캐시 저장
+      if (slug) {
+        saveCacheToDb(slug, 'pubMedData', data).catch(e =>
+          console.error(`[ReportGenerator] PubMed 캐시 저장 실패:`, e)
+        )
+      }
+      return { contextStr, data }
+    }
+  } catch (error) {
+    console.error(`[ReportGenerator] PubMed 데이터 조회 실패:`, error)
+  }
+
+  return { contextStr: '', data: null }
 }
 
 function buildHiraContextFromCache(cachedData: any): string {
@@ -1064,22 +1121,24 @@ function buildHiraContextFromCache(cachedData: any): string {
 export async function generateReport(params: GenerateReportParams): Promise<GeneratedSection[]> {
   const {
     title, slug, drugName, indication, therapeuticArea, tier,
-    cachedHiraData, cachedClinicalTrialsData, onProgress,
+    cachedHiraData, cachedClinicalTrialsData, cachedPubMedData, onProgress,
   } = params
   const sectionCount = TIER_SECTION_COUNT[tier]
   const sectionsToGenerate = reportSections.slice(0, sectionCount)
   const generatedSections: GeneratedSection[] = []
 
   console.log(`[ReportGenerator] Starting: ${title}, Tier: ${tier}, Sections: ${sectionCount}`)
-  console.log(`[ReportGenerator] DB 캐시: HIRA=${!!cachedHiraData}, ClinicalTrials=${!!cachedClinicalTrialsData}`)
+  console.log(`[ReportGenerator] DB 캐시: HIRA=${!!cachedHiraData}, ClinicalTrials=${!!cachedClinicalTrialsData}, PubMed=${!!cachedPubMedData}`)
 
-  // 데이터 수집 (병렬)
-  const [hiraResult, ctResult] = await Promise.all([
+  // 데이터 수집 (병렬) - PubMed 추가
+  const [hiraResult, ctResult, pubMedResult] = await Promise.all([
     getHiraData(slug || '', cachedHiraData),
     getClinicalTrialsData(slug || '', cachedClinicalTrialsData),
+    getPubMedData(slug || '', drugName, indication, cachedPubMedData),
   ])
 
   const fullContextStr = [hiraResult.contextStr, ctResult.contextStr].filter(Boolean).join('\n\n')
+  const pubMedContextStr = pubMedResult.contextStr || ''
 
   for (let i = 0; i < sectionsToGenerate.length; i++) {
     const section = sectionsToGenerate[i]
@@ -1096,7 +1155,8 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
       therapeuticArea,
       fullContextStr,
       ctResult.data,
-      hiraResult.rawData
+      hiraResult.rawData,
+      pubMedContextStr
     )
     const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(content)
 
@@ -1111,6 +1171,24 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
       tables,
       order: i + 1,
     })
+  }
+
+  // 마지막에 통합 참고문헌 섹션 추가 (PubMed 데이터가 있을 때)
+  if (pubMedResult.data && pubMedResult.data.articles.length > 0) {
+    const referencesContent = generateReferencesSection(pubMedResult.data)
+    const sectionIdx = generatedSections.length + 1
+    generatedSections.push({
+      id: `section-${sectionIdx}`,
+      title: '참고문헌 (References)',
+      content: referencesContent,
+      wordCount: referencesContent.length,
+      hasCharts: false,
+      hasTables: false,
+      charts: [],
+      tables: [],
+      order: sectionIdx,
+    })
+    console.log(`[ReportGenerator] 참고문헌 섹션 추가 (${pubMedResult.data.articles.length}건 논문)`)
   }
 
   console.log(`[ReportGenerator] Completed: ${generatedSections.length} sections generated`)
