@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Download, Printer, ChevronRight, FileText,
   BarChart3, Table2, Users, FlaskConical, ArrowRight,
-  TrendingUp, MapPin, Calendar, X
+  TrendingUp, MapPin, Calendar, X, Clock, GitBranch, Check, Edit3, AlertCircle
 } from 'lucide-react'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -384,8 +384,28 @@ function SectionContent({ content }: { content: string }) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Cohort / Segment Modal
+// Cohort / Segment Modal (중복방지 + 버저닝)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+interface VersionRecord {
+  id: string
+  version: number
+  filterJson: Record<string, unknown>
+  patientCount: number
+  changeNote: string | null
+  createdAt: string
+}
+
+interface ExistingSegment {
+  id: string
+  name: string
+  filterJson: Record<string, unknown>
+  patientCount: number
+  currentVersion: number
+  versions: VersionRecord[]
+  duplicate: boolean
+  message?: string
+}
+
 function CohortSegmentModal({
   report,
   onClose,
@@ -394,11 +414,18 @@ function CohortSegmentModal({
   onClose: () => void
 }) {
   const router = useRouter()
+  // 모드: 'create' (신규), 'existing' (이미 있음), 'edit' (기존 수정)
+  const [mode, setMode] = useState<'loading' | 'create' | 'existing' | 'edit'>('loading')
+  const [existingSegment, setExistingSegment] = useState<ExistingSegment | null>(null)
   const [filters, setFilters] = useState([
     { field: 'diagnosisCode', operator: 'in', value: report.indication || '' },
     { field: 'drugCode', operator: 'in', value: report.drugName || '' },
   ])
   const [segmentName, setSegmentName] = useState(`${report.indication || report.title} 코호트`)
+  const [changeNote, setChangeNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [statusMsg, setStatusMsg] = useState('')
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
 
   const addFilter = () => setFilters(prev => [...prev, { field: '', operator: 'equals', value: '' }])
   const removeFilter = (i: number) => setFilters(prev => prev.filter((_, idx) => idx !== i))
@@ -419,10 +446,102 @@ function CohortSegmentModal({
     { value: 'between', label: '범위' },
   ]
 
-  const handleCreateSegment = async () => {
-    const validFilters = filters.filter(f => f.field && f.value)
-    if (validFilters.length === 0) return
+  // 모달 열릴 때 기존 세그먼트 체크
+  useEffect(() => {
+    checkExisting()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  const checkExisting = async () => {
+    try {
+      const sourceMonth = new Date().toISOString().slice(0, 7)
+      const conditions: Record<string, unknown> = {}
+      filters.filter(f => f.field && f.value).forEach(f => {
+        conditions[f.field] = { operator: f.operator, value: f.value }
+      })
+
+      const res = await fetch('/api/segments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: segmentName.trim(),
+          conditions,
+          catalogSlug: report.slug,
+          sourceMonth,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.data?.duplicate) {
+        // 이미 존재
+        setExistingSegment(data.data)
+        setMode('existing')
+        // 기존 세그먼트의 필터로 복원
+        const fj = data.data.filterJson as Record<string, { operator: string; value: string }>
+        const restored = Object.entries(fj).map(([field, cond]) => ({
+          field,
+          operator: cond.operator || 'in',
+          value: cond.value || '',
+        }))
+        if (restored.length > 0) setFilters(restored)
+        setSegmentName(data.data.name)
+      } else if (data.success) {
+        // 새로 생성됨
+        setStatusMsg('세그먼트가 생성되었습니다!')
+        setMode('create')
+        // 이미 생성된 상태이므로 바로 완료 표시
+        setTimeout(() => router.push('/segments'), 1200)
+      } else {
+        setMode('create')
+      }
+    } catch {
+      setMode('create')
+    }
+  }
+
+  // 기존 세그먼트 수정 → 새 버전 생성
+  const handleUpdateSegment = async () => {
+    if (!existingSegment) return
+    const validFilters = filters.filter(f => f.field && f.value)
+    if (validFilters.length === 0) { setStatusMsg('필터 조건을 1개 이상 입력하세요.'); return }
+
+    setSubmitting(true)
+    setStatusMsg('')
+    try {
+      const conditions: Record<string, unknown> = {}
+      validFilters.forEach(f => {
+        conditions[f.field] = { operator: f.operator, value: f.value }
+      })
+
+      const res = await fetch(`/api/segments/${existingSegment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: segmentName.trim(),
+          conditions,
+          changeNote: changeNote.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStatusMsg(`v${data.data.currentVersion} 버전이 생성되었습니다!`)
+        setTimeout(() => router.push('/segments'), 1200)
+      } else {
+        setStatusMsg(data.error || '수정에 실패했습니다.')
+      }
+    } catch {
+      setStatusMsg('네트워크 오류가 발생했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // 새 세그먼트 생성 (중복이 아닐 때 직접 생성)
+  const handleCreateNew = async () => {
+    const validFilters = filters.filter(f => f.field && f.value)
+    if (validFilters.length === 0) { setStatusMsg('필터 조건을 1개 이상 입력하세요.'); return }
+
+    setSubmitting(true)
+    setStatusMsg('')
     try {
       const conditions: Record<string, unknown> = {}
       validFilters.forEach(f => {
@@ -432,33 +551,92 @@ function CohortSegmentModal({
       const res = await fetch('/api/segments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: segmentName.trim(), conditions }),
+        body: JSON.stringify({
+          name: segmentName.trim(),
+          conditions,
+          catalogSlug: report.slug,
+        }),
       })
       const data = await res.json()
       if (data.success) {
-        router.push('/segments')
+        setStatusMsg('세그먼트가 생성되었습니다!')
+        setTimeout(() => router.push('/segments'), 1200)
+      } else {
+        setStatusMsg(data.error || '생성에 실패했습니다.')
       }
     } catch {
-      // 에러 처리
+      setStatusMsg('네트워크 오류가 발생했습니다.')
+    } finally {
+      setSubmitting(false)
     }
+  }
+
+  // 로딩 상태
+  if (mode === 'loading') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-600">세그먼트 확인 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 이미 생성됨 (create에서 성공 시)
+  if (mode === 'create' && statusMsg) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+            <Check className="w-6 h-6 text-emerald-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-800">{statusMsg}</p>
+          <p className="text-xs text-slate-500 mt-1">세그먼트 목록으로 이동합니다...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[80vh] overflow-y-auto"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[85vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">코호트 세그먼트 설정</h3>
-            <p className="text-xs text-slate-500 mt-0.5">보고서 데이터 기반 자동 설정됨 - 수정/추가 가능</p>
+            <h3 className="text-lg font-bold text-slate-900">
+              {mode === 'existing' ? '기존 세그먼트 발견' : mode === 'edit' ? '세그먼트 수정 (새 버전)' : '코호트 세그먼트 설정'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {mode === 'existing'
+                ? `이번 달 동일 보고서에서 이미 생성된 세그먼트 (v${existingSegment?.currentVersion})`
+                : mode === 'edit'
+                ? '필터를 수정하면 새로운 버전이 생성됩니다'
+                : '보고서 데이터 기반 자동 설정됨'}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
             <X className="w-5 h-5 text-slate-400" />
           </button>
         </div>
+
+        {/* Existing Segment Info Banner */}
+        {mode === 'existing' && existingSegment && (
+          <div className="mx-5 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800">이번 달 이미 생성된 세그먼트</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  동일 보고서에 대해 월 1개만 생성 가능합니다. 필터를 수정하면 새 버전(v{existingSegment.currentVersion + 1})이 생성됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div className="p-5 space-y-4">
@@ -469,17 +647,54 @@ function CohortSegmentModal({
               type="text"
               value={segmentName}
               onChange={e => setSegmentName(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+              disabled={mode === 'existing'}
+              className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none disabled:bg-slate-50 disabled:text-slate-500"
             />
           </div>
+
+          {/* Version Info (existing / edit mode) */}
+          {(mode === 'existing' || mode === 'edit') && existingSegment && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 rounded-lg">
+                <GitBranch className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-xs font-semibold text-indigo-700">v{existingSegment.currentVersion}</span>
+              </div>
+              <button
+                onClick={() => setShowVersionHistory(!showVersionHistory)}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 transition-colors"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                버전 이력 {showVersionHistory ? '닫기' : '보기'}
+              </button>
+            </div>
+          )}
+
+          {/* Version History */}
+          {showVersionHistory && existingSegment?.versions && existingSegment.versions.length > 0 && (
+            <div className="bg-slate-50 rounded-xl p-3 space-y-2 max-h-40 overflow-y-auto">
+              {existingSegment.versions.map((v) => (
+                <div key={v.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">v{v.version}</span>
+                    <span className="text-xs text-slate-600">{v.changeNote || '필터 수정'}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(v.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Filters */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-600">필터 조건</label>
-              <button onClick={addFilter} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-                + 조건 추가
-              </button>
+              {mode !== 'existing' && (
+                <button onClick={addFilter} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                  + 조건 추가
+                </button>
+              )}
             </div>
             <div className="space-y-2">
               {filters.map((f, i) => (
@@ -487,7 +702,8 @@ function CohortSegmentModal({
                   <select
                     value={f.field}
                     onChange={e => { const next = [...filters]; next[i].field = e.target.value; setFilters(next) }}
-                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white min-w-[100px]"
+                    disabled={mode === 'existing'}
+                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white min-w-[100px] disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="">필드 선택</option>
                     {fieldOptions.map(opt => (
@@ -497,7 +713,8 @@ function CohortSegmentModal({
                   <select
                     value={f.operator}
                     onChange={e => { const next = [...filters]; next[i].operator = e.target.value; setFilters(next) }}
-                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white w-16"
+                    disabled={mode === 'existing'}
+                    className="text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white w-16 disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     {operatorOptions.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -508,9 +725,10 @@ function CohortSegmentModal({
                     value={f.value}
                     onChange={e => { const next = [...filters]; next[i].value = e.target.value; setFilters(next) }}
                     placeholder="값 입력..."
-                    className="flex-1 text-xs px-2.5 py-2 rounded-lg border border-slate-200 bg-white outline-none focus:ring-1 focus:ring-indigo-200"
+                    disabled={mode === 'existing'}
+                    className="flex-1 text-xs px-2.5 py-2 rounded-lg border border-slate-200 bg-white outline-none focus:ring-1 focus:ring-indigo-200 disabled:bg-slate-100 disabled:text-slate-500"
                   />
-                  {filters.length > 1 && (
+                  {filters.length > 1 && mode !== 'existing' && (
                     <button onClick={() => removeFilter(i)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400">
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -519,6 +737,20 @@ function CohortSegmentModal({
               ))}
             </div>
           </div>
+
+          {/* Change Note (edit mode) */}
+          {mode === 'edit' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">변경 사유 (선택)</label>
+              <input
+                type="text"
+                value={changeNote}
+                onChange={e => setChangeNote(e.target.value)}
+                placeholder="예: 연령대 범위 확대, 약물코드 추가..."
+                className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+              />
+            </div>
+          )}
 
           {/* Preview summary */}
           <div className="p-4 bg-indigo-50 rounded-xl">
@@ -532,6 +764,13 @@ function CohortSegmentModal({
               {report.indication} 관련 {report.drugName} 처방 대상 환자군
             </p>
           </div>
+
+          {/* Status message */}
+          {statusMsg && (
+            <p className={`text-xs font-medium text-center ${statusMsg.includes('실패') || statusMsg.includes('오류') ? 'text-red-500' : 'text-emerald-600'}`}>
+              {statusMsg}
+            </p>
+          )}
         </div>
 
         {/* Footer */}
@@ -540,14 +779,38 @@ function CohortSegmentModal({
             onClick={onClose}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
           >
-            취소
+            닫기
           </button>
-          <button
-            onClick={handleCreateSegment}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl transition-all shadow-md shadow-indigo-200"
-          >
-            세그먼트 생성
-          </button>
+
+          {mode === 'existing' && (
+            <button
+              onClick={() => setMode('edit')}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-1.5"
+            >
+              <Edit3 className="w-4 h-4" />
+              수정하여 새 버전 생성
+            </button>
+          )}
+
+          {mode === 'edit' && (
+            <button
+              onClick={handleUpdateSegment}
+              disabled={submitting}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl transition-all shadow-md shadow-indigo-200 disabled:opacity-50"
+            >
+              {submitting ? '저장 중...' : `v${(existingSegment?.currentVersion || 1) + 1} 버전 생성`}
+            </button>
+          )}
+
+          {mode === 'create' && (
+            <button
+              onClick={handleCreateNew}
+              disabled={submitting}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-xl transition-all shadow-md shadow-indigo-200 disabled:opacity-50"
+            >
+              {submitting ? '생성 중...' : '세그먼트 생성'}
+            </button>
+          )}
         </div>
       </div>
     </div>

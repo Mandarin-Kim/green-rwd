@@ -177,10 +177,34 @@ model Segment {
   patientCount  Int        @default(0)
   tags          String[]
   status        String     @default("active")
+  // 보고서 연동: 어떤 보고서에서 생성되었는지
+  catalogSlug   String?
+  // 월별 중복 방지: "YYYY-MM" 형식 (예: "2026-04")
+  sourceMonth   String?
+  // 현재 활성 버전 번호
+  currentVersion Int       @default(1)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   campaigns     Campaign[]
   patients      PatientSegment[]
+  versions      SegmentVersion[]
+
+  // 같은 보고서(catalogSlug) + 같은 월(sourceMonth)에 중복 생성 방지
+  @@unique([catalogSlug, sourceMonth])
+}
+
+model SegmentVersion {
+  id            String   @id @default(cuid())
+  segmentId     String
+  segment       Segment  @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  version       Int
+  filterJson    Json
+  patientCount  Int      @default(0)
+  changeNote    String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  @@unique([segmentId, version])
+  @@index([segmentId])
 }
 
 model Patient {
