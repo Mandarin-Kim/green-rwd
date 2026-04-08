@@ -16,7 +16,6 @@
 
 import { PrismaClient } from '@prisma/client';
 import {
-  getDissNameCodeListByCode,
   fetchDiseaseGenderStats,
   fetchDiseaseAgeStats,
   fetchDiseaseInstitutionStats,
@@ -97,39 +96,34 @@ export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichme
     for (const code of mapping.diseaseCodes) {
       console.log(`[HIRA Enricher] ${slug}: 질병코드 ${code} 데이터 조회 시작`);
 
-      // 1) 질병 기본정보 조회 (질병코드로 검색)
-      const diseaseResult = await getDissNameCodeListByCode(code);
-      if (diseaseResult.items.length > 0) {
-        const item = diseaseResult.items[0];
-        totalPatients += Number(item.patntCnt || 0);
-        totalClaims += Number(item.trsRcptAmt || 0);
-        totalVisits += Number(item.rcptCnt || item.visnCnt || 0);
-        console.log(`[HIRA Enricher] ${code}: 환자 ${Number(item.patntCnt || 0).toLocaleString()}명`);
-      }
-
-      // 2) 성별·입원/외래 통계
+      // 1) 성별·입원/외래 통계 (환자수·내원일수·급여비용 모두 여기서 집계)
       const genderStats = await fetchDiseaseGenderStats(code, year);
       for (const gs of genderStats) {
         allGender.set(gs.gender, (allGender.get(gs.gender) || 0) + gs.totalCount);
+        totalPatients += gs.totalCount;
+        totalVisits += gs.inpatientDays + gs.outpatientDays;
       }
 
-      // 3) 연령대별 통계
+      // 2) 연령대별 통계
       const ageStats = await fetchDiseaseAgeStats(code, year);
       for (const as_ of ageStats) {
         allAge.set(as_.ageGroup, (allAge.get(as_.ageGroup) || 0) + as_.patientCount);
+        totalClaims += as_.claimAmount;  // rvdRpeTamtAmt (심사결정요양급여비용총액)
       }
 
-      // 4) 의료기관종별 통계
+      // 3) 의료기관종별 통계
       const instStats = await fetchDiseaseInstitutionStats(code, year);
       for (const is_ of instStats) {
         allInstitution.set(is_.institutionType, (allInstitution.get(is_.institutionType) || 0) + is_.patientCount);
       }
 
-      // 5) 지역별 통계
+      // 4) 지역별 통계
       const regionStats = await fetchDiseaseAreaStats(code, year);
       for (const rs of regionStats) {
         allRegion.set(rs.regionName, (allRegion.get(rs.regionName) || 0) + rs.patientCount);
       }
+
+      console.log(`[HIRA Enricher] ${code}: 환자 ${totalPatients.toLocaleString()}명 (누적)`);
 
       // API 호출 한도를 위한 딜레이
       await delay(500);
