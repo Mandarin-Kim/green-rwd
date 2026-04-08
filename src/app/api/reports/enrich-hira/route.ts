@@ -10,6 +10,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enrichAllCatalogsWithHira, enrichCatalogWithHira, fetchHiraDataForReport } from '@/lib/hira-report-enricher';
 
+// Vercel serverless function timeout: 최대 60초 (Pro), 10초 (Hobby)
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
