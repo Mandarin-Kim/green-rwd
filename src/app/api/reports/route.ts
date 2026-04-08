@@ -104,9 +104,27 @@ export async function GET(req: NextRequest) {
       prisma.reportCatalog.count({ where }),
     ])
 
+    const formatMarketSize = (sizeKrw: bigint | null): string => {
+      if (!sizeKrw) return '-'
+      const num = Number(sizeKrw)
+      if (num >= 1000000000000) return `${(num / 1000000000000).toFixed(1)}조 원`
+      if (num >= 100000000) return `${(num / 100000000).toFixed(0)}억 원`
+      return `${(num / 1000000).toFixed(0)}백만 원`
+    }
+
+    const formatPatientPool = (count: number | null): string => {
+      if (!count) return '-'
+      if (count >= 1000000) return `${(count / 1000000).toFixed(1)}백만 명`
+      if (count >= 10000) return `${(count / 10000).toFixed(0)}만 명`
+      return `${count.toLocaleString()}명`
+    }
+
     const data = reports.map((r) => ({
       ...r,
       marketSizeKrw: r.marketSizeKrw ? Number(r.marketSizeKrw) : null,
+      marketSize: formatMarketSize(r.marketSizeKrw),
+      patientPool: formatPatientPool(r.patientPool),
+      patientPoolRaw: r.patientPool,
     }))
 
     return success(data, { page, pageSize, total })

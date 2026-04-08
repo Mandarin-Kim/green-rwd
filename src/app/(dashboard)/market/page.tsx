@@ -6,32 +6,36 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import { Search, Star, ShoppingCart, Eye, Loader2 } from 'lucide-react'
+import { Search, Star, ShoppingCart, Eye, Loader2, TrendingUp, FileText } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 
 interface Report {
   id: string
   slug: string
   title: string
+  description: string
   categories: string[]
+  therapeuticArea: string
   marketSize: string
   patientPool: string
   tier: string
   priceBasic: number
   pricePro: number
   pricePremium: number
+  isGenerated: boolean
 }
 
-const categories = ['전체', '심혈관', '종양', '당뇨', '자가면역', '건기식', '병원마케팅', '비만']
+const categories = ['전체', '종양/항암', '대사질환', '자가면역', '신경질환', '바이오의약품', '디지털헬스', '건기식', '심혈관']
 
 const categoryColors: Record<string, string> = {
-  '심혈관': 'bg-red-50 text-red-700 border border-red-200',
-  '종양': 'bg-purple-50 text-purple-700 border border-purple-200',
-  '당뇨': 'bg-orange-50 text-orange-700 border border-orange-200',
-  '건기식': 'bg-green-50 text-green-700 border border-green-200',
-  '병원마케팅': 'bg-pink-50 text-pink-700 border border-pink-200',
-  '비만': 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+  '종양/항암': 'bg-red-50 text-red-700 border border-red-200',
+  '대사질환': 'bg-orange-50 text-orange-700 border border-orange-200',
   '자가면역': 'bg-blue-50 text-blue-700 border border-blue-200',
+  '신경질환': 'bg-purple-50 text-purple-700 border border-purple-200',
+  '바이오의약품': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  '디지털헬스': 'bg-cyan-50 text-cyan-700 border border-cyan-200',
+  '건기식': 'bg-green-50 text-green-700 border border-green-200',
+  '심혈관': 'bg-rose-50 text-rose-700 border border-rose-200',
 }
 
 export default function MarketPage() {
@@ -48,9 +52,37 @@ export default function MarketPage() {
 
   const items = reports || []
 
+  // Category counts
+  const categoryCounts: Record<string, number> = {}
+  items.forEach(r => {
+    (r.categories || []).forEach(c => {
+      categoryCounts[c] = (categoryCounts[c] || 0) + 1
+    })
+  })
+
   return (
     <div className="p-8">
-      <Header title="AI 시장보고서" description="RWD 기반 의약품·건강식품 시장 분석 보고서를 검색하고 주문하세요" />
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-blue-900 to-indigo-800 rounded-2xl p-8 mb-8 text-white">
+        <div className="flex items-center gap-3 mb-2">
+          <FileText className="w-6 h-6" />
+          <span className="text-blue-200 text-sm font-medium">AI-Powered Market Intelligence</span>
+        </div>
+        <h1 className="text-2xl font-bold mb-2">AI 시장보고서</h1>
+        <p className="text-blue-200 mb-6">
+          RWD 기반 의약품/건강식품 시장 분석 보고서를 검색하고, AI로 실시간 생성하세요
+        </p>
+        <div className="flex gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-blue-300" />
+            <span>{items.length}개 보고서</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 text-yellow-300" />
+            <span>IQVIA/GlobalData 수준 퀄리티</span>
+          </div>
+        </div>
+      </div>
 
       {/* Search */}
       <div className="mb-6 flex gap-3">
@@ -67,10 +99,11 @@ export default function MarketPage() {
             key={cat}
             onClick={() => setCategory(cat)}
             className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
-              category === cat ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              category === cat ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             {cat}
+            {cat !== '전체' && categoryCounts[cat] ? ` (${categoryCounts[cat]})` : ''}
           </button>
         ))}
       </div>
@@ -99,39 +132,42 @@ export default function MarketPage() {
                           </span>
                         ))}
                       </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200">
-                        <Star size={12} className="fill-amber-400 text-amber-400" />
-                        <span className="text-xs font-medium text-amber-700">{report.tier}</span>
-                      </div>
+                      {report.isGenerated && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-green-50 border border-green-200 text-xs text-green-700">
+                          생성완료
+                        </span>
+                      )}
                     </div>
-                    <h3 className="text-[15px] font-semibold text-navy">{report.title}</h3>
+                    <h3 className="text-[15px] font-semibold text-gray-900 line-clamp-2">{report.title}</h3>
+                    {report.description && (
+                      <p className="mt-2 text-xs text-gray-500 line-clamp-2">{report.description}</p>
+                    )}
                   </div>
                   <div className="p-5 cursor-pointer">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-[11px] text-slate-500 uppercase font-semibold mb-1">시장규모</p>
-                        <p className="text-[16px] font-bold text-primary">{report.marketSize || '-'}</p>
+                        <p className="text-[16px] font-bold text-blue-600">{report.marketSize || '-'}</p>
                       </div>
                       <div>
                         <p className="text-[11px] text-slate-500 uppercase font-semibold mb-1">환자풀</p>
-                        <p className="text-[16px] font-bold text-navy">{report.patientPool || '-'}</p>
+                        <p className="text-[16px] font-bold text-gray-900">{report.patientPool || '-'}</p>
                       </div>
                     </div>
                   </div>
                 </Link>
-                {/* 미리보기 + 주문하기 버튼 영역 */}
                 <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-xs text-slate-500">Basic ₩{((report.priceBasic || 500000) / 10000).toFixed(0)}만 ~</span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}?tab=preview`); }}
+                      onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}`); }}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
                     >
-                      <Eye size={13} />미리보기
+                      <Eye size={13} />상세보기
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/market/${report.slug}?tab=order`); }}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       <ShoppingCart size={13} />주문하기
                     </button>
@@ -142,7 +178,11 @@ export default function MarketPage() {
           </div>
 
           {items.length === 0 && (
-            <div className="text-center py-16"><p className="text-slate-400">가색 결과가 없습니다</p></div>
+            <div className="text-center py-16">
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-slate-400">검색 결과가 없습니다</p>
+              <p className="text-slate-300 text-sm mt-1">다른 검색어나 카테고리를 선택해보세요</p>
+            </div>
           )}
         </>
       )}
