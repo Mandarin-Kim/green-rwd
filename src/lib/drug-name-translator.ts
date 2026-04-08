@@ -24,7 +24,6 @@ const koreanDrugMapping: Record<string, string> = {
 
   // Oncology - Colorectal Cancer (대장암)
   '대장암': 'Colorectal Cancer',
-  '아바스틴': 'Bevacizumab',
   '에르비툭스': 'Cetuximab',
   '캠토':'Irinotecan',
 

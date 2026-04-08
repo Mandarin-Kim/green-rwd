@@ -94,7 +94,7 @@ function markdownToHtml(markdown: string): string {
     .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em style="font-style: italic;">$1</em>')
     .replace(/^- (.*?)$/gm, '<li style="margin-left: 1.5rem;">$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul style="list-style-type: disc; margin: 0.5rem 0;">$1</ul>')
+    .replace(/(<li>[\s\S]*<\/li>)/, '<ul style="list-style-type: disc; margin: 0.5rem 0;">$1</ul>')
     .replace(/\n\n/g, '</p><p style="margin: 0.75rem 0;">')
     .replace(/^(?!<[^>]*>)(.*?)$/gm, (match) => {
       if (match.startsWith('<')) return match;
