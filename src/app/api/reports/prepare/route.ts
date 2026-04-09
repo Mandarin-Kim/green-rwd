@@ -3,38 +3,38 @@ import { prisma, ensureDbConnection } from '@/lib/prisma'
 import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, generateSingleSection, getSectionCount, ReportTier } from '@/lib/report-generator'
 import { fetchGlobalMedicalData } from '@/lib/global-medical-apis'
 
-// Vercel Hobby: 최대 60초 → 각 단계를 60초 이내로 분리
+// Vercel Hobby: ìµë 60ì´ â ê° ë¨ê³ë¥¼ 60ì´ ì´ë´ë¡ ë¶ë¦¬
 export const maxDuration = 60;
 
-// 캐시 만료 기간 (7일)
+// ìºì ë§ë£ ê¸°ê° (7ì¼)
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** DB 캐시가 유효한지 확인 (dataSyncedAt 기준 7일 이내) */
+/** DB ìºìê° ì í¨íì§ íì¸ (dataSyncedAt ê¸°ì¤ 7ì¼ ì´ë´) */
 function isCacheValid(dataSyncedAt: Date | null, data: any): boolean {
   if (!data) return false;
-  if (!dataSyncedAt) return !!data; // 동기화 시각이 없으면 데이터가 있으면 유효
+  if (!dataSyncedAt) return !!data; // ëê¸°í ìê°ì´ ìì¼ë©´ ë°ì´í°ê° ìì¼ë©´ ì í¨
   return (Date.now() - dataSyncedAt.getTime()) < CACHE_TTL_MS;
 }
 
 /**
  * POST /api/reports/prepare
- * 4단계 분리 보고서 생성 API
+ * 4ë¨ê³ ë¶ë¦¬ ë³´ê³ ì ìì± API
  *
- * step=1: HIRA 데이터 수집 (건강보험심사평가원)
- * step=2: ClinicalTrials.gov 임상시험 데이터 수집
- * step=3: PubMed 논문 검색
- * step=4: 글로벌 의료데이터 수집 (CMS Medicare + PBS Australia + NHS UK)
- * step=5: AI 보고서 생성 (캐시된 데이터 활용)
+ * step=1: HIRA ë°ì´í° ìì§ (ê±´ê°ë³´íì¬ì¬íê°ì)
+ * step=2: ClinicalTrials.gov ìììí ë°ì´í° ìì§
+ * step=3: PubMed ë¼ë¬¸ ê²ì
+ * step=4: ê¸ë¡ë² ìë£ë°ì´í° ìì§ (CMS Medicare + PBS Australia + NHS UK)
+ * step=5: AI ë³´ê³ ì ìì± (ìºìë ë°ì´í° íì©)
  *
- * forceRefresh=true: 캐시를 무시하고 강제로 재수집
+ * forceRefresh=true: ìºìë¥¼ ë¬´ìíê³  ê°ì ë¡ ì¬ìì§
  */
 export async function POST(request: NextRequest) {
   try {
-    // Neon 절전모드 대응: DB 연결 확인 (최대 3회 재시도)
+    // Neon ì ì ëª¨ë ëì: DB ì°ê²° íì¸ (ìµë 3í ì¬ìë)
     const dbReady = await ensureDbConnection()
     if (!dbReady) {
       return NextResponse.json(
-        { success: false, error: '데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요.' },
+        { success: false, error: 'ë°ì´í°ë² ì´ì¤ ì°ê²°ì ì¤í¨íìµëë¤. ì ì í ë¤ì ìëí´ì£¼ì¸ì.' },
         { status: 503 }
       )
     }
@@ -43,49 +43,49 @@ export async function POST(request: NextRequest) {
     const { slug, step, tier = 'BASIC', orderId, forceRefresh = false, sectionIndex } = body
 
     if (!slug) {
-      return NextResponse.json({ error: 'slug가 필요합니다' }, { status: 400 })
+      return NextResponse.json({ error: 'slugê° íìí©ëë¤' }, { status: 400 })
     }
 
     if (!step || ![1, 2, 3, 4, 5].includes(step)) {
-      return NextResponse.json({ error: 'step은 1~5 사이여야 합니다' }, { status: 400 })
+      return NextResponse.json({ error: 'stepì 1~5 ì¬ì´ì¬ì¼ í©ëë¤' }, { status: 400 })
     }
 
-    // 카탈로그 조회
+    // ì¹´íë¡ê·¸ ì¡°í
     const catalog = await prisma.reportCatalog.findUnique({ where: { slug } })
     if (!catalog) {
-      return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
+      return NextResponse.json({ error: 'ì¹´íë¡ê·¸ë¥¼ ì°¾ì ì ììµëë¤' }, { status: 404 })
     }
 
     const syncedAt = catalog.dataSyncedAt;
 
-    // ── Step 1: HIRA 데이터 수집 ──
+    // ââ Step 1: HIRA ë°ì´í° ìì§ ââ
     if (step === 1) {
-      console.log(`[Prepare Step 1] HIRA 데이터 수집 시작: ${slug}`)
+      console.log(`[Prepare Step 1] HIRA ë°ì´í° ìì§ ìì: ${slug}`)
       const existingData = (catalog as any).hiraData;
       const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
-      // DB 캐시가 유효하면 API 호출 없이 바로 반환
-      // indication 전달: 커스텀 보고서에서도 HIRA 질병코드 동적 매핑 가능
+      // DB ìºìê° ì í¨íë©´ API í¸ì¶ ìì´ ë°ë¡ ë°í
+      // indication ì ë¬: ì»¤ì¤í ë³´ê³ ìììë HIRA ì§ë³ì½ë ëì  ë§¤í ê°ë¥
       const result = await getHiraData(slug, cacheValid ? existingData : undefined, catalog.indication || undefined)
 
       return NextResponse.json({
         success: true,
         step: 1,
-        stepName: 'HIRA 건강보험심사평가원',
+        stepName: 'HIRA ê±´ê°ë³´íì¬ì¬íê°ì',
         data: {
           hasData: !!result.rawData,
           cached: cacheValid && !!existingData,
           freshlyFetched: !cacheValid || !existingData,
           summary: result.rawData
-            ? `환자수 ${(result.rawData.patientCount || 0).toLocaleString()}명`
-            : '데이터 없음',
+            ? `íìì ${(result.rawData.patientCount || 0).toLocaleString()}ëª`
+            : 'ë°ì´í° ìì',
         },
       })
     }
 
-    // ── Step 2: ClinicalTrials.gov 데이터 수집 ──
+    // ââ Step 2: ClinicalTrials.gov ë°ì´í° ìì§ ââ
     if (step === 2) {
-      console.log(`[Prepare Step 2] ClinicalTrials 데이터 수집 시작: ${slug}`)
+      console.log(`[Prepare Step 2] ClinicalTrials ë°ì´í° ìì§ ìì: ${slug}`)
       const existingData = (catalog as any).clinicalTrialsData;
       const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
@@ -100,15 +100,15 @@ export async function POST(request: NextRequest) {
           cached: cacheValid && !!existingData,
           freshlyFetched: !cacheValid || !existingData,
           summary: result.data
-            ? `임상시험 ${result.data.totalCount || 0}건`
-            : '데이터 없음',
+            ? `ìììí ${result.data.totalCount || 0}ê±´`
+            : 'ë°ì´í° ìì',
         },
       })
     }
 
-    // ── Step 3: PubMed 논문 검색 ──
+    // ââ Step 3: PubMed ë¼ë¬¸ ê²ì ââ
     if (step === 3) {
-      console.log(`[Prepare Step 3] PubMed 논문 검색 시작: ${slug}`)
+      console.log(`[Prepare Step 3] PubMed ë¼ë¬¸ ê²ì ìì: ${slug}`)
       const existingData = (catalog as any).pubMedData;
       const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
@@ -122,38 +122,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         step: 3,
-        stepName: 'PubMed 논문',
+        stepName: 'PubMed ë¼ë¬¸',
         data: {
           hasData: !!result.data,
           cached: cacheValid && !!existingData,
           freshlyFetched: !cacheValid || !existingData,
           summary: result.data
-            ? `논문 ${result.data.articles?.length || 0}편`
-            : '데이터 없음',
+            ? `ë¼ë¬¸ ${result.data.articles?.length || 0}í¸`
+            : 'ë°ì´í° ìì',
         },
       })
     }
 
-    // ── Step 4: 글로벌 의료데이터 수집 (CMS + PBS + NHS) ──
+    // ââ Step 4: ê¸ë¡ë² ìë£ë°ì´í° ìì§ (CMS + PBS + NHS) ââ
     if (step === 4) {
-      console.log(`[Prepare Step 4] 글로벌 의료데이터 수집 시작: ${slug}`)
+      console.log(`[Prepare Step 4] ê¸ë¡ë² ìë£ë°ì´í° ìì§ ìì: ${slug}`)
       const existingGlobalData = (catalog as any).globalMedicalData;
       const globalCacheValid = !forceRefresh && isCacheValid(syncedAt, existingGlobalData);
 
       if (globalCacheValid && existingGlobalData) {
-        // 캐시 유효 → API 호출 없이 반환
+        // ìºì ì í¨ â API í¸ì¶ ìì´ ë°í
         const cmsCount = existingGlobalData.cms?.drugSpending?.length || 0;
         const pbsCount = existingGlobalData.pbs?.items?.length || 0;
         const nhsCount = existingGlobalData.nhs?.prescriptionSummary?.length || 0;
+        const fdaLabels = existingGlobalData.fda?.labels?.length || 0;
+        const fdaEvents = existingGlobalData.fda?.adverseEvents?.length || 0;
+        const fdaApprovals = existingGlobalData.fda?.approvals?.length || 0;
         return NextResponse.json({
           success: true,
           step: 4,
-          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          stepName: 'ê¸ë¡ë² ìë£ë°ì´í° (CMSÂ·PBSÂ·NHSÂ·FDA)',
           data: {
             hasData: true,
             cached: true,
             freshlyFetched: false,
-            summary: `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`,
+            summary: `CMS ${cmsCount}ê±´ / PBS ${pbsCount}ê±´ / NHS ${nhsCount}ê±´ / FDA ë¼ë²¨${fdaLabels}Â·ë¶ìì©${fdaEvents}Â·ì¹ì¸${fdaApprovals}ê±´`,
           },
         });
       }
@@ -164,7 +167,7 @@ export async function POST(request: NextRequest) {
           catalog.indication || ''
         );
 
-        // DB에 캐시 저장
+        // DBì ìºì ì ì¥
         await prisma.reportCatalog.updateMany({
           where: { slug },
           data: { globalMedicalData: globalData as any, dataSyncedAt: new Date() },
@@ -173,44 +176,48 @@ export async function POST(request: NextRequest) {
         const cmsCount = globalData.cms?.drugSpending?.length || 0;
         const pbsCount = globalData.pbs?.items?.length || 0;
         const nhsCount = globalData.nhs?.prescriptionSummary?.length || 0;
+        const fdaLabels = globalData.fda?.labels?.length || 0;
+        const fdaEvents = globalData.fda?.adverseEvents?.length || 0;
+        const fdaApprovals = globalData.fda?.approvals?.length || 0;
+        const totalFda = fdaLabels + fdaEvents + fdaApprovals;
 
         return NextResponse.json({
           success: true,
           step: 4,
-          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          stepName: 'ê¸ë¡ë² ìë£ë°ì´í° (CMSÂ·PBSÂ·NHSÂ·FDA)',
           data: {
-            hasData: cmsCount > 0 || pbsCount > 0 || nhsCount > 0,
+            hasData: cmsCount > 0 || pbsCount > 0 || nhsCount > 0 || totalFda > 0,
             cached: false,
             freshlyFetched: true,
-            summary: `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`,
+            summary: `CMS ${cmsCount}ê±´ / PBS ${pbsCount}ê±´ / NHS ${nhsCount}ê±´ / FDA ë¼ë²¨${fdaLabels}Â·ë¶ìì©${fdaEvents}Â·ì¹ì¸${fdaApprovals}ê±´`,
           },
         });
       } catch (globalError) {
-        console.error(`[Prepare Step 4] 글로벌 데이터 수집 실패:`, globalError);
+        console.error(`[Prepare Step 4] ê¸ë¡ë² ë°ì´í° ìì§ ì¤í¨:`, globalError);
         return NextResponse.json({
           success: true,
           step: 4,
-          stepName: '글로벌 의료데이터 (CMS·PBS·NHS)',
+          stepName: 'ê¸ë¡ë² ìë£ë°ì´í° (CMSÂ·PBSÂ·NHSÂ·FDA)',
           data: {
             hasData: false,
             cached: false,
             freshlyFetched: false,
-            summary: '글로벌 데이터 수집 실패 (보고서 생성에는 영향 없음)',
+            summary: 'ê¸ë¡ë² ë°ì´í° ìì§ ì¤í¨ (ë³´ê³ ì ìì±ìë ìí¥ ìì)',
           },
         });
       }
     }
 
-    // ── Step 5: AI 보고서 생성 (섹션별 분할 생성 - Vercel 60초 대응) ──
-    // sectionIndex가 없으면 새 주문 생성 + 첫 섹션, 있으면 해당 섹션만 생성
+    // ââ Step 5: AI ë³´ê³ ì ìì± (ì¹ìë³ ë¶í  ìì± - Vercel 60ì´ ëì) ââ
+    // sectionIndexê° ìì¼ë©´ ì ì£¼ë¬¸ ìì± + ì²« ì¹ì, ìì¼ë©´ í´ë¹ ì¹ìë§ ìì±
     if (step === 5) {
       if (!['BASIC', 'PRO', 'PREMIUM'].includes(tier)) {
-        return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
+        return NextResponse.json({ error: 'ì í¨íì§ ìì í°ì´ìëë¤' }, { status: 400 })
       }
 
       const freshCatalog = await prisma.reportCatalog.findUnique({ where: { slug } })
       if (!freshCatalog) {
-        return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
+        return NextResponse.json({ error: 'ì¹´íë¡ê·¸ë¥¼ ì°¾ì ì ììµëë¤' }, { status: 404 })
       }
 
       const cachedHiraData = (freshCatalog as any).hiraData || undefined
@@ -219,12 +226,12 @@ export async function POST(request: NextRequest) {
       const currentSectionIdx = typeof sectionIndex === 'number' ? sectionIndex : 0
       const totalSectionCount = getSectionCount(tier as ReportTier) + (cachedPubMed?.articles?.length > 0 ? 1 : 0)
 
-      console.log(`[Prepare Step 5] 섹션 ${currentSectionIdx + 1}/${totalSectionCount} 생성: ${slug} (tier: ${tier})`)
+      console.log(`[Prepare Step 5] ì¹ì ${currentSectionIdx + 1}/${totalSectionCount} ìì±: ${slug} (tier: ${tier})`)
 
-      // ── 첫 섹션(sectionIndex=0)일 때: 주문 생성 ──
+      // ââ ì²« ì¹ì(sectionIndex=0)ì¼ ë: ì£¼ë¬¸ ìì± ââ
       let activeOrderId = orderId
       if (currentSectionIdx === 0 && !orderId) {
-        // 유저 확보
+        // ì ì  íë³´
         let userId: string | undefined
         try {
           const { getSessionUser } = await import('@/lib/api-guard')
@@ -238,13 +245,13 @@ export async function POST(request: NextRequest) {
           let guestUser = await prisma.user.findUnique({ where: { email: 'guest@green-rwd.system' } })
           if (!guestUser) {
             guestUser = await prisma.user.create({
-              data: { email: 'guest@green-rwd.system', name: '게스트', role: 'USER' },
+              data: { email: 'guest@green-rwd.system', name: 'ê²ì¤í¸', role: 'USER' },
             })
           }
           userId = guestUser.id
         }
 
-        // 이전 미완료 주문 정리
+        // ì´ì  ë¯¸ìë£ ì£¼ë¬¸ ì ë¦¬
         await prisma.reportOrder.updateMany({
           where: {
             catalogId: freshCatalog.id,
@@ -252,12 +259,12 @@ export async function POST(request: NextRequest) {
           },
           data: {
             status: 'FAILED',
-            errorMessage: '새 생성 요청으로 대체됨',
+            errorMessage: 'ì ìì± ìì²­ì¼ë¡ ëì²´ë¨',
             completedAt: new Date(),
           },
         })
 
-        // 새 주문 생성
+        // ì ì£¼ë¬¸ ìì±
         const priceMap: Record<string, number> = {
           BASIC: freshCatalog.priceBasic,
           PRO: freshCatalog.pricePro,
@@ -277,25 +284,25 @@ export async function POST(request: NextRequest) {
         activeOrderId = newOrder.id
       }
 
-      // orderId가 있는데 이미 완료된 경우 바로 반환
+      // orderIdê° ìëë° ì´ë¯¸ ìë£ë ê²½ì° ë°ë¡ ë°í
       if (activeOrderId) {
         const existingOrder = await prisma.reportOrder.findUnique({ where: { id: activeOrderId } })
         if (existingOrder && existingOrder.status === 'COMPLETED') {
           return NextResponse.json({
             success: true,
             step: 5,
-            stepName: 'AI 보고서 생성',
+            stepName: 'AI ë³´ê³ ì ìì±',
             data: {
               orderId: existingOrder.id,
               status: 'COMPLETED',
-              message: '이미 생성된 보고서가 있습니다',
+              message: 'ì´ë¯¸ ìì±ë ë³´ê³ ìê° ììµëë¤',
             },
           })
         }
       }
 
       try {
-        // 단일 섹션 생성 (타임아웃 방지)
+        // ë¨ì¼ ì¹ì ìì± (íììì ë°©ì§)
         const result = await generateSingleSection({
           slug: freshCatalog.slug || '',
           title: freshCatalog.title,
@@ -309,11 +316,11 @@ export async function POST(request: NextRequest) {
           cachedPubMedData: cachedPubMed,
         })
 
-        // 기존 주문의 sections에 이번 섹션을 추가 저장
+        // ê¸°ì¡´ ì£¼ë¬¸ì sectionsì ì´ë² ì¹ìì ì¶ê° ì ì¥
         if (activeOrderId) {
           const currentOrder = await prisma.reportOrder.findUnique({ where: { id: activeOrderId } })
           const existingSections: any[] = (currentOrder?.sections as any[]) || []
-          // 같은 인덱스 섹션이 이미 있으면 교체, 없으면 추가
+          // ê°ì ì¸ë±ì¤ ì¹ìì´ ì´ë¯¸ ìì¼ë©´ êµì²´, ìì¼ë©´ ì¶ê°
           const updatedSections = existingSections.filter((s: any) => s.order !== result.section.order)
           updatedSections.push(result.section)
           updatedSections.sort((a: any, b: any) => a.order - b.order)
@@ -321,7 +328,7 @@ export async function POST(request: NextRequest) {
           const progress = Math.round(((currentSectionIdx + 1) / totalSectionCount) * 100)
 
           if (result.isLast) {
-            // 마지막 섹션 → 완료 처리
+            // ë§ì§ë§ ì¹ì â ìë£ ì²ë¦¬
             await prisma.reportOrder.update({
               where: { id: activeOrderId },
               data: {
@@ -335,7 +342,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               success: true,
               step: 5,
-              stepName: 'AI 보고서 생성',
+              stepName: 'AI ë³´ê³ ì ìì±',
               data: {
                 orderId: activeOrderId,
                 status: 'COMPLETED',
@@ -343,11 +350,11 @@ export async function POST(request: NextRequest) {
                 sectionTitle: result.section.title,
                 totalSections: totalSectionCount,
                 isLast: true,
-                message: '보고서 생성이 완료되었습니다',
+                message: 'ë³´ê³ ì ìì±ì´ ìë£ëììµëë¤',
               },
             })
           } else {
-            // 중간 섹션 → 진행 상태 저장
+            // ì¤ê° ì¹ì â ì§í ìí ì ì¥
             await prisma.reportOrder.update({
               where: { id: activeOrderId },
               data: {
@@ -359,7 +366,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
               success: true,
               step: 5,
-              stepName: 'AI 보고서 생성',
+              stepName: 'AI ë³´ê³ ì ìì±',
               data: {
                 orderId: activeOrderId,
                 status: 'GENERATING',
@@ -369,13 +376,13 @@ export async function POST(request: NextRequest) {
                 totalSections: totalSectionCount,
                 isLast: false,
                 progress,
-                summary: `섹션 ${currentSectionIdx + 1}/${totalSectionCount} 완료: ${result.section.title}`,
+                summary: `ì¹ì ${currentSectionIdx + 1}/${totalSectionCount} ìë£: ${result.section.title}`,
               },
             })
           }
         }
 
-        // orderId가 없는 비정상 케이스
+        // orderIdê° ìë ë¹ì ì ì¼ì´ì¤
         return NextResponse.json({
           success: true,
           step: 5,
@@ -387,13 +394,13 @@ export async function POST(request: NextRequest) {
           },
         })
       } catch (genError) {
-        console.error(`[Prepare Step 5] 섹션 ${currentSectionIdx} 생성 실패:`, genError)
+        console.error(`[Prepare Step 5] ì¹ì ${currentSectionIdx} ìì± ì¤í¨:`, genError)
         if (activeOrderId) {
           await prisma.reportOrder.update({
             where: { id: activeOrderId },
             data: {
               status: 'FAILED',
-              errorMessage: genError instanceof Error ? genError.message : '보고서 생성 실패',
+              errorMessage: genError instanceof Error ? genError.message : 'ë³´ê³ ì ìì± ì¤í¨',
               completedAt: new Date(),
             },
           }).catch(() => {})
@@ -401,13 +408,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: false,
           step: 5,
-          error: genError instanceof Error ? genError.message : '보고서 생성 중 오류가 발생했습니다',
+          error: genError instanceof Error ? genError.message : 'ë³´ê³ ì ìì± ì¤ ì¤ë¥ê° ë°ìíìµëë¤',
           data: { orderId: activeOrderId, status: 'FAILED', sectionIndex: currentSectionIdx },
         }, { status: 500 })
       }
     }
 
-    return NextResponse.json({ error: '알 수 없는 step입니다' }, { status: 400 })
+    return NextResponse.json({ error: 'ì ì ìë stepìëë¤' }, { status: 400 })
   } catch (error) {
     console.error('[POST /api/reports/prepare] Error:', error)
     return NextResponse.json(
@@ -419,23 +426,23 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/reports/prepare?slug=xxx
- * 각 단계별 캐시 상태 확인
+ * ê° ë¨ê³ë³ ìºì ìí íì¸
  */
 export async function GET(request: NextRequest) {
   try {
-    // Neon 절전모드 대응
+    // Neon ì ì ëª¨ë ëì
     await ensureDbConnection()
 
     const { searchParams } = new URL(request.url)
     const slug = searchParams.get('slug')
 
     if (!slug) {
-      return NextResponse.json({ error: 'slug가 필요합니다' }, { status: 400 })
+      return NextResponse.json({ error: 'slugê° íìí©ëë¤' }, { status: 400 })
     }
 
     const catalog = await prisma.reportCatalog.findUnique({ where: { slug } })
     if (!catalog) {
-      return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
+      return NextResponse.json({ error: 'ì¹´íë¡ê·¸ë¥¼ ì°¾ì ì ììµëë¤' }, { status: 404 })
     }
 
     const hiraData = (catalog as any).hiraData
@@ -443,7 +450,7 @@ export async function GET(request: NextRequest) {
     const pubMedData = (catalog as any).pubMedData
     const globalMedicalData = (catalog as any).globalMedicalData
 
-    // 완료된 보고서가 있는지 확인
+    // ìë£ë ë³´ê³ ìê° ìëì§ íì¸
     const completedOrder = await prisma.reportOrder.findFirst({
       where: {
         catalogId: catalog.id,
@@ -452,11 +459,14 @@ export async function GET(request: NextRequest) {
       orderBy: { completedAt: 'desc' },
     })
 
-    // 글로벌 데이터 요약 생성
+    // ê¸ë¡ë² ë°ì´í° ìì½ ìì±
     const cmsCount = globalMedicalData?.cms?.drugSpending?.length || 0;
     const pbsCount = globalMedicalData?.pbs?.items?.length || 0;
     const nhsCount = globalMedicalData?.nhs?.prescriptionSummary?.length || 0;
-    const globalHasData = globalMedicalData != null; // API 호출 자체가 완료되었으면 true
+    const fdaLabels = globalMedicalData?.fda?.labels?.length || 0;
+    const fdaEvents = globalMedicalData?.fda?.adverseEvents?.length || 0;
+    const fdaApprovals = globalMedicalData?.fda?.approvals?.length || 0;
+    const globalHasData = globalMedicalData != null;
 
     return NextResponse.json({
       success: true,
@@ -464,38 +474,38 @@ export async function GET(request: NextRequest) {
         slug: catalog.slug,
         steps: {
           1: {
-            name: 'HIRA 건강보험심사평가원',
+            name: 'HIRA ê±´ê°ë³´íì¬ì¬íê°ì',
             completed: !!hiraData,
             summary: hiraData
-              ? `환자수 ${(hiraData.patientCount || 0).toLocaleString()}명`
+              ? `íìì ${(hiraData.patientCount || 0).toLocaleString()}ëª`
               : null,
           },
           2: {
             name: 'ClinicalTrials.gov',
             completed: !!clinicalTrialsData,
             summary: clinicalTrialsData
-              ? `임상시험 ${clinicalTrialsData.totalCount || (Array.isArray(clinicalTrialsData.studies) ? clinicalTrialsData.studies.length : 0)}건`
+              ? `ìììí ${clinicalTrialsData.totalCount || (Array.isArray(clinicalTrialsData.studies) ? clinicalTrialsData.studies.length : 0)}ê±´`
               : null,
           },
           3: {
-            name: 'PubMed 논문',
+            name: 'PubMed ë¼ë¬¸',
             completed: !!pubMedData,
             summary: pubMedData
-              ? `논문 ${pubMedData.articles?.length || 0}편`
+              ? `ë¼ë¬¸ ${pubMedData.articles?.length || 0}í¸`
               : null,
           },
           4: {
-            name: '글로벌 의료데이터 (CMS·PBS·NHS)',
+            name: 'ê¸ë¡ë² ìë£ë°ì´í° (CMSÂ·PBSÂ·NHSÂ·FDA)',
             completed: !!globalMedicalData,
             summary: globalMedicalData
-              ? `CMS ${cmsCount}건 / PBS ${pbsCount}건 / NHS ${nhsCount}건`
+              ? `CMS ${cmsCount}ê±´ / PBS ${pbsCount}ê±´ / NHS ${nhsCount}ê±´ / FDA ë¼ë²¨${fdaLabels}Â·ë¶ìì©${fdaEvents}Â·ì¹ì¸${fdaApprovals}ê±´`
               : null,
           },
           5: {
-            name: 'AI 보고서 생성',
+            name: 'AI ë³´ê³ ì ìì±',
             completed: !!completedOrder,
             summary: completedOrder
-              ? `${completedOrder.tier} 보고서 생성 완료`
+              ? `${completedOrder.tier} ë³´ê³ ì ìì± ìë£`
               : null,
           },
         },
