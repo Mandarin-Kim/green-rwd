@@ -776,87 +776,113 @@ export default function ReportDetailPage() {
     }
   }
 
-  // Step 5: AI 보고서 섹션별 분할 생성 (Vercel 60초 제한 대응)
+  // Step 5: AI 보고서 섹션별 분할 생성 (Vercel 60초 제한 대응 + 자동 재시도)
   async function handleRunStep5Sections() {
     let currentSectionIdx = 0;
     let activeOrderId: string | null = null;
     let totalSections = 0;
+    const MAX_RETRIES_PER_SECTION = 3;
 
     while (true) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 55000);
+      let retryCount = 0;
+      let sectionSuccess = false;
 
-        const response = await fetch('/api/reports/prepare', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug,
-            step: 5,
-            tier: selectedTier,
-            sectionIndex: currentSectionIdx,
-            orderId: activeOrderId,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        let data;
+      while (retryCount < MAX_RETRIES_PER_SECTION && !sectionSuccess) {
         try {
-          data = await response.json();
-        } catch {
-          throw new Error('서버 응답을 처리할 수 없습니다.');
-        }
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || `섹션 ${currentSectionIdx + 1} 생성 실패`);
-        }
-
-        // orderId 추적
-        if (data.data?.orderId) {
-          activeOrderId = data.data.orderId;
-        }
-        if (data.data?.totalSections) {
-          totalSections = data.data.totalSections;
-        }
-
-        // 진행 상태 업데이트
-        const progressText = totalSections > 0
-          ? `섹션 ${currentSectionIdx + 1}/${totalSections} 생성 중: ${data.data?.sectionTitle || '...'}`
-          : `섹션 ${currentSectionIdx + 1} 생성 중...`;
-        setSteps(prev => ({
-          ...prev,
-          5: { ...prev[5], loading: true, error: null, summary: progressText },
-        }));
-
-        // 완료 확인
-        if (data.data?.isLast || data.data?.status === 'COMPLETED') {
+          const retryLabel = retryCount > 0 ? ` (재시도 ${retryCount}/${MAX_RETRIES_PER_SECTION})` : '';
+          const progressText = totalSections > 0
+            ? `섹션 ${currentSectionIdx + 1}/${totalSections} 생성 중${retryLabel}...`
+            : `섹션 ${currentSectionIdx + 1} 생성 중${retryLabel}...`;
           setSteps(prev => ({
             ...prev,
-            5: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
+            5: { ...prev[5], loading: true, error: null, summary: progressText },
           }));
-          // 보고서 보기 페이지로 이동
-          if (activeOrderId) {
-            setTimeout(() => {
-              window.location.href = `/market/${slug}/view?orderId=${activeOrderId}`;
-            }, 1000);
+
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 55000);
+
+          const response = await fetch('/api/reports/prepare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slug,
+              step: 5,
+              tier: selectedTier,
+              sectionIndex: currentSectionIdx,
+              orderId: activeOrderId,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          let data;
+          try {
+            data = await response.json();
+          } catch {
+            throw new Error('서버 응답을 처리할 수 없습니다.');
           }
+
+          if (!response.ok || !data.success) {
+            const errMsg = data.error || `섹션 ${currentSectionIdx + 1} 생성 실패`;
+            // TIMEOUT 에러면 재시도
+            if (errMsg.includes('TIMEOUT') || errMsg.includes('시간 초과')) {
+              throw new Error('TIMEOUT');
+            }
+            throw new Error(errMsg);
+          }
+
+          // orderId 추적
+          if (data.data?.orderId) {
+            activeOrderId = data.data.orderId;
+          }
+          if (data.data?.totalSections) {
+            totalSections = data.data.totalSections;
+          }
+
+          // 완료 확인
+          if (data.data?.isLast || data.data?.status === 'COMPLETED') {
+            setSteps(prev => ({
+              ...prev,
+              5: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
+            }));
+            if (activeOrderId) {
+              setTimeout(() => {
+                window.location.href = `/market/${slug}/view?orderId=${activeOrderId}`;
+              }, 1500);
+            }
+            return;
+          }
+
+          // 성공 → 다음 섹션으로
+          sectionSuccess = true;
+          currentSectionIdx = data.data?.nextSectionIndex ?? (currentSectionIdx + 1);
+
+        } catch (err) {
+          retryCount++;
+          const isTimeout = err instanceof Error &&
+            (err.name === 'AbortError' || err.message.includes('TIMEOUT'));
+
+          if (isTimeout && retryCount < MAX_RETRIES_PER_SECTION) {
+            // 타임아웃이면 자동 재시도 (2초 대기 후)
+            setSteps(prev => ({
+              ...prev,
+              5: { ...prev[5], loading: true, error: null, summary: `섹션 ${currentSectionIdx + 1} 재시도 중 (${retryCount}/${MAX_RETRIES_PER_SECTION})...` },
+            }));
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+
+          // 최대 재시도 초과 또는 다른 에러
+          const msg = err instanceof Error
+            ? (isTimeout ? `섹션 ${currentSectionIdx + 1} 시간 초과 (${MAX_RETRIES_PER_SECTION}회 재시도 실패). 다시 시도해주세요.` : err.message)
+            : '알 수 없는 오류';
+          setSteps(prev => ({
+            ...prev,
+            5: { ...prev[5], loading: false, error: msg },
+          }));
+          setError(`Step 5 오류: ${msg}`);
           return;
         }
-
-        // 다음 섹션으로
-        currentSectionIdx = data.data?.nextSectionIndex ?? (currentSectionIdx + 1);
-
-      } catch (err) {
-        const msg = err instanceof Error
-          ? (err.name === 'AbortError' ? `섹션 ${currentSectionIdx + 1} 시간 초과. 다시 시도해주세요.` : err.message)
-          : '알 수 없는 오류';
-        setSteps(prev => ({
-          ...prev,
-          5: { ...prev[5], loading: false, error: msg },
-        }));
-        setError(`Step 5 오류: ${msg}`);
-        return;
       }
     }
   }

@@ -94,6 +94,44 @@ const koreanDrugMapping: Record<string, string> = {
   '전신성홍반성낭창': 'Systemic Lupus Erythematosus',
   '강직성척추염': 'Ankylosing Spondylitis',
 
+  // Hematologic (혈액학)
+  '골수섬유증': 'Myelofibrosis',
+  '적혈구증가증': 'Polycythemia Vera',
+  '본태성혈소판증가증': 'Essential Thrombocythemia',
+  '본태성 혈소판증가증': 'Essential Thrombocythemia',
+  '혈소판증가증': 'Thrombocythemia',
+  '골수이형성증후군': 'Myelodysplastic Syndrome',
+  'MDS': 'Myelodysplastic Syndrome',
+  '급성골수성백혈병': 'Acute Myeloid Leukemia',
+  '만성골수성백혈병': 'Chronic Myeloid Leukemia',
+  '백혈병': 'Leukemia',
+  '림프종': 'Lymphoma',
+  '다발성골수종': 'Multiple Myeloma',
+  '빈혈': 'Anemia',
+  '재생불량성빈혈': 'Aplastic Anemia',
+  '호지킨림프종': 'Hodgkin Lymphoma',
+  '비호지킨림프종': 'Non-Hodgkin Lymphoma',
+  '혈우병': 'Hemophilia',
+  '혈전증': 'Thrombosis',
+  '이식편대숙주병': 'Graft-versus-Host Disease',
+
+  // Dermatology (피부과)
+  '아토피피부염': 'Atopic Dermatitis',
+  '건선': 'Psoriasis',
+  '습진': 'Eczema',
+  '대상포진': 'Herpes Zoster',
+
+  // Ophthalmology (안과)
+  '황반변성': 'Age-related Macular Degeneration',
+  '녹내장': 'Glaucoma',
+  '당뇨망막병증': 'Diabetic Retinopathy',
+
+  // Urology (비뇨기과)
+  '전립선암': 'Prostate Cancer',
+  '전립선비대증': 'Benign Prostatic Hyperplasia',
+  '방광암': 'Bladder Cancer',
+  '신장암': 'Renal Cell Carcinoma',
+
   // Other conditions
   '신부전': 'Renal Failure',
   '만성신질환': 'Chronic Kidney Disease',
@@ -151,6 +189,37 @@ const commonDrugNameMapping: Record<string, string> = {
   '싸이클로스포린': 'Cyclosporine',
   '타크롤리무스': 'Tacrolimus',
   '미코페놀레이트': 'Mycophenolate',
+
+  // Hematologic drugs (혈액학 약물)
+  '룩소리티닙': 'Ruxolitinib',
+  '자카피': 'Ruxolitinib',
+  '자카비': 'Ruxolitinib',
+  '하이드록시유레아': 'Hydroxyurea',
+  '인터페론': 'Interferon',
+  '페그인터페론': 'Peginterferon',
+  '아나그렐라이드': 'Anagrelide',
+  '이매티닙': 'Imatinib',
+  '글리벡': 'Imatinib',
+  '닐로티닙': 'Nilotinib',
+  '다사티닙': 'Dasatinib',
+  '보르테조밉': 'Bortezomib',
+  '레날리도마이드': 'Lenalidomide',
+  '리투시맙': 'Rituximab',
+  '페드라티닙': 'Fedratinib',
+  '파크리티닙': 'Pacritinib',
+  'JAK억제제': 'JAK Inhibitor',
+
+  // Dermatology drugs (피부과 약물)
+  '듀피루맙': 'Dupilumab',
+  '듀피센트': 'Dupilumab',
+  '아달리무맙': 'Adalimumab',
+  '휴미라': 'Adalimumab',
+
+  // Ophthalmology drugs (안과 약물)
+  '아플리버셉트': 'Aflibercept',
+  '아일리아': 'Aflibercept',
+  '라니비주맙': 'Ranibizumab',
+  '루센티스': 'Ranibizumab',
 }
 
 /**
@@ -165,17 +234,44 @@ export function translateToEnglish(koreanTerm: string): string {
 
   const trimmed = koreanTerm.trim()
 
-  // Check disease/indication mapping first
+  // 1. 정확히 매칭되면 바로 반환
   if (koreanDrugMapping[trimmed]) {
     return koreanDrugMapping[trimmed]
   }
-
-  // Check common drug name mapping
   if (commonDrugNameMapping[trimmed]) {
     return commonDrugNameMapping[trimmed]
   }
 
-  // Return original if no translation found
+  // 2. 복합 질환명 분리 (" + ", "/", "·", "," 등으로 분리)
+  const separators = [' + ', '+', ' / ', '/', ' · ', '·', ', ', ',']
+  for (const sep of separators) {
+    if (trimmed.includes(sep)) {
+      const parts = trimmed.split(sep).map(p => p.trim()).filter(Boolean)
+      const translated = parts.map(p => {
+        if (koreanDrugMapping[p]) return koreanDrugMapping[p]
+        if (commonDrugNameMapping[p]) return commonDrugNameMapping[p]
+        // 부분 매칭 시도
+        for (const [kr, en] of Object.entries(koreanDrugMapping)) {
+          if (p.includes(kr) || kr.includes(p)) return en
+        }
+        return p
+      })
+      // 하나라도 번역됐으면 합쳐서 반환
+      if (translated.some((t, i) => t !== parts[i])) {
+        return translated[0] // 첫 번째 번역된 질환명 반환 (API 검색은 하나만으로도 충분)
+      }
+    }
+  }
+
+  // 3. 부분 매칭: 입력에 사전 키워드가 포함되어 있는 경우
+  for (const [kr, en] of Object.entries(koreanDrugMapping)) {
+    if (trimmed.includes(kr)) return en
+  }
+  for (const [kr, en] of Object.entries(commonDrugNameMapping)) {
+    if (trimmed.includes(kr)) return en
+  }
+
+  // 4. Return original if no translation found
   return trimmed
 }
 
@@ -217,17 +313,36 @@ export function getInternationalSearchTerms(
 
   if (drugNameEn) {
     searchTerms.push(drugNameEn)
-    // Add generic name variations
     const genericVariations = getGenericVariations(drugNameEn)
     searchTerms.push(...genericVariations)
   }
 
   if (indicationEn && indicationEn !== drugNameEn) {
     searchTerms.push(indicationEn)
+    const indicVariations = getGenericVariations(indicationEn)
+    searchTerms.push(...indicVariations)
+  }
+
+  // 복합 질환명일 경우 개별 질환 번역도 검색어에 추가
+  const separators = [' + ', '+', ' / ', '/', ' · ', '·', ', ', ',']
+  for (const field of [drugName, indication]) {
+    if (!field) continue
+    for (const sep of separators) {
+      if (field.includes(sep)) {
+        const parts = field.split(sep).map(p => p.trim()).filter(Boolean)
+        for (const part of parts) {
+          const translated = translateToEnglish(part)
+          if (translated && !/[\uac00-\ud7af]/.test(translated)) {
+            searchTerms.push(translated)
+          }
+        }
+        break // 첫 번째 매칭되는 구분자만 사용
+      }
+    }
   }
 
   // Remove duplicates and empty strings
-  const uniqueTerms = Array.from(new Set(searchTerms.filter(t => t && t.length > 0)))
+  const uniqueTerms = Array.from(new Set(searchTerms.filter(t => t && t.length > 0 && !/[\uac00-\ud7af]/.test(t))))
 
   return {
     drugNameEn,
@@ -284,6 +399,39 @@ function getGenericVariations(drugName: string): string[] {
   // Respiratory
   if (lowerName.includes('asthma') || lowerName.includes('copd') || lowerName.includes('lung')) {
     variations.push('Respiratory', 'Pulmonary', 'Bronchodilator')
+  }
+
+  // Hematologic
+  if (
+    lowerName.includes('myelofibrosis') ||
+    lowerName.includes('polycythemia') ||
+    lowerName.includes('thrombocythemia') ||
+    lowerName.includes('leukemia') ||
+    lowerName.includes('lymphoma') ||
+    lowerName.includes('myeloma') ||
+    lowerName.includes('anemia') ||
+    lowerName.includes('myelodysplastic')
+  ) {
+    variations.push('Hematology', 'Blood Cancer', 'Myeloproliferative')
+    if (lowerName.includes('myelofibrosis')) {
+      variations.push('Ruxolitinib', 'Jakafi', 'JAK Inhibitor')
+    }
+    if (lowerName.includes('polycythemia')) {
+      variations.push('Hydroxyurea', 'Ruxolitinib')
+    }
+    if (lowerName.includes('thrombocythemia')) {
+      variations.push('Anagrelide', 'Hydroxyurea')
+    }
+  }
+
+  // Dermatology
+  if (lowerName.includes('dermatitis') || lowerName.includes('psoriasis') || lowerName.includes('eczema')) {
+    variations.push('Dermatology', 'Skin Disease')
+  }
+
+  // Ophthalmology
+  if (lowerName.includes('macular') || lowerName.includes('glaucoma') || lowerName.includes('retinopathy')) {
+    variations.push('Ophthalmology', 'Eye Disease')
   }
 
   return variations

@@ -6,7 +6,7 @@
  * 3. NHS UK Open Data - opendata.nhsbsa.net
  */
 
-import { translateToEnglish } from './drug-name-translator'
+import { translateToEnglish, getInternationalSearchTerms } from './drug-name-translator'
 
 /**
  * CMS Medicare Data Interfaces
@@ -446,14 +446,18 @@ export async function fetchGlobalMedicalData(
   console.log('[Global Medical APIs] Starting fetch...')
   console.log(`[Global Medical APIs] Drug: ${drugName}, Indication: ${indication}`)
 
-  // Translate Korean terms to English
-  const drugNameEn = translateToEnglish(drugName || '')
-  const indicationEn = translateToEnglish(indication || '')
+  // Translate Korean terms to English using enhanced translator
+  const terms = getInternationalSearchTerms(drugName || '', indication || '')
+  const drugNameEn = terms.drugNameEn
+  const indicationEn = terms.indicationEn
 
-  // Determine primary search term
-  const primarySearchTerm = drugNameEn || indicationEn
+  // 한국어가 남아있지 않은 첫 번째 검색어를 primary로 사용
+  const allSearchTerms = terms.searchTerms.filter(t => !/[\uac00-\ud7af]/.test(t))
+  const primarySearchTerm = allSearchTerms[0] || drugNameEn || indicationEn
 
-  if (!primarySearchTerm) {
+  console.log(`[Global Medical APIs] Search terms: ${allSearchTerms.join(', ')}`)
+
+  if (!primarySearchTerm || /[\uac00-\ud7af]/.test(primarySearchTerm)) {
     return {
       fetchedAt: new Date().toISOString(),
       searchQuery: {
