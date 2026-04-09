@@ -66,7 +66,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<str
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        max_tokens: 2000,
+        max_tokens: 4000,
         temperature: 0.7,
       }),
       signal: controller.signal,
@@ -107,7 +107,7 @@ async function callAnthropicClaude(systemPrompt: string, userPrompt: string): Pr
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -194,31 +194,25 @@ ${dataContext}
 
 ${pubMedContextStr}
 
-위 실측 데이터를 기반으로 "${section.title}" 섹션을 작성해주세요.
+위 실측 데이터를 기반으로 "${section.title}" 섹션의 분석 및 전략적 해석을 작성해주세요.
 
-작성 원칙:
-1. 위에 제공된 HIRA/ClinicalTrials.gov/CMS/PBS/NHS 실측 데이터의 구체적 수치를 반드시 인용하세요
-2. 수치 인용 시 출처를 정확히 표기하세요:
-   - 한국 데이터: "(건강보험심사평가원, 2023)"
-   - 임상시험: "(ClinicalTrials.gov, 2025)"
-   - 미국 데이터: "(CMS Medicare Part D, 연도)"
-   - 호주 데이터: "(PBS Australia, 연도)"
-   - 영국 데이터: "(NHS England PCA, 연도)"
-3. ⚠ 매우 중요: "한국 시장 규모"와 "글로벌 시장 규모"를 절대로 혼동하지 마세요!
-   - HIRA 데이터 = 한국 시장만. "글로벌"이라고 표기하면 안 됩니다
-   - CMS = 미국 Medicare만 (전체 미국 시장의 25~30%)
-   - NHS = 영국 잉글랜드 공공처방만 (전체 영국 시장의 60~70%)
-   - 각 나라의 공공보험 데이터를 단순 합산하여 "글로벌 시장"이라 하지 마세요
-   - 글로벌 시장 규모 언급 시 반드시 "추정"임을 명시하고 산출 근거를 밝히세요
-4. 한국 시장 데이터를 중심으로, 글로벌 시장(미국/호주/영국)과 비교 분석
-5. 마크다운 표를 최소 2개 이상 포함 (데이터 비교, 추이 등)
-6. 전문 시장조사 보고서 수준의 분석 깊이 (단, 특정 시장조사 기관명이나 경쟁사 서비스명을 절대 언급하지 마세요)
-7. 최소 3000자 이상, 구체적 수치와 근거 기반으로 작성
-8. 단순 나열이 아닌 인사이트와 시사점을 도출하세요
-9. 데이터 출처는 공공 데이터 기관(HIRA, ClinicalTrials.gov, PubMed, CMS, PBS, NHS 등)만 명시하고, 민간 시장조사 기관명은 사용하지 마세요
-10. 각 섹션 끝에 반드시 "### 📊 데이터 출처" 소제목으로 해당 섹션에서 참조한 데이터의 출처와 기준을 정리하세요. 형식:
-   - 출처명 | 데이터 항목 | 기준연도 | 비고(산출방법)
-${citationInstruction}
+[절대 원칙 — 위반 시 보고서 품질 불합격]
+1. 위에 제공된 HIRA/ClinicalTrials.gov/CMS/PBS/NHS 실측 데이터의 수치만 인용하세요
+2. 제공되지 않은 데이터를 절대 만들어내지 마세요 (시장 규모, 매출, 점유율 등)
+3. 수치 인용 시 출처를 반드시 표기:
+   - 한국: "(건강보험심사평가원, ${new Date().getFullYear() - 1})"
+   - 임상시험: "(ClinicalTrials.gov, ${new Date().getFullYear()})"
+   - 미국: "(CMS Medicare Part D)"
+   - 호주: "(PBS Australia)"
+   - 영국: "(NHS England PCA)"
+4. HIRA = 한국만. CMS = 미국 Medicare만. NHS = 영국 잉글랜드만. 각 데이터 범위를 정확히 명시
+5. "글로벌 시장 규모 XX억 달러" 같은 출처 없는 수치 절대 금지
+6. 시장조사 기관명(IQVIA, EvaluatePharma, GlobalData 등) 절대 언급 금지
+7. 당신의 역할은 분석과 해석입니다. 데이터 나열이 아닌 인사이트를 도출하세요
+8. 마크다운 표 최소 2개 포함 (데이터 비교, 요약 등)
+9. 최소 3000자 이상
+10. 각 섹션 끝에 "### 📊 데이터 출처" 소제목으로 참조 데이터 출처 정리
+${pubMedContextStr ? `11. PubMed 논문을 [1], [2] 형태로 본문 내 인용하세요` : ''}
 `
 
   // PubMed 논문이 있으면 systemPrompt에 인용 지시 추가
@@ -359,15 +353,52 @@ ${nhs.prescriptionSummary.slice(0, 10).map((item: any) =>
   ⚠ 주의: NHS 잉글랜드 공공의료 처방에 한정됩니다. 사보험/웨일스/스코틀랜드는 별도입니다.`)
     }
 
+    // 🇺🇸 FDA OpenFDA (미국 FDA)
+    if (globalData.fda) {
+      const fda = globalData.fda
+      const fdaParts: string[] = []
+
+      if (fda.labels?.length > 0) {
+        fdaParts.push(`  [약물 라벨 정보] ${fda.labels.length}건 확인`)
+        const label = fda.labels[0]
+        if (label.indications) fdaParts.push(`    · 적응증: ${label.indications.substring(0, 200)}...`)
+        if (label.manufacturer) fdaParts.push(`    · 제조사: ${label.manufacturer}`)
+        if (label.route?.length) fdaParts.push(`    · 투여경로: ${label.route.join(', ')}`)
+      }
+
+      if (fda.adverseEvents?.length > 0) {
+        fdaParts.push(`  [주요 부작용 보고] 상위 ${fda.adverseEvents.length}건:`)
+        fda.adverseEvents.slice(0, 10).forEach((ae: any) => {
+          fdaParts.push(`    · ${ae.reactionName}: ${(ae.count || 0).toLocaleString()}건 보고`)
+        })
+      }
+
+      if (fda.approvals?.length > 0) {
+        fdaParts.push(`  [FDA 승인 정보] ${fda.approvals.length}건:`)
+        fda.approvals.slice(0, 5).forEach((ap: any) => {
+          fdaParts.push(`    · ${ap.brandName || ap.genericName} (${ap.applicationNumber}) - ${ap.sponsorName} - 승인일: ${ap.approvalDate || 'N/A'}`)
+        })
+      }
+
+      if (fdaParts.length > 0) {
+        globalParts.push(`
+■ 🇺🇸 FDA OpenFDA 약물 규제 데이터
+  - 약물: ${drugName}
+${fdaParts.join('\n')}
+  ⚠ 주의: FDA 승인/부작용 보고는 미국 시장 기준이며, 다른 국가 허가 현황과 다를 수 있습니다.`)
+      }
+    }
+
     if (globalParts.length > 0) {
       parts.push(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 글로벌 의료데이터 실측 비교 자료 (${new Date().getFullYear()}년 기준)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-중요: 아래는 각 나라의 공공보험 데이터입니다.
+중요: 아래는 각 나라의 공공보험/규제 데이터입니다.
 - 한국(HIRA) = 국민건강보험 전체 (거의 전국민)
 - 미국(CMS) = Medicare 수혜자만 (전체의 약 25~30%)
+- 미국(FDA) = FDA 약물 규제 데이터 (승인, 라벨, 부작용 보고)
 - 호주(PBS) = PBS 등재 품목만
 - 영국(NHS) = 잉글랜드 공공처방만
 
@@ -383,6 +414,48 @@ ${globalParts.join('\n')}
   }
 
   return parts.join('\n\n')
+}
+
+/**
+ * AI 인사이트 전용 프롬프트 빌드 (data-with-ai-insight 모드용)
+ * 데이터 테이블은 이미 코드로 생성됨. AI는 분석/해석만 작성.
+ */
+function buildInsightOnlyPrompt(
+  section: ReportSection,
+  drugName: string,
+  indication: string,
+  therapeuticArea: string,
+  hiraContextStr: string,
+  clinicalTrialsData: ClinicalTrialsData | null,
+  pubMedContextStr: string,
+  globalData?: any
+): string {
+  const dataContext = buildDetailedDataContext(hiraContextStr, clinicalTrialsData, drugName, indication, globalData)
+
+  return `약물/치료제: ${drugName}
+적응증: ${indication}
+치료 영역: ${therapeuticArea}
+
+${dataContext}
+
+${pubMedContextStr || ''}
+
+[중요 지시사항]
+이 섹션의 데이터 테이블과 수치는 이미 코드로 생성되어 있습니다.
+당신은 아래 내용만 작성하세요:
+
+1. 위 실측 데이터에서 관찰되는 핵심 트렌드 분석
+2. 데이터 간 상관관계 및 교차 분석 인사이트
+3. 시장 참여자에게 의미 있는 전략적 시사점
+4. 향후 전망 (반드시 제공된 데이터를 근거로)
+
+[금지사항]
+- 데이터에 없는 수치를 만들어내지 마세요
+- "글로벌 시장 규모 XX억 달러" 같은 출처 불명 수치 금지
+- 시장조사 기관명(IQVIA, Evaluate 등) 언급 금지
+- 이미 데이터 테이블에 있는 숫자를 반복 나열하지 말고, 그 의미를 해석하세요
+
+한국어로 작성. 최소 1500자.`
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
