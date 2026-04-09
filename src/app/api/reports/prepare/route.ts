@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma, ensureDbConnection } from '@/lib/prisma'
 import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, generateSingleSection, getSectionCount, ReportTier } from '@/lib/report-generator'
 import { fetchGlobalMedicalData } from '@/lib/global-medical-apis'
 
@@ -30,6 +30,15 @@ function isCacheValid(dataSyncedAt: Date | null, data: any): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Neon 절전모드 대응: DB 연결 확인 (최대 3회 재시도)
+    const dbReady = await ensureDbConnection()
+    if (!dbReady) {
+      return NextResponse.json(
+        { success: false, error: '데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요.' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     const { slug, step, tier = 'BASIC', orderId, forceRefresh = false, sectionIndex } = body
 
@@ -414,6 +423,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    // Neon 절전모드 대응
+    await ensureDbConnection()
+
     const { searchParams } = new URL(request.url)
     const slug = searchParams.get('slug')
 

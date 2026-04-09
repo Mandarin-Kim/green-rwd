@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { prisma, ensureDbConnection } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/api-guard'
 import { generateReport, ReportTier } from '@/lib/report-generator'
 
@@ -12,6 +12,15 @@ export const maxDuration = 60;
 // fire-and-forget 패턴 대신 동기 생성 후 결과를 반환합니다.
 export async function POST(request: NextRequest) {
   try {
+    // Neon 절전모드 대응: DB 연결 확인 (최대 3회 재시도)
+    const dbReady = await ensureDbConnection()
+    if (!dbReady) {
+      return NextResponse.json(
+        { error: '데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요. (Neon DB가 절전모드에서 깨어나는 중일 수 있습니다)' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     const { catalogId, slug, tier = 'BASIC', forceRegenerate = false, orderId: existingOrderId } = body
 
