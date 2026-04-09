@@ -203,13 +203,19 @@ ${pubMedContextStr}
    - 미국 데이터: "(CMS Medicare Part D, 연도)"
    - 호주 데이터: "(PBS Australia, 연도)"
    - 영국 데이터: "(NHS England PCA, 연도)"
-3. 한국 시장 데이터를 중심으로, 글로벌 시장(미국/호주/영국)과 비교 분석
-4. 마크다운 표를 최소 2개 이상 포함 (데이터 비교, 추이 등)
-5. 전문 시장조사 보고서 수준의 분석 깊이 (단, 특정 시장조사 기관명이나 경쟁사 서비스명을 절대 언급하지 마세요)
-6. 최소 3000자 이상, 구체적 수치와 근거 기반으로 작성
-7. 단순 나열이 아닌 인사이트와 시사점을 도출하세요
-8. 데이터 출처는 공공 데이터 기관(HIRA, ClinicalTrials.gov, PubMed, CMS, PBS, NHS 등)만 명시하고, 민간 시장조사 기관명은 사용하지 마세요
-9. 각 섹션 끝에 반드시 "### 📊 데이터 출처" 소제목으로 해당 섹션에서 참조한 데이터의 출처와 기준을 정리하세요. 형식:
+3. ⚠ 매우 중요: "한국 시장 규모"와 "글로벌 시장 규모"를 절대로 혼동하지 마세요!
+   - HIRA 데이터 = 한국 시장만. "글로벌"이라고 표기하면 안 됩니다
+   - CMS = 미국 Medicare만 (전체 미국 시장의 25~30%)
+   - NHS = 영국 잉글랜드 공공처방만 (전체 영국 시장의 60~70%)
+   - 각 나라의 공공보험 데이터를 단순 합산하여 "글로벌 시장"이라 하지 마세요
+   - 글로벌 시장 규모 언급 시 반드시 "추정"임을 명시하고 산출 근거를 밝히세요
+4. 한국 시장 데이터를 중심으로, 글로벌 시장(미국/호주/영국)과 비교 분석
+5. 마크다운 표를 최소 2개 이상 포함 (데이터 비교, 추이 등)
+6. 전문 시장조사 보고서 수준의 분석 깊이 (단, 특정 시장조사 기관명이나 경쟁사 서비스명을 절대 언급하지 마세요)
+7. 최소 3000자 이상, 구체적 수치와 근거 기반으로 작성
+8. 단순 나열이 아닌 인사이트와 시사점을 도출하세요
+9. 데이터 출처는 공공 데이터 기관(HIRA, ClinicalTrials.gov, PubMed, CMS, PBS, NHS 등)만 명시하고, 민간 시장조사 기관명은 사용하지 마세요
+10. 각 섹션 끝에 반드시 "### 📊 데이터 출처" 소제목으로 해당 섹션에서 참조한 데이터의 출처와 기준을 정리하세요. 형식:
    - 출처명 | 데이터 항목 | 기준연도 | 비고(산출방법)
 ${citationInstruction}
 `
@@ -262,7 +268,8 @@ function buildDetailedDataContext(
   hiraContextStr: string,
   clinicalTrialsData: ClinicalTrialsData | null,
   drugName: string,
-  indication: string
+  indication: string,
+  globalData?: any
 ): string {
   const parts: string[] = []
 
@@ -297,6 +304,83 @@ ${clinicalTrialsData.topStudies.map(s =>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
   }
 
+  // ── 글로벌 의료데이터 (CMS Medicare / PBS Australia / NHS UK) ──
+  if (globalData) {
+    const globalParts: string[] = []
+
+    // 🇺🇸 CMS Medicare (미국)
+    if (globalData.cms?.drugSpending?.length > 0) {
+      const cms = globalData.cms
+      const totalSpending = cms.drugSpending.reduce((sum: number, d: any) => sum + (d.totalSpending || 0), 0)
+      const totalBeneficiaries = cms.drugSpending.reduce((sum: number, d: any) => sum + (d.totalBeneficiaries || 0), 0)
+      globalParts.push(`
+■ 🇺🇸 미국 CMS Medicare Part D 실측 데이터
+  - 약물: ${drugName}
+  - 총 Medicare 지출액: $${Math.round(totalSpending).toLocaleString()} (USD)
+  - 총 수혜자 수: ${totalBeneficiaries.toLocaleString()}명
+  - 수혜자 1인당 평균 비용: $${totalBeneficiaries > 0 ? Math.round(totalSpending / totalBeneficiaries).toLocaleString() : 'N/A'}
+  - 상세 품목:
+${cms.drugSpending.slice(0, 10).map((d: any) =>
+  `    · ${d.brandName || d.drugName || ''} (${d.genericName || ''}) - 지출 $${Math.round(d.totalSpending || 0).toLocaleString()}, 수혜자 ${(d.totalBeneficiaries || 0).toLocaleString()}명`
+).join('\n')}
+  ⚠ 주의: 이 데이터는 미국 Medicare(65세 이상 + 장애인)에 한정됩니다. 미국 전체 시장은 이보다 약 3~4배 큽니다.`)
+    }
+
+    // 🇦🇺 PBS Australia (호주)
+    if (globalData.pbs?.items?.length > 0) {
+      const pbs = globalData.pbs
+      globalParts.push(`
+■ 🇦🇺 호주 PBS(Pharmaceutical Benefits Scheme) 실측 데이터
+  - 약물: ${drugName}
+  - PBS 등재 품목 수: ${pbs.items.length}건
+  - 상세:
+${pbs.items.slice(0, 10).map((item: any) =>
+  `    · ${item.brandName || item.tradeName || ''} (${item.genericName || item.drugName || ''}) - 정부보조가 AUD $${item.governmentPrice || item.dpmaPrice || 'N/A'}, 환자부담 AUD $${item.patientCopayment || item.patientPrice || 'N/A'}`
+).join('\n')}
+  ⚠ 주의: PBS 등재 품목에 한정됩니다. 비등재 약물은 포함되지 않습니다.`)
+    }
+
+    // 🇬🇧 NHS UK (영국)
+    if (globalData.nhs?.prescriptionSummary?.length > 0) {
+      const nhs = globalData.nhs
+      const totalNhsCost = nhs.prescriptionSummary.reduce((sum: number, i: any) => sum + (i.totalCost || i.actualCost || 0), 0)
+      const totalNhsItems = nhs.prescriptionSummary.reduce((sum: number, i: any) => sum + (i.prescriptionCount || i.items || 0), 0)
+      globalParts.push(`
+■ 🇬🇧 영국 NHS 처방 데이터 (잉글랜드)
+  - 약물: ${drugName}
+  - 총 처방 비용: £${Math.round(totalNhsCost).toLocaleString()} (GBP)
+  - 총 처방건수: ${totalNhsItems.toLocaleString()}건
+  - 건당 평균 비용: £${totalNhsItems > 0 ? (totalNhsCost / totalNhsItems).toFixed(2) : 'N/A'}
+  - 상세:
+${nhs.prescriptionSummary.slice(0, 10).map((item: any) =>
+  `    · ${item.bnfName || item.drugName || ''} - 비용 £${Math.round(item.totalCost || item.actualCost || 0).toLocaleString()}, 처방 ${(item.prescriptionCount || item.items || 0).toLocaleString()}건`
+).join('\n')}
+  ⚠ 주의: NHS 잉글랜드 공공의료 처방에 한정됩니다. 사보험/웨일스/스코틀랜드는 별도입니다.`)
+    }
+
+    if (globalParts.length > 0) {
+      parts.push(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+글로벌 의료데이터 실측 비교 자료 (${new Date().getFullYear()}년 기준)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요: 아래는 각 나라의 공공보험 데이터입니다.
+- 한국(HIRA) = 국민건강보험 전체 (거의 전국민)
+- 미국(CMS) = Medicare 수혜자만 (전체의 약 25~30%)
+- 호주(PBS) = PBS 등재 품목만
+- 영국(NHS) = 잉글랜드 공공처방만
+
+따라서 "글로벌 시장 규모"는 이 데이터들을 단순 합산하면 안 되며,
+각 나라의 전체 시장은 공공보험 데이터의 약 2~4배로 추정됩니다.
+
+${globalParts.join('\n')}
+
+위 글로벌 데이터는 실제 API 조회 결과입니다.
+한국 시장과 비교 분석 시 반드시 활용하되, 각 데이터의 범위(커버리지)를 정확히 명시하세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+    }
+  }
+
   return parts.join('\n\n')
 }
 
@@ -311,12 +395,13 @@ function generateDataDrivenContent(
   therapeuticArea: string,
   hiraData: any,
   ctData: ClinicalTrialsData | null,
+  globalData?: any,
 ): string {
   const generators: Record<string, () => string> = {
     'executive-summary': () => genExecutiveSummary(drugName, indication, therapeuticArea, hiraData, ctData),
     'market-overview': () => genMarketOverview(drugName, indication, therapeuticArea, hiraData, ctData),
     'epidemiology': () => genEpidemiology(drugName, indication, therapeuticArea, hiraData, ctData),
-    'market-size-forecast': () => genMarketSizeForecast(drugName, indication, therapeuticArea, hiraData, ctData),
+    'market-size-forecast': () => genMarketSizeForecast(drugName, indication, therapeuticArea, hiraData, ctData, globalData),
     'market-segmentation': () => genMarketSegmentation(drugName, indication, therapeuticArea, hiraData, ctData),
     'competitive-landscape': () => genCompetitiveLandscape(drugName, indication, therapeuticArea, hiraData, ctData),
     'company-profiles': () => genCompanyProfiles(drugName, indication, therapeuticArea, hiraData, ctData),
@@ -580,11 +665,34 @@ ${indication} 영역의 주요 미충족 의료 수요:
 `
 }
 
-function genMarketSizeForecast(drug: string, indication: string, area: string, hira: any, ct: ClinicalTrialsData | null): string {
+function genMarketSizeForecast(drug: string, indication: string, area: string, hira: any, ct: ClinicalTrialsData | null, globalData?: any): string {
   const claimAmount = hira?.claimAmount || 0
   const patientCount = hira?.patientCount || 0
-  const marketSize = claimAmount > 0 ? Math.round(claimAmount * 1.6) : 0
-  const marketBillion = marketSize > 0 ? Math.round(marketSize / 1_0000_0000) : 0
+  // 한국 시장 = HIRA 급여비 × 1.6 (비급여+약품 포함)
+  const koreaMarketSize = claimAmount > 0 ? Math.round(claimAmount * 1.6) : 0
+  const koreaMarketBillion = koreaMarketSize > 0 ? Math.round(koreaMarketSize / 1_0000_0000) : 0
+
+  // ── 글로벌 실측 데이터 추출 ──
+  const cmsSpending = globalData?.cms?.drugSpending?.reduce(
+    (sum: number, d: any) => sum + (d.totalSpending || 0), 0) || 0
+  const cmsBeneficiaries = globalData?.cms?.drugSpending?.reduce(
+    (sum: number, d: any) => sum + (d.totalBeneficiaries || 0), 0) || 0
+  const nhsCost = globalData?.nhs?.prescriptionSummary?.reduce(
+    (sum: number, i: any) => sum + (i.totalCost || i.actualCost || 0), 0) || 0
+  const nhsItems = globalData?.nhs?.prescriptionSummary?.reduce(
+    (sum: number, i: any) => sum + (i.prescriptionCount || i.items || 0), 0) || 0
+  const pbsCount = globalData?.pbs?.items?.length || 0
+
+  // 환율 기준 (근사치, 실제 변동 고려)
+  const usdToKrw = 1350 // USD → KRW
+  const gbpToKrw = 1700 // GBP → KRW
+
+  // 미국 전체 시장 추정: Medicare는 전체의 약 25~30% → ×3.5
+  const usEstimatedTotal = cmsSpending > 0 ? Math.round(cmsSpending * 3.5) : 0
+  const usEstimatedTotalKrw = usEstimatedTotal > 0 ? Math.round(usEstimatedTotal * usdToKrw) : 0
+  // 영국 전체 시장 추정: NHS 잉글랜드 공공 처방은 전체의 약 60~70% → ×1.5
+  const ukEstimatedTotal = nhsCost > 0 ? Math.round(nhsCost * 1.5) : 0
+  const ukEstimatedTotalKrw = ukEstimatedTotal > 0 ? Math.round(ukEstimatedTotal * gbpToKrw) : 0
 
   // 성장률 추정 (치료영역에 따라 다름)
   const cagr = area.includes('종양') || area.includes('항암') ? 8.5
@@ -594,31 +702,67 @@ function genMarketSizeForecast(drug: string, indication: string, area: string, h
     : area.includes('디지털') ? 18.5
     : 7.5
 
+  // ── 글로벌 비교 테이블 생성 ──
+  const hasGlobalData = cmsSpending > 0 || nhsCost > 0 || pbsCount > 0
+
+  const globalComparisonSection = hasGlobalData ? `
+## 글로벌 시장 규모 비교 (국가별 공공보험 데이터 기준)
+
+> ⚠ **중요**: 아래 수치는 각 나라의 **공공보험 데이터**에서 조회한 실측치입니다.
+> 각 나라의 전체 시장(민간보험+자비 포함)은 공공보험 데이터보다 2~4배 큽니다.
+
+| 국가 | 공공보험 실측 지출 | 커버리지 범위 | 추정 전체 시장 (환산) | 비고 |
+|------|------------------|-------------|-------------------|------|
+| 🇰🇷 한국 | ${fmtKrw(claimAmount)} | 국민건강보험 (전국민 97%) | **${fmtKrw(koreaMarketSize)}** | HIRA 2023 실측 × 1.6 |
+${cmsSpending > 0 ? `| 🇺🇸 미국 | $${fmtNum(Math.round(cmsSpending))} (≈${fmtKrw(Math.round(cmsSpending * usdToKrw))}) | Medicare Part D (65세+, 약 25~30%) | **≈${fmtKrw(usEstimatedTotalKrw)}** | CMS 실측 × 3.5 |` : '| 🇺🇸 미국 | 데이터 미수집 | - | - | Step 4 실행 필요 |'}
+${nhsCost > 0 ? `| 🇬🇧 영국 | £${fmtNum(Math.round(nhsCost))} (≈${fmtKrw(Math.round(nhsCost * gbpToKrw))}) | NHS 잉글랜드 (공공처방 60~70%) | **≈${fmtKrw(ukEstimatedTotalKrw)}** | NHS 실측 × 1.5 |` : '| 🇬🇧 영국 | 데이터 미수집 | - | - | Step 4 실행 필요 |'}
+${pbsCount > 0 ? `| 🇦🇺 호주 | PBS 등재 ${pbsCount}품목 | PBS (등재 약물만) | *(약가 데이터 별도)* | 품목별 가격 참조 |` : '| 🇦🇺 호주 | 데이터 미수집 | - | - | Step 4 실행 필요 |'}
+
+${cmsSpending > 0 ? `
+### 한국 vs 미국 시장 비교
+
+| 비교 항목 | 🇰🇷 한국 | 🇺🇸 미국 (Medicare) | 배율 |
+|----------|---------|-------------------|------|
+| 공공보험 지출 | ${fmtKrw(claimAmount)} | $${fmtNum(Math.round(cmsSpending))} (≈${fmtKrw(Math.round(cmsSpending * usdToKrw))}) | ${claimAmount > 0 ? `약 ${Math.round((cmsSpending * usdToKrw) / claimAmount)}배` : '-'} |
+| 대상 환자수 | ${patientCount > 0 ? fmtNum(patientCount) + '명' : '-'} | ${cmsBeneficiaries > 0 ? fmtNum(cmsBeneficiaries) + '명' : '-'} | ${patientCount > 0 && cmsBeneficiaries > 0 ? `약 ${(cmsBeneficiaries / patientCount).toFixed(1)}배` : '-'} |
+| 1인당 비용 | ${patientCount > 0 ? fmtKrw(Math.round(claimAmount / patientCount)) : '-'} | ${cmsBeneficiaries > 0 ? `$${fmtNum(Math.round(cmsSpending / cmsBeneficiaries))}` : '-'} | ${patientCount > 0 && cmsBeneficiaries > 0 ? `약 ${((cmsSpending / cmsBeneficiaries * usdToKrw) / (claimAmount / patientCount)).toFixed(1)}배` : '-'} |
+
+> 미국 Medicare 1인당 비용이 한국보다 높은 것은 미국의 높은 약가 수준을 반영합니다.
+` : ''}
+` : `
+## 글로벌 시장 규모
+
+> 글로벌 의료데이터(Step 4)를 수집하면 미국(CMS), 영국(NHS), 호주(PBS) 실측 데이터와 비교 분석됩니다.
+> 현재는 한국 시장 데이터만 표시됩니다.
+`
+
   return `# 시장 규모 및 예측 (Market Size & Forecast)
 
-## 한국 시장 규모 (2023년 기준)
+## 🇰🇷 한국 시장 규모 (2023년 기준)
 
-건강보험심사평가원 실측 데이터를 기반으로 산출한 시장 규모입니다.
+건강보험심사평가원 실측 데이터를 기반으로 산출한 **한국 내수 시장** 규모입니다.
 
 | 항목 | 금액 | 산출 방법 |
 |------|------|----------|
 | 요양급여비용 총액 | ${fmtKrw(claimAmount)} | HIRA 심사결정 기준 |
 | 비급여 추정 (약 20~30%) | ${claimAmount > 0 ? fmtKrw(Math.round(claimAmount * 0.25)) : '-'} | 급여비 대비 추정 |
 | 의약품 시장 추정 (약 35~40%) | ${claimAmount > 0 ? fmtKrw(Math.round(claimAmount * 0.35)) : '-'} | 급여비 대비 추정 |
-| **추정 총 시장 규모** | **${fmtKrw(marketSize)}** | **급여비 × 1.6** |
+| **추정 한국 시장 규모** | **${fmtKrw(koreaMarketSize)}** | **급여비 × 1.6** |
 
-## 시장 규모 예측 (2023~2030년)
+${globalComparisonSection}
 
-CAGR ${cagr}% 기준 시나리오 분석:
+## 한국 시장 성장 예측 (2023~2030년)
 
-${marketBillion > 0 ? `
+CAGR ${cagr}% 기준 시나리오 분석 (한국 시장):
+
+${koreaMarketBillion > 0 ? `
 | 연도 | 기본 시나리오 | 낙관 시나리오 | 비관 시나리오 |
 |------|-------------|-------------|-------------|
-| 2023 (실측) | ${fmtNum(marketBillion)}억 원 | ${fmtNum(marketBillion)}억 원 | ${fmtNum(marketBillion)}억 원 |
-| 2024 | ${fmtNum(Math.round(marketBillion * (1 + cagr/100)))}억 원 | ${fmtNum(Math.round(marketBillion * (1 + (cagr+2)/100)))}억 원 | ${fmtNum(Math.round(marketBillion * (1 + (cagr-3)/100)))}억 원 |
-| 2025 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + cagr/100, 2)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr+2)/100, 2)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr-3)/100, 2)))}억 원 |
-| 2027 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + cagr/100, 4)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr+2)/100, 4)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr-3)/100, 4)))}억 원 |
-| 2030 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + cagr/100, 7)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr+2)/100, 7)))}억 원 | ${fmtNum(Math.round(marketBillion * Math.pow(1 + (cagr-3)/100, 7)))}억 원 |
+| 2023 (실측) | ${fmtNum(koreaMarketBillion)}억 원 | ${fmtNum(koreaMarketBillion)}억 원 | ${fmtNum(koreaMarketBillion)}억 원 |
+| 2024 | ${fmtNum(Math.round(koreaMarketBillion * (1 + cagr/100)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * (1 + (cagr+2)/100)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * (1 + (cagr-3)/100)))}억 원 |
+| 2025 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + cagr/100, 2)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr+2)/100, 2)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr-3)/100, 2)))}억 원 |
+| 2027 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + cagr/100, 4)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr+2)/100, 4)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr-3)/100, 4)))}억 원 |
+| 2030 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + cagr/100, 7)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr+2)/100, 7)))}억 원 | ${fmtNum(Math.round(koreaMarketBillion * Math.pow(1 + (cagr-3)/100, 7)))}억 원 |
 
 > **기본 시나리오**: CAGR ${cagr}% (현행 성장 추세 유지)
 > **낙관 시나리오**: CAGR ${cagr + 2}% (신약 출시 가속, 보장성 확대)
@@ -644,7 +788,15 @@ ${marketBillion > 0 ? `
 | 건보 재정 압박 | 중간 | 건강보험 재정 적자 시 급여 축소 가능성 |
 | 글로벌 공급망 이슈 | 낮음~중간 | 원료의약품 수급 불안정 |
 
-*데이터 출처: 건강보험심사평가원(2023), ClinicalTrials.gov(2025), 자체 시장 추정 모델*
+### 📊 데이터 출처
+| 출처 | 데이터 항목 | 기준연도 | 비고 |
+|------|-----------|---------|------|
+| 건강보험심사평가원 (HIRA) | 요양급여비용, 환자수 | 2023 | 한국 시장 실측 |
+${cmsSpending > 0 ? '| CMS Medicare Part D | 약물 지출, 수혜자수 | 최신 | 미국 공공보험 (65세+) |' : ''}
+${nhsCost > 0 ? '| NHS BSA PCA | 처방 비용, 처방건수 | 최신 | 영국 잉글랜드 공공처방 |' : ''}
+${pbsCount > 0 ? '| PBS Australia | 등재 약가, 급여정보 | 최신 | 호주 PBS 등재 품목 |' : ''}
+| ClinicalTrials.gov | 임상시험 현황 | ${new Date().getFullYear()} | 글로벌 전체 |
+| 자체 추정 모델 | 시장 규모 추정 | - | 급여비 × 배수 |
 `
 }
 

@@ -1345,7 +1345,7 @@ export default function ReportDetailPage() {
                   >
                     <KPICard
                       icon={TrendingUp}
-                      label="시장규모"
+                      label="한국 시장규모"
                       value={report.kpis.marketSizeFormatted}
                     />
                     <KPICard
