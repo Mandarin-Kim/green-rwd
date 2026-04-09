@@ -4,6 +4,7 @@ import { fetchClinicalTrials, formatClinicalTrialsForReport, type ClinicalTrials
 import { getSearchParamsBySlug } from './clinicaltrials-mapping'
 import { searchPubMed, formatPubMedForPrompt, generateReferencesSection, type PubMedSearchResult } from './pubmed-api'
 import { prisma } from './prisma'
+import { validateReport, buildDataDrivenCharts, extractTablesOnly, type ValidationResult } from './report-validator'
 
 export type ReportTier = 'BASIC' | 'PRO' | 'PREMIUM'
 
@@ -1155,32 +1156,30 @@ ${getAgeTable(hira)}
 // Extract charts and tables from content
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function extractChartsAndTables(content: string) {
-  const charts: any[] = []
-  const tables: any[] = []
+/**
+ * 차트 + 테이블 추출 (개선된 버전)
+ *
+ * 기존 문제: 텍스트에서 숫자를 정규식으로 뽑아 단위 구분 없이 차트화 → 왜곡
+ * 개선: 표만 텍스트에서 추출하고, 차트는 실측 데이터 기반으로 별도 생성
+ *
+ * @param content - 섹션 텍스트
+ * @param hiraData - HIRA 실측 데이터 (optional, 있으면 실데이터 차트 생성)
+ * @param globalData - 글로벌 의료데이터 (optional)
+ * @param clinicalTrialsData - 임상시험 데이터 (optional)
+ */
+function extractChartsAndTables(
+  content: string,
+  hiraData?: any,
+  globalData?: any,
+  clinicalTrialsData?: any
+) {
+  // 표만 텍스트에서 추출 (정확한 데이터)
+  const { tables, hasTables } = extractTablesOnly(content)
 
-  const tableRegex = /\|(.+)\|\n\|[-\s|:]+\|\n((?:\|.+\|\n?)+)/g
-  let tableMatch
-  while ((tableMatch = tableRegex.exec(content)) !== null) {
-    tables.push({
-      raw: tableMatch[0],
-      headers: tableMatch[1].split('|').map((h: string) => h.trim()).filter(Boolean),
-    })
-  }
+  // 차트는 실측 데이터 기반으로 생성 (텍스트 정규식 추출 X)
+  const charts = buildDataDrivenCharts(hiraData, globalData, clinicalTrialsData)
 
-  const numberPatterns = content.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*(%|억|조|만)/g)
-  if (numberPatterns && numberPatterns.length >= 3) {
-    charts.push({
-      type: 'bar',
-      title: '주요 수치',
-      data: numberPatterns.slice(0, 6).map((p: string, i: number) => ({
-        label: `항목 ${i + 1}`,
-        value: parseFloat(p.replace(/[^0-9.]/g, '')),
-      })),
-    })
-  }
-
-  return { charts, tables, hasCharts: charts.length > 0, hasTables: tables.length > 0 }
+  return { charts, tables, hasCharts: charts.length > 0, hasTables }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1360,6 +1359,17 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
   console.log(`[ReportGenerator] Starting: ${title}, Tier: ${tier}, Sections: ${sectionCount}`)
   console.log(`[ReportGenerator] DB 캐시: HIRA=${!!cachedHiraData}, ClinicalTrials=${!!cachedClinicalTrialsData}, PubMed=${!!cachedPubMedData}`)
 
+  // 글로벌 데이터도 DB에서 로드 (있으면)
+  let cachedGlobalData: any = null
+  if (slug) {
+    try {
+      const catalog = await prisma.reportCatalog.findUnique({ where: { slug } })
+      cachedGlobalData = (catalog as any)?.globalMedicalData || null
+    } catch (e) {
+      console.error(`[ReportGenerator] 글로벌 데이터 로드 실패:`, e)
+    }
+  }
+
   // 데이터 수집 (병렬) - PubMed 추가
   const [hiraResult, ctResult, pubMedResult] = await Promise.all([
     getHiraData(slug || '', cachedHiraData),
@@ -1369,6 +1379,10 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
 
   const fullContextStr = [hiraResult.contextStr, ctResult.contextStr].filter(Boolean).join('\n\n')
   const pubMedContextStr = pubMedResult.contextStr || ''
+
+  // 차트는 첫 번째 섹션(경영진 요약)에만 붙이고, 나머지는 표만 추출
+  // (모든 섹션에 동일한 차트가 반복되는 것 방지)
+  let chartsAssigned = false
 
   for (let i = 0; i < sectionsToGenerate.length; i++) {
     const section = sectionsToGenerate[i]
@@ -1388,7 +1402,15 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
       hiraResult.rawData,
       pubMedContextStr
     )
-    const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(content)
+
+    // 실데이터 기반 차트: 첫 번째 또는 "시장 규모" 섹션에 배치
+    let { charts, tables, hasCharts, hasTables } = extractChartsAndTables(
+      content,
+      !chartsAssigned ? hiraResult.rawData : undefined,
+      !chartsAssigned ? cachedGlobalData : undefined,
+      !chartsAssigned ? ctResult.data : undefined
+    )
+    if (charts.length > 0) chartsAssigned = true
 
     generatedSections.push({
       id: `section-${i + 1}`,
@@ -1419,6 +1441,30 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
       order: sectionIdx,
     })
     console.log(`[ReportGenerator] 참고문헌 섹션 추가 (${pubMedResult.data.articles.length}건 논문)`)
+  }
+
+  // ── 보고서 검수 (Validation) ──
+  console.log(`[ReportGenerator] 보고서 검수 시작...`)
+  const validationResult = validateReport(
+    generatedSections.map(s => ({
+      title: s.title,
+      content: s.content,
+      charts: s.charts,
+    })),
+    hiraResult.rawData,
+    cachedGlobalData,
+    ctResult.data
+  )
+
+  // 검수 결과 로깅
+  console.log(`[ReportGenerator] 검수 점수: ${validationResult.score}/100 (${validationResult.isValid ? '통과' : '이슈 있음'})`)
+  if (validationResult.issues.length > 0) {
+    const errors = validationResult.issues.filter(i => i.severity === 'error')
+    const warnings = validationResult.issues.filter(i => i.severity === 'warning')
+    console.log(`[ReportGenerator] 검수 결과: 에러 ${errors.length}건, 경고 ${warnings.length}건`)
+    for (const issue of validationResult.issues) {
+      console.log(`[ReportValidator] [${issue.severity.toUpperCase()}] ${issue.category}: ${issue.message}${issue.location ? ` (${issue.location})` : ''}`)
+    }
   }
 
   console.log(`[ReportGenerator] Completed: ${generatedSections.length} sections generated`)
@@ -1497,6 +1543,15 @@ export async function generateSingleSection(params: {
     }
   }
 
+  // 글로벌 데이터도 로드
+  let cachedGlobalData: any = null
+  try {
+    const catalog = await prisma.reportCatalog.findUnique({ where: { slug } })
+    cachedGlobalData = (catalog as any)?.globalMedicalData || null
+  } catch (e) {
+    console.error(`[SingleSection] 글로벌 데이터 로드 실패:`, e)
+  }
+
   // 데이터 컨텍스트 준비
   const [hiraResult, ctResult, pubMedResult] = await Promise.all([
     getHiraData(slug, cachedHiraData),
@@ -1518,7 +1573,14 @@ export async function generateSingleSection(params: {
     hiraResult.rawData,
     pubMedContextStr
   )
-  const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(content)
+  // 첫 번째 섹션(경영진 요약)에만 실데이터 차트 배치
+  const isFirstSection = sectionIndex === 0
+  const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(
+    content,
+    isFirstSection ? hiraResult.rawData : undefined,
+    isFirstSection ? cachedGlobalData : undefined,
+    isFirstSection ? ctResult.data : undefined
+  )
 
   const isLast = hasPubMed
     ? false  // PubMed 있으면 다음에 참고문헌 섹션이 남음
