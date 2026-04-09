@@ -443,7 +443,7 @@ export async function GET(request: NextRequest) {
     const cmsCount = globalMedicalData?.cms?.drugSpending?.length || 0;
     const pbsCount = globalMedicalData?.pbs?.items?.length || 0;
     const nhsCount = globalMedicalData?.nhs?.prescriptionSummary?.length || 0;
-    const globalHasData = cmsCount > 0 || pbsCount > 0 || nhsCount > 0;
+    const globalHasData = globalMedicalData != null; // API 호출 자체가 완료되었으면 true
 
     return NextResponse.json({
       success: true,

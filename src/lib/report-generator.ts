@@ -47,9 +47,9 @@ async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<str
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
 
-  // Vercel Hobby 60초 제한 대응: 45초 타임아웃
+  // Vercel Hobby 60초 제한 대응: 35초 타임아웃 (DB 저장 등 오버헤드 고려)
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 45000)
+  const timeout = setTimeout(() => controller.abort(), 35000)
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -64,7 +64,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<str
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        max_tokens: 3000,
+        max_tokens: 2000,
         temperature: 0.7,
       }),
       signal: controller.signal,
@@ -91,9 +91,9 @@ async function callAnthropicClaude(systemPrompt: string, userPrompt: string): Pr
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
 
-  // Vercel Hobby 60초 제한 대응: 45초 타임아웃
+  // Vercel Hobby 60초 제한 대응: 35초 타임아웃 (DB 저장 등 오버헤드 고려)
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 45000)
+  const timeout = setTimeout(() => controller.abort(), 35000)
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -105,7 +105,7 @@ async function callAnthropicClaude(systemPrompt: string, userPrompt: string): Pr
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
+        max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
