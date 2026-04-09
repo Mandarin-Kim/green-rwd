@@ -296,7 +296,7 @@ export default function MarketPage() {
             </div>
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4 text-yellow-300" />
-              <span>IQVIA/GlobalData 수준 퀄리티</span>
+              <span>글로벌 수준 AI 분석 퀄리티</span>
             </div>
           </div>
           <button
