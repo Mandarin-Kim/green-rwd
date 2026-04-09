@@ -722,6 +722,12 @@ export default function ReportDetailPage() {
       [stepNum]: { ...prev[stepNum], loading: true, error: null },
     }));
 
+    // Step 5는 섹션별 분할 생성 (타임아웃 방지)
+    if (stepNum === 5) {
+      await handleRunStep5Sections();
+      return;
+    }
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 55000); // 55초 안전 마진
@@ -749,19 +755,6 @@ export default function ReportDetailPage() {
         throw new Error(data.error || `Step ${stepNum} 실패`);
       }
 
-      // Step 5 완료 시 보고서 보기 페이지로 이동
-      if (stepNum === 5 && data.data?.status === 'COMPLETED' && data.data?.orderId) {
-        setSteps(prev => ({
-          ...prev,
-          [stepNum]: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
-        }));
-        // 잠시 후 이동 (UI 확인용)
-        setTimeout(() => {
-          window.location.href = `/market/${slug}/view?orderId=${data.data.orderId}`;
-        }, 1000);
-        return;
-      }
-
       setSteps(prev => ({
         ...prev,
         [stepNum]: {
@@ -780,6 +773,91 @@ export default function ReportDetailPage() {
         [stepNum]: { ...prev[stepNum], loading: false, error: msg },
       }));
       setError(`Step ${stepNum} 오류: ${msg}`);
+    }
+  }
+
+  // Step 5: AI 보고서 섹션별 분할 생성 (Vercel 60초 제한 대응)
+  async function handleRunStep5Sections() {
+    let currentSectionIdx = 0;
+    let activeOrderId: string | null = null;
+    let totalSections = 0;
+
+    while (true) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 55000);
+
+        const response = await fetch('/api/reports/prepare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug,
+            step: 5,
+            tier: selectedTier,
+            sectionIndex: currentSectionIdx,
+            orderId: activeOrderId,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error('서버 응답을 처리할 수 없습니다.');
+        }
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || `섹션 ${currentSectionIdx + 1} 생성 실패`);
+        }
+
+        // orderId 추적
+        if (data.data?.orderId) {
+          activeOrderId = data.data.orderId;
+        }
+        if (data.data?.totalSections) {
+          totalSections = data.data.totalSections;
+        }
+
+        // 진행 상태 업데이트
+        const progressText = totalSections > 0
+          ? `섹션 ${currentSectionIdx + 1}/${totalSections} 생성 중: ${data.data?.sectionTitle || '...'}`
+          : `섹션 ${currentSectionIdx + 1} 생성 중...`;
+        setSteps(prev => ({
+          ...prev,
+          5: { ...prev[5], loading: true, error: null, summary: progressText },
+        }));
+
+        // 완료 확인
+        if (data.data?.isLast || data.data?.status === 'COMPLETED') {
+          setSteps(prev => ({
+            ...prev,
+            5: { completed: true, loading: false, summary: '보고서 생성 완료!', error: null },
+          }));
+          // 보고서 보기 페이지로 이동
+          if (activeOrderId) {
+            setTimeout(() => {
+              window.location.href = `/market/${slug}/view?orderId=${activeOrderId}`;
+            }, 1000);
+          }
+          return;
+        }
+
+        // 다음 섹션으로
+        currentSectionIdx = data.data?.nextSectionIndex ?? (currentSectionIdx + 1);
+
+      } catch (err) {
+        const msg = err instanceof Error
+          ? (err.name === 'AbortError' ? `섹션 ${currentSectionIdx + 1} 시간 초과. 다시 시도해주세요.` : err.message)
+          : '알 수 없는 오류';
+        setSteps(prev => ({
+          ...prev,
+          5: { ...prev[5], loading: false, error: msg },
+        }));
+        setError(`Step 5 오류: ${msg}`);
+        return;
+      }
     }
   }
 

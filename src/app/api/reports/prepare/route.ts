@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, ReportTier } from '@/lib/report-generator'
+import { getHiraData, getClinicalTrialsData, getPubMedData, generateReport, generateSingleSection, getSectionCount, ReportTier } from '@/lib/report-generator'
 import { fetchGlobalMedicalData } from '@/lib/global-medical-apis'
 
 // Vercel Hobby: 최대 60초 → 각 단계를 60초 이내로 분리
@@ -31,7 +31,7 @@ function isCacheValid(dataSyncedAt: Date | null, data: any): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { slug, step, tier = 'BASIC', orderId, forceRefresh = false } = body
+    const { slug, step, tier = 'BASIC', orderId, forceRefresh = false, sectionIndex } = body
 
     if (!slug) {
       return NextResponse.json({ error: 'slug가 필요합니다' }, { status: 400 })
@@ -191,15 +191,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Step 5: AI 보고서 생성 (캐시된 데이터 활용) ──
+    // ── Step 5: AI 보고서 생성 (섹션별 분할 생성 - Vercel 60초 대응) ──
+    // sectionIndex가 없으면 새 주문 생성 + 첫 섹션, 있으면 해당 섹션만 생성
     if (step === 5) {
-      console.log(`[Prepare Step 5] AI 보고서 생성 시작: ${slug} (tier: ${tier})`)
-
       if (!['BASIC', 'PRO', 'PREMIUM'].includes(tier)) {
         return NextResponse.json({ error: '유효하지 않은 티어입니다' }, { status: 400 })
       }
 
-      // DB에서 최신 캐시 데이터 다시 읽기
       const freshCatalog = await prisma.reportCatalog.findUnique({ where: { slug } })
       if (!freshCatalog) {
         return NextResponse.json({ error: '카탈로그를 찾을 수 없습니다' }, { status: 404 })
@@ -208,30 +206,70 @@ export async function POST(request: NextRequest) {
       const cachedHiraData = (freshCatalog as any).hiraData || undefined
       const cachedCT = (freshCatalog as any).clinicalTrialsData || undefined
       const cachedPubMed = (freshCatalog as any).pubMedData || undefined
+      const currentSectionIdx = typeof sectionIndex === 'number' ? sectionIndex : 0
+      const totalSectionCount = getSectionCount(tier as ReportTier) + (cachedPubMed?.articles?.length > 0 ? 1 : 0)
 
-      // 유저 확보
-      let userId: string | undefined
-      try {
-        const { getSessionUser } = await import('@/lib/api-guard')
-        const sessionUser = await getSessionUser(request)
-        if (sessionUser?.id) {
-          const dbUser = await prisma.user.findUnique({ where: { id: sessionUser.id } })
-          if (dbUser) userId = dbUser.id
+      console.log(`[Prepare Step 5] 섹션 ${currentSectionIdx + 1}/${totalSectionCount} 생성: ${slug} (tier: ${tier})`)
+
+      // ── 첫 섹션(sectionIndex=0)일 때: 주문 생성 ──
+      let activeOrderId = orderId
+      if (currentSectionIdx === 0 && !orderId) {
+        // 유저 확보
+        let userId: string | undefined
+        try {
+          const { getSessionUser } = await import('@/lib/api-guard')
+          const sessionUser = await getSessionUser(request)
+          if (sessionUser?.id) {
+            const dbUser = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+            if (dbUser) userId = dbUser.id
+          }
+        } catch {}
+        if (!userId) {
+          let guestUser = await prisma.user.findUnique({ where: { email: 'guest@green-rwd.system' } })
+          if (!guestUser) {
+            guestUser = await prisma.user.create({
+              data: { email: 'guest@green-rwd.system', name: '게스트', role: 'USER' },
+            })
+          }
+          userId = guestUser.id
         }
-      } catch {}
-      if (!userId) {
-        let guestUser = await prisma.user.findUnique({ where: { email: 'guest@green-rwd.system' } })
-        if (!guestUser) {
-          guestUser = await prisma.user.create({
-            data: { email: 'guest@green-rwd.system', name: '게스트', role: 'USER' },
-          })
+
+        // 이전 미완료 주문 정리
+        await prisma.reportOrder.updateMany({
+          where: {
+            catalogId: freshCatalog.id,
+            status: { in: ['PENDING', 'GENERATING'] },
+          },
+          data: {
+            status: 'FAILED',
+            errorMessage: '새 생성 요청으로 대체됨',
+            completedAt: new Date(),
+          },
+        })
+
+        // 새 주문 생성
+        const priceMap: Record<string, number> = {
+          BASIC: freshCatalog.priceBasic,
+          PRO: freshCatalog.pricePro,
+          PREMIUM: freshCatalog.pricePremium,
         }
-        userId = guestUser.id
+        const newOrder = await prisma.reportOrder.create({
+          data: {
+            catalogId: freshCatalog.id,
+            userId,
+            tier: tier as ReportTier,
+            price: priceMap[tier],
+            status: 'GENERATING',
+            progress: 0,
+            startedAt: new Date(),
+          },
+        })
+        activeOrderId = newOrder.id
       }
 
-      // 기존 완료된 보고서가 있으면 반환 (orderId가 주어진 경우 해당 주문 확인)
-      if (orderId) {
-        const existingOrder = await prisma.reportOrder.findUnique({ where: { id: orderId } })
+      // orderId가 있는데 이미 완료된 경우 바로 반환
+      if (activeOrderId) {
+        const existingOrder = await prisma.reportOrder.findUnique({ where: { id: activeOrderId } })
         if (existingOrder && existingOrder.status === 'COMPLETED') {
           return NextResponse.json({
             success: true,
@@ -246,96 +284,115 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 이전 GENERATING/PENDING 주문 정리
-      await prisma.reportOrder.updateMany({
-        where: {
-          catalogId: freshCatalog.id,
-          status: { in: ['PENDING', 'GENERATING'] },
-        },
-        data: {
-          status: 'FAILED',
-          errorMessage: '새 생성 요청으로 대체됨',
-          completedAt: new Date(),
-        },
-      })
-
-      // 새 주문 생성
-      const priceMap: Record<string, number> = {
-        BASIC: freshCatalog.priceBasic,
-        PRO: freshCatalog.pricePro,
-        PREMIUM: freshCatalog.pricePremium,
-      }
-      const newOrder = await prisma.reportOrder.create({
-        data: {
-          catalogId: freshCatalog.id,
-          userId,
-          tier: tier as ReportTier,
-          price: priceMap[tier],
-          status: 'GENERATING',
-          progress: 0,
-          startedAt: new Date(),
-        },
-      })
-
       try {
-        // 캐시된 데이터로 AI 생성 (외부 API 호출 없이 OpenAI만 호출)
-        const sections = await generateReport({
-          catalogId: freshCatalog.id,
+        // 단일 섹션 생성 (타임아웃 방지)
+        const result = await generateSingleSection({
           slug: freshCatalog.slug || '',
           title: freshCatalog.title,
           drugName: freshCatalog.drugName || '',
           indication: freshCatalog.indication || '',
           therapeuticArea: freshCatalog.therapeuticArea || '',
           tier: tier as ReportTier,
+          sectionIndex: currentSectionIdx,
           cachedHiraData,
           cachedClinicalTrialsData: cachedCT,
           cachedPubMedData: cachedPubMed,
-          onProgress: async (progress: number, sectionTitle: string) => {
-            try {
-              await prisma.reportOrder.update({
-                where: { id: newOrder.id },
-                data: { progress },
-              })
-            } catch {}
-          },
         })
 
-        // 완료 저장
-        await prisma.reportOrder.update({
-          where: { id: newOrder.id },
-          data: {
-            status: 'COMPLETED',
-            progress: 100,
-            sections: sections as any,
-            completedAt: new Date(),
-          },
-        })
+        // 기존 주문의 sections에 이번 섹션을 추가 저장
+        if (activeOrderId) {
+          const currentOrder = await prisma.reportOrder.findUnique({ where: { id: activeOrderId } })
+          const existingSections: any[] = (currentOrder?.sections as any[]) || []
+          // 같은 인덱스 섹션이 이미 있으면 교체, 없으면 추가
+          const updatedSections = existingSections.filter((s: any) => s.order !== result.section.order)
+          updatedSections.push(result.section)
+          updatedSections.sort((a: any, b: any) => a.order - b.order)
 
+          const progress = Math.round(((currentSectionIdx + 1) / totalSectionCount) * 100)
+
+          if (result.isLast) {
+            // 마지막 섹션 → 완료 처리
+            await prisma.reportOrder.update({
+              where: { id: activeOrderId },
+              data: {
+                status: 'COMPLETED',
+                progress: 100,
+                sections: updatedSections as any,
+                completedAt: new Date(),
+              },
+            })
+
+            return NextResponse.json({
+              success: true,
+              step: 5,
+              stepName: 'AI 보고서 생성',
+              data: {
+                orderId: activeOrderId,
+                status: 'COMPLETED',
+                sectionIndex: currentSectionIdx,
+                sectionTitle: result.section.title,
+                totalSections: totalSectionCount,
+                isLast: true,
+                message: '보고서 생성이 완료되었습니다',
+              },
+            })
+          } else {
+            // 중간 섹션 → 진행 상태 저장
+            await prisma.reportOrder.update({
+              where: { id: activeOrderId },
+              data: {
+                progress,
+                sections: updatedSections as any,
+              },
+            })
+
+            return NextResponse.json({
+              success: true,
+              step: 5,
+              stepName: 'AI 보고서 생성',
+              data: {
+                orderId: activeOrderId,
+                status: 'GENERATING',
+                sectionIndex: currentSectionIdx,
+                sectionTitle: result.section.title,
+                nextSectionIndex: currentSectionIdx + 1,
+                totalSections: totalSectionCount,
+                isLast: false,
+                progress,
+                summary: `섹션 ${currentSectionIdx + 1}/${totalSectionCount} 완료: ${result.section.title}`,
+              },
+            })
+          }
+        }
+
+        // orderId가 없는 비정상 케이스
         return NextResponse.json({
           success: true,
           step: 5,
-          stepName: 'AI 보고서 생성',
           data: {
-            orderId: newOrder.id,
-            status: 'COMPLETED',
-            message: '보고서 생성이 완료되었습니다',
+            status: 'GENERATING',
+            sectionIndex: currentSectionIdx,
+            sectionTitle: result.section.title,
+            isLast: result.isLast,
           },
         })
       } catch (genError) {
-        console.error(`[Prepare Step 5] 생성 실패:`, genError)
-        await prisma.reportOrder.update({
-          where: { id: newOrder.id },
-          data: {
-            status: 'FAILED',
-            errorMessage: genError instanceof Error ? genError.message : '보고서 생성 실패',
-            completedAt: new Date(),
-          },
-        })
+        console.error(`[Prepare Step 5] 섹션 ${currentSectionIdx} 생성 실패:`, genError)
+        if (activeOrderId) {
+          await prisma.reportOrder.update({
+            where: { id: activeOrderId },
+            data: {
+              status: 'FAILED',
+              errorMessage: genError instanceof Error ? genError.message : '보고서 생성 실패',
+              completedAt: new Date(),
+            },
+          }).catch(() => {})
+        }
         return NextResponse.json({
           success: false,
           step: 5,
           error: genError instanceof Error ? genError.message : '보고서 생성 중 오류가 발생했습니다',
-          data: { orderId: newOrder.id, status: 'FAILED' },
+          data: { orderId: activeOrderId, status: 'FAILED', sectionIndex: currentSectionIdx },
         }, { status: 500 })
       }
     }

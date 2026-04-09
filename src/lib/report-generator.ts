@@ -1235,3 +1235,124 @@ export async function generateReport(params: GenerateReportParams): Promise<Gene
   console.log(`[ReportGenerator] Completed: ${generatedSections.length} sections generated`)
   return generatedSections
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 단일 섹션 생성 (타임아웃 방지용 분할 생성)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 보고서의 특정 섹션 1개만 생성
+ * Vercel Hobby 60초 제한 대응: 프론트엔드에서 섹션별로 순차 호출
+ */
+export async function generateSingleSection(params: {
+  slug: string
+  title: string
+  drugName: string
+  indication: string
+  therapeuticArea: string
+  tier: ReportTier
+  sectionIndex: number
+  cachedHiraData?: any
+  cachedClinicalTrialsData?: any
+  cachedPubMedData?: any
+}): Promise<{ section: GeneratedSection; isLast: boolean; totalSections: number }> {
+  const {
+    slug, title, drugName, indication, therapeuticArea, tier,
+    sectionIndex, cachedHiraData, cachedClinicalTrialsData, cachedPubMedData,
+  } = params
+
+  const sectionCount = TIER_SECTION_COUNT[tier]
+  const sectionsToGenerate = reportSections.slice(0, sectionCount)
+  // 참고문헌 섹션을 포함한 총 섹션 수 (PubMed 데이터가 있으면 +1)
+  const hasPubMed = cachedPubMedData?.articles?.length > 0
+  const totalSections = hasPubMed ? sectionCount + 1 : sectionCount
+
+  console.log(`[SingleSection] Generating section ${sectionIndex + 1}/${totalSections} for ${title} (${tier})`)
+
+  // 참고문헌 섹션 생성 (마지막 인덱스)
+  if (hasPubMed && sectionIndex === sectionCount) {
+    const referencesContent = generateReferencesSection(cachedPubMedData)
+    return {
+      section: {
+        id: `section-${sectionIndex + 1}`,
+        title: '참고문헌 (References)',
+        content: referencesContent,
+        wordCount: referencesContent.length,
+        hasCharts: false,
+        hasTables: false,
+        charts: [],
+        tables: [],
+        order: sectionIndex + 1,
+      },
+      isLast: true,
+      totalSections,
+    }
+  }
+
+  if (sectionIndex >= sectionCount) {
+    // 마지막 섹션 이후 → 완료 신호
+    return {
+      section: {
+        id: 'done',
+        title: 'done',
+        content: '',
+        wordCount: 0,
+        hasCharts: false,
+        hasTables: false,
+        charts: [],
+        tables: [],
+        order: sectionIndex + 1,
+      },
+      isLast: true,
+      totalSections,
+    }
+  }
+
+  // 데이터 컨텍스트 준비
+  const [hiraResult, ctResult, pubMedResult] = await Promise.all([
+    getHiraData(slug, cachedHiraData),
+    getClinicalTrialsData(slug, cachedClinicalTrialsData),
+    getPubMedData(slug, drugName, indication, cachedPubMedData),
+  ])
+
+  const fullContextStr = [hiraResult.contextStr, ctResult.contextStr].filter(Boolean).join('\n\n')
+  const pubMedContextStr = pubMedResult.contextStr || ''
+
+  const sectionDef = sectionsToGenerate[sectionIndex]
+  const content = await generateSectionWithRetry(
+    sectionDef,
+    drugName,
+    indication,
+    therapeuticArea,
+    fullContextStr,
+    ctResult.data,
+    hiraResult.rawData,
+    pubMedContextStr
+  )
+  const { charts, tables, hasCharts, hasTables } = extractChartsAndTables(content)
+
+  const isLast = hasPubMed
+    ? false  // PubMed 있으면 다음에 참고문헌 섹션이 남음
+    : sectionIndex === sectionCount - 1
+
+  return {
+    section: {
+      id: `section-${sectionIndex + 1}`,
+      title: sectionDef.title,
+      content,
+      wordCount: content.length,
+      hasCharts,
+      hasTables,
+      charts,
+      tables,
+      order: sectionIndex + 1,
+    },
+    isLast,
+    totalSections,
+  }
+}
+
+/** 티어별 섹션 수 조회 (프론트엔드용) */
+export function getSectionCount(tier: ReportTier): number {
+  return TIER_SECTION_COUNT[tier]
+}
