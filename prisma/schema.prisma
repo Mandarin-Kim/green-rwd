@@ -336,7 +336,8 @@ model ReportCatalog {
   hiraData        Json?         // HIRA 실측 데이터 캐시 (HiraEnrichmentResult)
   clinicalTrialsData Json?      // ClinicalTrials.gov 데이터 캐시 (ClinicalTrialsData)
   pubMedData      Json?         // PubMed 논문 데이터 캐시 (PubMedSearchResult)
-  globalMedicalData Json?       // 글로벌 의료데이터 캐시 (CMS Medicare + PBS Australia + NHS UK)
+  globalMedicalData Json?       // 글로벌 의료데이터 캐시 (CMS Medicare + PBS Australia + NHS UK + FDA OpenFDA)
+  fdaData         Json?         // FDA OpenFDA 전용 캐시 (약물 라벨/부작용/승인 상세)
   dataSyncedAt    DateTime?     // 마지막 데이터 동기화 시각
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
