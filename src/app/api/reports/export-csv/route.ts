@@ -613,7 +613,7 @@ function buildClinicalDetailRowData(ctData: any, title: string, indication: stri
     rowNo++
     const nctId = s.nctId || s.id || ''
     const locations = Array.isArray(s.locations) ? s.locations : []
-    const countries = [...new Set(locations.map((l: any) => l.country || '').filter(Boolean))].join('; ')
+    const countries = Array.from(new Set(locations.map((l: any) => l.country || '').filter(Boolean))).join('; ')
     const siteCount = locations.length || s.facilitiesCount || ''
 
     lines.push([
