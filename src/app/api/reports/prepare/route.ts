@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
       const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
 
       // DB 캐시가 유효하면 API 호출 없이 바로 반환
-      const result = await getHiraData(slug, cacheValid ? existingData : undefined)
+      // indication 전달: 커스텀 보고서에서도 HIRA 질병코드 동적 매핑 가능
+      const result = await getHiraData(slug, cacheValid ? existingData : undefined, catalog.indication || undefined)
 
       return NextResponse.json({
         success: true,

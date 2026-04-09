@@ -264,3 +264,201 @@ export function getMappingBySlug(slug: string): DiseaseMapping | undefined {
 export function getHiraQueryableItems(): DiseaseMapping[] {
   return DISEASE_MAPPING.filter(m => m.diseaseCodes.length > 0);
 }
+
+/**
+ * 커스텀 보고서용: 질환명(indication)으로 동적 ICD-10 코드 매핑
+ *
+ * 기존 DISEASE_MAPPING에 slug이 없는 커스텀 보고서에서도
+ * HIRA 데이터를 조회할 수 있도록 질환명 기반 자동 매핑 제공
+ */
+const INDICATION_TO_ICD10: Record<string, { codes: string[]; names: string[]; description: string }> = {
+  // ── 혈액암/골수 질환 ──
+  '골수섬유증': { codes: ['D47.1', 'D75.8'], names: ['골수섬유증', '원발성 골수섬유증'], description: '골수섬유증' },
+  '골수이형성증후군': { codes: ['D46'], names: ['골수이형성증후군', 'MDS'], description: '골수이형성증후군' },
+  '다발골수종': { codes: ['C90.0'], names: ['다발골수종', '다발성 골수종'], description: '다발골수종' },
+  '급성골수성백혈병': { codes: ['C92.0'], names: ['급성골수성백혈병', 'AML'], description: '급성골수성백혈병' },
+  '만성골수성백혈병': { codes: ['C92.1'], names: ['만성골수성백혈병', 'CML'], description: '만성골수성백혈병' },
+  '급성림프구성백혈병': { codes: ['C91.0'], names: ['급성림프구성백혈병', 'ALL'], description: '급성림프구성백혈병' },
+  '만성림프구성백혈병': { codes: ['C91.1'], names: ['만성림프구성백혈병', 'CLL'], description: '만성림프구성백혈병' },
+  '호지킨림프종': { codes: ['C81'], names: ['호지킨림프종', '호지킨병'], description: '호지킨림프종' },
+  '비호지킨림프종': { codes: ['C82', 'C83', 'C85'], names: ['비호지킨림프종', 'NHL'], description: '비호지킨림프종' },
+  '진성적혈구증가증': { codes: ['D45'], names: ['진성적혈구증가증', 'PV'], description: '진성적혈구증가증' },
+  '본태성혈소판증가증': { codes: ['D47.3'], names: ['본태성혈소판증가증', 'ET'], description: '본태성혈소판증가증' },
+
+  // ── 주요 고형암 ──
+  '폐암': { codes: ['C34'], names: ['폐암', '기관지폐암'], description: '폐암' },
+  '비소세포폐암': { codes: ['C34'], names: ['비소세포폐암', 'NSCLC'], description: '비소세포폐암' },
+  '소세포폐암': { codes: ['C34'], names: ['소세포폐암', 'SCLC'], description: '소세포폐암' },
+  '유방암': { codes: ['C50'], names: ['유방암'], description: '유방암' },
+  '대장암': { codes: ['C18', 'C19', 'C20'], names: ['대장암', '결장암', '직장암'], description: '대장암' },
+  '위암': { codes: ['C16'], names: ['위암', '위장암'], description: '위암' },
+  '간암': { codes: ['C22'], names: ['간암', '간세포암'], description: '간암' },
+  '전립선암': { codes: ['C61'], names: ['전립선암'], description: '전립선암' },
+  '췌장암': { codes: ['C25'], names: ['췌장암'], description: '췌장암' },
+  '갑상선암': { codes: ['C73'], names: ['갑상선암'], description: '갑상선암' },
+  '방광암': { codes: ['C67'], names: ['방광암'], description: '방광암' },
+  '난소암': { codes: ['C56'], names: ['난소암'], description: '난소암' },
+  '자궁경부암': { codes: ['C53'], names: ['자궁경부암'], description: '자궁경부암' },
+  '신장암': { codes: ['C64'], names: ['신장암', '신세포암'], description: '신장암' },
+  '흑색종': { codes: ['C43'], names: ['흑색종', '악성흑색종', '멜라노마'], description: '흑색종' },
+  '두경부암': { codes: ['C10', 'C11', 'C12', 'C13', 'C14'], names: ['두경부암'], description: '두경부암' },
+  '담도암': { codes: ['C22.1', 'C23', 'C24'], names: ['담도암', '담낭암'], description: '담도암' },
+  '식도암': { codes: ['C15'], names: ['식도암'], description: '식도암' },
+
+  // ── 내분비/대사 ──
+  '당뇨병': { codes: ['E11', 'E10'], names: ['당뇨병', '제2형당뇨병'], description: '당뇨병' },
+  '비만': { codes: ['E66'], names: ['비만', '고도비만'], description: '비만' },
+  '고지혈증': { codes: ['E78'], names: ['이상지질혈증', '고지혈증'], description: '이상지질혈증' },
+  '통풍': { codes: ['M10'], names: ['통풍'], description: '통풍' },
+  '갑상선기능저하증': { codes: ['E03'], names: ['갑상선기능저하증'], description: '갑상선기능저하증' },
+  '갑상선기능항진증': { codes: ['E05'], names: ['갑상선기능항진증'], description: '갑상선기능항진증' },
+
+  // ── 자가면역/염증 ──
+  '류마티스관절염': { codes: ['M05', 'M06'], names: ['류마티스관절염', 'RA'], description: '류마티스관절염' },
+  '아토피피부염': { codes: ['L20'], names: ['아토피피부염'], description: '아토피피부염' },
+  '건선': { codes: ['L40'], names: ['건선'], description: '건선' },
+  '크론병': { codes: ['K50'], names: ['크론병'], description: '크론병' },
+  '궤양성대장염': { codes: ['K51'], names: ['궤양성대장염'], description: '궤양성대장염' },
+  '전신홍반루푸스': { codes: ['M32'], names: ['전신홍반루푸스', 'SLE', '루푸스'], description: '전신홍반루푸스' },
+  '강직성척추염': { codes: ['M45'], names: ['강직성척추염'], description: '강직성척추염' },
+
+  // ── 신경계 ──
+  '알츠하이머': { codes: ['G30', 'F00'], names: ['알츠하이머', '알츠하이머병'], description: '알츠하이머병' },
+  '파킨슨병': { codes: ['G20'], names: ['파킨슨병'], description: '파킨슨병' },
+  '다발성경화증': { codes: ['G35'], names: ['다발성경화증', 'MS'], description: '다발성경화증' },
+  '편두통': { codes: ['G43'], names: ['편두통'], description: '편두통' },
+  '간질': { codes: ['G40'], names: ['간질', '뇌전증', '간질발작'], description: '뇌전증' },
+  '우울증': { codes: ['F32', 'F33'], names: ['우울증', '주요우울장애'], description: '우울증' },
+  '조현병': { codes: ['F20'], names: ['조현병', '정신분열증'], description: '조현병' },
+
+  // ── 심혈관/호흡기 ──
+  '심부전': { codes: ['I50'], names: ['심부전'], description: '심부전' },
+  '고혈압': { codes: ['I10', 'I11'], names: ['고혈압', '본태성고혈압'], description: '고혈압' },
+  '관상동맥질환': { codes: ['I25'], names: ['관상동맥질환', '협심증'], description: '관상동맥질환' },
+  '심방세동': { codes: ['I48'], names: ['심방세동'], description: '심방세동' },
+  '천식': { codes: ['J45'], names: ['천식', '기관지천식'], description: '천식' },
+  'COPD': { codes: ['J44'], names: ['만성폐쇄성폐질환', 'COPD'], description: 'COPD' },
+  '폐섬유증': { codes: ['J84.1'], names: ['특발성폐섬유증', 'IPF'], description: '폐섬유증' },
+  '폐동맥고혈압': { codes: ['I27.0'], names: ['폐동맥고혈압', 'PAH'], description: '폐동맥고혈압' },
+
+  // ── 간/소화기 ──
+  '비알코올지방간': { codes: ['K76.0', 'K75.8'], names: ['비알코올지방간', 'NASH', 'NAFLD'], description: 'NASH/NAFLD' },
+  'B형간염': { codes: ['B18.1'], names: ['만성B형간염', 'B형간염'], description: 'B형간염' },
+  'C형간염': { codes: ['B18.2'], names: ['만성C형간염', 'C형간염'], description: 'C형간염' },
+  '간경변': { codes: ['K74'], names: ['간경변', '간경화증'], description: '간경변' },
+
+  // ── 비뇨기/신장 ──
+  '만성신장병': { codes: ['N18'], names: ['만성신장병', 'CKD', '만성신부전'], description: '만성신장병' },
+  '과민성방광': { codes: ['N32.8'], names: ['과민성방광', 'OAB'], description: '과민성방광' },
+
+  // ── 안과 ──
+  '황반변성': { codes: ['H35.3'], names: ['나이관련황반변성', 'AMD', '황반변성'], description: '황반변성' },
+  '녹내장': { codes: ['H40'], names: ['녹내장'], description: '녹내장' },
+
+  // ── 근골격 ──
+  '골다공증': { codes: ['M81'], names: ['골다공증'], description: '골다공증' },
+  '퇴행성관절염': { codes: ['M17'], names: ['무릎관절증', '퇴행성관절염'], description: '퇴행성관절염' },
+
+  // ── 희귀질환 ──
+  '헌팅턴병': { codes: ['G10'], names: ['헌팅턴병'], description: '헌팅턴병' },
+  '낭포성섬유증': { codes: ['E84'], names: ['낭포성섬유증'], description: '낭포성섬유증' },
+  '근위축성측삭경화증': { codes: ['G12.2'], names: ['근위축성측삭경화증', 'ALS'], description: 'ALS' },
+  '척수근위축증': { codes: ['G12.0', 'G12.1'], names: ['척수근위축증', 'SMA'], description: 'SMA' },
+  '듀센근이영양증': { codes: ['G71.0'], names: ['듀센근이영양증', 'DMD'], description: 'DMD' },
+  '파브리병': { codes: ['E75.2'], names: ['파브리병'], description: '파브리병' },
+  '고셔병': { codes: ['E75.2'], names: ['고셔병'], description: '고셔병' },
+  '혈우병': { codes: ['D66', 'D67'], names: ['혈우병', '혈우병A', '혈우병B'], description: '혈우병' },
+};
+
+/**
+ * 커스텀 보고서용: indication(질환명)으로 동적 매핑 생성
+ *
+ * 1) 먼저 DISEASE_MAPPING에서 slug으로 검색
+ * 2) 없으면 INDICATION_TO_ICD10에서 질환명으로 부분 매칭
+ * 3) 없으면 null 반환
+ */
+export function getMappingBySlugOrIndication(slug: string, indication?: string): DiseaseMapping | undefined {
+  // 1) 기존 매핑에서 slug 검색
+  const bySlug = DISEASE_MAPPING.find(m => m.slug === slug);
+  if (bySlug) return bySlug;
+
+  // 2) indication으로 동적 매핑
+  if (indication) {
+    const normalizedIndication = indication.trim();
+
+    // 정확 매칭 시도
+    if (INDICATION_TO_ICD10[normalizedIndication]) {
+      const match = INDICATION_TO_ICD10[normalizedIndication];
+      return {
+        slug,
+        diseaseCodes: match.codes,
+        diseaseNames: match.names,
+        category: 'disease',
+        description: match.description,
+      };
+    }
+
+    // 부분 매칭 시도 (질환명이 키워드를 포함하는 경우)
+    for (const [key, value] of Object.entries(INDICATION_TO_ICD10)) {
+      if (normalizedIndication.includes(key) || key.includes(normalizedIndication)) {
+        return {
+          slug,
+          diseaseCodes: value.codes,
+          diseaseNames: value.names,
+          category: 'disease',
+          description: value.description,
+        };
+      }
+    }
+
+    // 영문 indication도 시도 (예: "myelofibrosis" → "골수섬유증")
+    const englishToKorean: Record<string, string> = {
+      'myelofibrosis': '골수섬유증',
+      'myelodysplastic': '골수이형성증후군',
+      'multiple myeloma': '다발골수종',
+      'leukemia': '백혈병',
+      'lymphoma': '림프종',
+      'lung cancer': '폐암',
+      'nsclc': '비소세포폐암',
+      'breast cancer': '유방암',
+      'colorectal': '대장암',
+      'gastric cancer': '위암',
+      'liver cancer': '간암',
+      'prostate cancer': '전립선암',
+      'pancreatic cancer': '췌장암',
+      'melanoma': '흑색종',
+      'diabetes': '당뇨병',
+      'obesity': '비만',
+      'hypertension': '고혈압',
+      'heart failure': '심부전',
+      'asthma': '천식',
+      'copd': 'COPD',
+      'alzheimer': '알츠하이머',
+      'parkinson': '파킨슨병',
+      'depression': '우울증',
+      'rheumatoid arthritis': '류마티스관절염',
+      'psoriasis': '건선',
+      'atopic dermatitis': '아토피피부염',
+      'crohn': '크론병',
+      'gout': '통풍',
+    };
+
+    const lowerIndication = normalizedIndication.toLowerCase();
+    for (const [eng, kor] of Object.entries(englishToKorean)) {
+      if (lowerIndication.includes(eng)) {
+        if (INDICATION_TO_ICD10[kor]) {
+          const match = INDICATION_TO_ICD10[kor];
+          return {
+            slug,
+            diseaseCodes: match.codes,
+            diseaseNames: match.names,
+            category: 'disease',
+            description: match.description,
+          };
+        }
+      }
+    }
+  }
+
+  return undefined;
+}

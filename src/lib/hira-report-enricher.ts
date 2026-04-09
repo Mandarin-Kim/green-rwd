@@ -21,7 +21,7 @@ import {
   fetchDiseaseInstitutionStats,
   fetchDiseaseAreaStats,
 } from './hira-disease-api';
-import { DISEASE_MAPPING, getMappingBySlug, type DiseaseMapping } from './hira-disease-mapping';
+import { DISEASE_MAPPING, getMappingBySlug, getMappingBySlugOrIndication, type DiseaseMapping } from './hira-disease-mapping';
 
 const prisma = new PrismaClient();
 
@@ -74,12 +74,14 @@ export interface HiraReportContext {
 /**
  * 특정 보고서(slug)에 대한 HIRA 실측 데이터 수집
  */
-export async function fetchHiraDataForReport(slug: string): Promise<HiraEnrichmentResult | null> {
-  const mapping = getMappingBySlug(slug);
+export async function fetchHiraDataForReport(slug: string, indication?: string): Promise<HiraEnrichmentResult | null> {
+  // 1) 기존 slug 매핑 → 2) indication 기반 동적 매핑
+  const mapping = getMappingBySlugOrIndication(slug, indication);
   if (!mapping || mapping.diseaseCodes.length === 0) {
-    console.log(`[HIRA Enricher] ${slug}: HIRA 코드 없음, 건너뜀`);
+    console.log(`[HIRA Enricher] ${slug}: HIRA 코드 없음 (indication: ${indication || 'N/A'}), 건너뜀`);
     return null;
   }
+  console.log(`[HIRA Enricher] ${slug}: 매핑 발견 → ${mapping.description} (코드: ${mapping.diseaseCodes.join(', ')})`);
 
   try {
     let totalPatients = 0;
@@ -262,14 +264,14 @@ export async function enrichAllCatalogsWithHira(): Promise<{
  * AI 프롬프트에 주입할 HIRA 데이터 컨텍스트 생성
  * report-generator.ts에서 사용
  */
-export async function buildHiraContext(slug: string): Promise<HiraReportContext | null> {
-  const hiraData = await fetchHiraDataForReport(slug);
+export async function buildHiraContext(slug: string, indication?: string): Promise<HiraReportContext | null> {
+  const hiraData = await fetchHiraDataForReport(slug, indication);
   if (!hiraData || hiraData.patientCount === 0) {
     return null;
   }
 
-  const mapping = getMappingBySlug(slug);
-  const diseaseLabel = mapping?.description || slug;
+  const mapping = getMappingBySlugOrIndication(slug, indication);
+  const diseaseLabel = mapping?.description || indication || slug;
 
   // 환자 요약
   const patientSummary = [
