@@ -1182,18 +1182,18 @@ export default function ReportDetailPage() {
                   </div>
                 )}
 
-                {/* CSV Raw 데이터 다운로드 (데이터 수집 완료 시 표시) */}
-                {(steps[1].completed || steps[2].completed || steps[3].completed || steps[4].completed) && (
+                {/* CSV Row Data 다운로드 (데이터 수집 완료 시 표시) */}
+                {(steps[1].completed || steps[2].completed || steps[4].completed) && (
                   <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>Raw 데이터 패키지</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#92400e' }}>제약사 실무용 Row Data</div>
                         <div style={{ fontSize: '0.75rem', color: '#a16207', marginTop: '0.25rem' }}>
-                          수집된 원시 데이터를 CSV로 다운로드 (PREMIUM 전용)
+                          처방전·치료여정·약가비교·임상시험 개별건 단위 데이터 (PREMIUM 전용)
                         </div>
                       </div>
                       <button
-                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=all`, '_blank')}
+                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=rowdata`, '_blank')}
                         style={{
                           padding: '0.5rem 1rem',
                           backgroundColor: '#f59e0b',
@@ -1208,45 +1208,65 @@ export default function ReportDetailPage() {
                           gap: '0.375rem',
                         }}
                       >
-                        📥 전체 CSV 다운로드
+                        📥 Row Data 전체 다운로드
                       </button>
                     </div>
-                    {/* 개별 데이터 다운로드 버튼 */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {/* 개별 Row Data 다운로드 버튼 */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
                       {steps[1].completed && (
                         <button
-                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=rowdata`, '_blank')}
-                          style={{
-                            padding: '0.375rem 0.75rem',
-                            backgroundColor: 'white',
-                            color: '#92400e',
-                            borderRadius: '0.375rem',
-                            border: '1px solid #fde68a',
-                            fontWeight: 500,
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                          }}
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=prescription`, '_blank')}
+                          style={{ padding: '0.375rem 0.75rem', backgroundColor: 'white', color: '#92400e', borderRadius: '0.375rem', border: '1px solid #fde68a', fontWeight: 500, fontSize: '0.75rem', cursor: 'pointer' }}
                         >
-                          🇰🇷 HIRA Row 데이터
+                          💊 처방전 Row Data
                         </button>
                       )}
-                      {steps[4].completed && (
+                      {steps[1].completed && (
                         <button
-                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=global`, '_blank')}
-                          style={{
-                            padding: '0.375rem 0.75rem',
-                            backgroundColor: 'white',
-                            color: '#92400e',
-                            borderRadius: '0.375rem',
-                            border: '1px solid #fde68a',
-                            fontWeight: 500,
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                          }}
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=patient-journey`, '_blank')}
+                          style={{ padding: '0.375rem 0.75rem', backgroundColor: 'white', color: '#92400e', borderRadius: '0.375rem', border: '1px solid #fde68a', fontWeight: 500, fontSize: '0.75rem', cursor: 'pointer' }}
                         >
-                          🌍 글로벌 데이터 (CMS·PBS·NHS)
+                          🗺️ 환자 치료여정 Row Data
                         </button>
                       )}
+                      {(steps[1].completed || steps[4].completed) && (
+                        <button
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=global-pricing`, '_blank')}
+                          style={{ padding: '0.375rem 0.75rem', backgroundColor: 'white', color: '#92400e', borderRadius: '0.375rem', border: '1px solid #fde68a', fontWeight: 500, fontSize: '0.75rem', cursor: 'pointer' }}
+                        >
+                          🌍 글로벌 약가 비교 Row Data
+                        </button>
+                      )}
+                      {steps[2].completed && (
+                        <button
+                          onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=clinical-detail`, '_blank')}
+                          style={{ padding: '0.375rem 0.75rem', backgroundColor: 'white', color: '#92400e', borderRadius: '0.375rem', border: '1px solid #fde68a', fontWeight: 500, fontSize: '0.75rem', cursor: 'pointer' }}
+                        >
+                          🔬 임상시험 상세 Row Data
+                        </button>
+                      )}
+                    </div>
+                    {/* 집계 통계 다운로드 */}
+                    <div style={{ borderTop: '1px solid #fde68a', paddingTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.6875rem', color: '#a16207', lineHeight: '1.75rem' }}>집계 통계:</span>
+                      <button
+                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=all`, '_blank')}
+                        style={{ padding: '0.25rem 0.5rem', backgroundColor: 'transparent', color: '#a16207', borderRadius: '0.25rem', border: '1px dashed #fde68a', fontSize: '0.6875rem', cursor: 'pointer' }}
+                      >
+                        전체 (Row+집계)
+                      </button>
+                      <button
+                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=hira`, '_blank')}
+                        style={{ padding: '0.25rem 0.5rem', backgroundColor: 'transparent', color: '#a16207', borderRadius: '0.25rem', border: '1px dashed #fde68a', fontSize: '0.6875rem', cursor: 'pointer' }}
+                      >
+                        HIRA 집계
+                      </button>
+                      <button
+                        onClick={() => window.open(`/api/reports/export-csv?slug=${slug}&type=global`, '_blank')}
+                        style={{ padding: '0.25rem 0.5rem', backgroundColor: 'transparent', color: '#a16207', borderRadius: '0.25rem', border: '1px dashed #fde68a', fontSize: '0.6875rem', cursor: 'pointer' }}
+                      >
+                        글로벌 집계
+                      </button>
                     </div>
                   </div>
                 )}

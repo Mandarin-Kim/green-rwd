@@ -18,6 +18,7 @@ interface GenerateReportParams {
   cachedHiraData?: any
   cachedClinicalTrialsData?: any
   cachedPubMedData?: any
+  cachedGlobalData?: any
   onProgress?: (progress: number, sectionTitle: string) => void
 }
 
@@ -142,13 +143,14 @@ async function generateSectionWithRetry(
   clinicalTrialsData: ClinicalTrialsData | null,
   hiraRawData: any,
   pubMedContextStr: string,
+  globalData?: any,
   retries: number = 2
 ): Promise<string> {
   const hasOpenAIKey = !!process.env.OPENAI_API_KEY?.trim()
   const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY?.trim()
   if (!hasOpenAIKey && !hasAnthropicKey) {
     console.log(`[Section: ${section.title}] No API keys (OPENAI_API_KEY=${hasOpenAIKey}, ANTHROPIC_API_KEY=${hasAnthropicKey}), generating data-driven fallback`)
-    return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData)
+    return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData, globalData)
   }
 
   // 사용 가능한 AI 선택 (선호 provider → 대체 provider 순서)
@@ -173,7 +175,7 @@ async function generateSectionWithRetry(
   }
 
   // AI에 실제 데이터를 구체적으로 주입
-  const dataContext = buildDetailedDataContext(hiraContextStr, clinicalTrialsData, drugName, indication)
+  const dataContext = buildDetailedDataContext(hiraContextStr, clinicalTrialsData, drugName, indication, globalData)
 
   // PubMed 논문 인용 지시 (논문 데이터가 있을 때만)
   const citationInstruction = pubMedContextStr ? `
@@ -194,14 +196,21 @@ ${pubMedContextStr}
 위 실측 데이터를 기반으로 "${section.title}" 섹션을 작성해주세요.
 
 작성 원칙:
-1. 위에 제공된 HIRA/ClinicalTrials.gov 실측 데이터의 구체적 수치를 반드시 인용하세요
-2. 수치 인용 시 출처를 "(건강보험심사평가원, 2023)" 또는 "(ClinicalTrials.gov, 2025)" 형식으로 표기
-3. 한국 시장 데이터를 중심으로, 글로벌 시장과 비교 분석
+1. 위에 제공된 HIRA/ClinicalTrials.gov/CMS/PBS/NHS 실측 데이터의 구체적 수치를 반드시 인용하세요
+2. 수치 인용 시 출처를 정확히 표기하세요:
+   - 한국 데이터: "(건강보험심사평가원, 2023)"
+   - 임상시험: "(ClinicalTrials.gov, 2025)"
+   - 미국 데이터: "(CMS Medicare Part D, 연도)"
+   - 호주 데이터: "(PBS Australia, 연도)"
+   - 영국 데이터: "(NHS England PCA, 연도)"
+3. 한국 시장 데이터를 중심으로, 글로벌 시장(미국/호주/영국)과 비교 분석
 4. 마크다운 표를 최소 2개 이상 포함 (데이터 비교, 추이 등)
 5. 전문 시장조사 보고서 수준의 분석 깊이 (단, 특정 시장조사 기관명이나 경쟁사 서비스명을 절대 언급하지 마세요)
 6. 최소 3000자 이상, 구체적 수치와 근거 기반으로 작성
 7. 단순 나열이 아닌 인사이트와 시사점을 도출하세요
 8. 데이터 출처는 공공 데이터 기관(HIRA, ClinicalTrials.gov, PubMed, CMS, PBS, NHS 등)만 명시하고, 민간 시장조사 기관명은 사용하지 마세요
+9. 각 섹션 끝에 반드시 "### 📊 데이터 출처" 소제목으로 해당 섹션에서 참조한 데이터의 출처와 기준을 정리하세요. 형식:
+   - 출처명 | 데이터 항목 | 기준연도 | 비고(산출방법)
 ${citationInstruction}
 `
 
@@ -238,7 +247,7 @@ ${citationInstruction}
 
       if (attempt === retries) {
         console.log(`[Section: ${section.title}] All AI attempts failed, using data-driven fallback`)
-        return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData)
+        return generateDataDrivenContent(section, drugName, indication, therapeuticArea, hiraRawData, clinicalTrialsData, globalData)
       }
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
