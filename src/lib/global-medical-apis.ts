@@ -1,23 +1,23 @@
 /**
  * Global Medical Data APIs Integration (v2 - 2026 Updated)
  *
- * 4ê° ê¸ë¡ë² ìë£ ë°ì´í° API ì°ë:
- * 1. CMS Medicare (USA) - data.cms.gov (ì data-api/v1 ìëí¬ì¸í¸)
+ * 4개 글로벌 의료 데이터 API 연동:
+ * 1. CMS Medicare (USA) - data.cms.gov (새 data-api/v1 엔드포인트)
  * 2. PBS Australia - data.pbs.gov.au / data-api.health.gov.au (v3 API)
- * 3. NHS UK - OpenPrescribing.net (BNF ì½ë ê¸°ë° ì²ë°© íµê³)
- * 4. FDA OpenFDA (ì ê·) - api.fda.gov (ì½ë¬¼ ë¼ë²¨, ë¶ìì©, ì¹ì¸ ì ë³´)
+ * 3. NHS UK - OpenPrescribing.net (BNF 코드 기반 처방 통계)
+ * 4. FDA OpenFDA (신규) - api.fda.gov (약물 라벨, 부작용, 승인 정보)
  *
- * ë³ê²½ ì´ë ¥:
- * - CMS: ë ê±°ì Socrata API (yvpj-pmj2, 77gb-8z53) â ì data-api/v1 + data.json ëì¤ì»¤ë²ë¦¬
- * - PBS: v3/item 404 â ì items ìëí¬ì¸í¸ + health.gov.au ë§ì´ê·¸ë ì´ì
- * - FDA: ì ê· ì¶ê° (drug/label, drug/event, drug/drugsfda)
+ * 변경 이력:
+ * - CMS: 레거시 Socrata API (yvpj-pmj2, 77gb-8z53) → 새 data-api/v1 + data.json 디스커버리
+ * - PBS: v3/item 404 → 새 items 엔듘포인트 + health.gov.au 마이그레이션
+ * - FDA: 신규 추가 (drug/label, drug/event, drug/drugsfda)
  */
 
 import { translateToEnglish, getInternationalSearchTerms } from './drug-name-translator'
 
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 // Interfaces
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 
 export interface CMSMedicareDataPoint {
   drugName: string
@@ -73,7 +73,7 @@ export interface NHSUKData {
   error?: string
 }
 
-/** FDA OpenFDA - ì½ë¬¼ ë¼ë²¨ ì ë³´ */
+/** FDA OpenFDA - 약물 라벨 정보 */
 export interface FDADrugLabel {
   brandName: string
   genericName: string
@@ -86,13 +86,13 @@ export interface FDADrugLabel {
   applicationNumber: string
 }
 
-/** FDA OpenFDA - ë¶ìì© ë³´ê³  ì§ê³ */
+/** FDA OpenFDA - 부작용 보고 집계 */
 export interface FDAAdverseEvent {
   reactionName: string
   count: number
 }
 
-/** FDA OpenFDA - ì½ë¬¼ ì¹ì¸ ì ë³´ */
+/** FDA OpenFDA - 약물 승인 정보 */
 export interface FDADrugApproval {
   applicationNumber: string
   brandName: string
@@ -114,7 +114,7 @@ export interface FDAOpenFDAData {
   error?: string
 }
 
-/** ê¸ë¡ë² ìë£ ë°ì´í° íµí© ìëµ */
+/** 글로벌 의료 데이터 통합 응답 */
 export interface GlobalMedicalData {
   cms?: CMSMedicareData
   pbs?: PBSAustraliaData
@@ -132,11 +132,11 @@ export interface GlobalMedicalData {
   totalAttempts: number
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 // Utility Functions
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 
-const REQUEST_TIMEOUT = 15000 // 15ì´ (ê¸ë¡ë² APIë ëë¦´ ì ìì)
+const REQUEST_TIMEOUT = 15000 // 15초 (글로벌 API는 느릴 수 있음)
 
 function createTimeoutController(timeoutMs: number): AbortController {
   const controller = new AbortController()
@@ -150,7 +150,7 @@ function cleanupTimeout(controller: AbortController): void {
   if (timeoutId) clearTimeout(timeoutId)
 }
 
-/** ìì í fetch wrapper - ìë¬ ì null ë°í */
+/** 안전한 fetch wrapper - 에러 시 null 반환 */
 async function safeFetch(
   url: string,
   options: RequestInit = {},
@@ -177,17 +177,17 @@ async function safeFetch(
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 // 1. CMS Medicare (USA)
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 
 /**
- * CMS Medicare ì½ë¬¼ ì§ì¶ ë°ì´í° ì¡°í
+ * CMS Medicare 약물 지출 데이터 조회
  *
- * ì ëµ:
- * 1ì°¨: data.cms.gov ì data-api/v1 ìëí¬ì¸í¸ (data.json ëì¤ì»¤ë²ë¦¬)
- * 2ì°¨: data.cms.gov ì§ì  ë°ì´í° íì´ì§ API
- * 3ì°¨: ë ê±°ì Socrata í¸í ìëí¬ì¸í¸ (ì¼ë¶ ë°ì´í°ìì ìì§ ìë)
+ * 전략:
+ * 1차: data.cms.gov 새 data-api/v1 엔드포인트 (data.json 디스커버리)
+ * 2차: data.cms.gov 직접 데이터 페이지 API
+ * 3차: 레거시 Socrata 호환 엔듘포인트 (일부 데이터셋은 아직 작동)
  */
 async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> {
   const emptyResult: CMSMedicareData = {
@@ -208,8 +208,8 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
 
   console.log(`[CMS API] Searching for: ${drugName} (terms: ${searchTerms.join(', ')})`)
 
-  // ââ ì ëµ 1: ì data-api/v1 ìëí¬ì¸í¸ ââ
-  // data.jsonìì Medicare Part D Spending by Drug ë°ì´í°ìì UUIDë¥¼ ì°¾ì ì¬ì©
+  // ── 전략 1: 새 data-api/v1 엔드포인트 ──
+  // data.json에서 Medicare Part D Spending by Drug 데이터셋의 UUID를 찾아 사용
   try {
     const dataJsonUrl = 'https://data.cms.gov/data.json'
     console.log(`[CMS API] Strategy 1: Discovering dataset via data.json`)
@@ -219,7 +219,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
       const catalog = await djRes.json()
       const datasets = catalog?.dataset || []
 
-      // "Medicare Part D Spending by Drug" ë°ì´í°ì ì°¾ê¸°
+      // "Medicare Part D Spending by Drug" 데이터셋 찾기
       const partDDataset = datasets.find((ds: any) => {
         const title = (ds.title || '').toLowerCase()
         return title.includes('medicare part d') && title.includes('spending') && title.includes('drug')
@@ -227,7 +227,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
       })
 
       if (partDDataset?.distribution) {
-        // API formatì distributionìì accessURL ì¶ì¶
+        // API format의 distribution에서 accessURL 추출
         const apiDist = partDDataset.distribution.find((d: any) =>
           (d.format || '').toLowerCase() === 'api' ||
           (d.mediaType || '').includes('json') ||
@@ -241,7 +241,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
           for (const term of searchTerms) {
             if (drugSpending.length > 0) break
 
-            // filter íë¼ë¯¸í°ë¡ ì½ë¬¼ëª ê²ì
+            // filter 파라미터로 약물명 검색
             const filterUrl = `${baseApiUrl}?filter[Brnd_Name]=${encodeURIComponent(term)}&size=50`
             usedEndpoint = filterUrl
 
@@ -255,7 +255,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
               }
             }
 
-            // ë¸ëëëªì¼ë¡ ëª» ì°¾ì¼ë©´ ì±ë¶ëªì¼ë¡ ìë
+            // 브랜드명으로 못 찾으면 성분명으로 시도
             if (drugSpending.length === 0) {
               const filterUrl2 = `${baseApiUrl}?filter[Gnrc_Name]=${encodeURIComponent(term)}&size=50`
               usedEndpoint = filterUrl2
@@ -278,7 +278,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
     console.warn(`[CMS API] Strategy 1 failed:`, e instanceof Error ? e.message : e)
   }
 
-  // ââ ì ëµ 2: ì§ì  ë°ì´í° íì´ì§ URL ââ
+  // ── 전략 2: 직접 데이터 페이지 URL ──
   if (drugSpending.length === 0) {
     try {
       console.log(`[CMS API] Strategy 2: Direct data page API`)
@@ -286,7 +286,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
       for (const term of searchTerms) {
         if (drugSpending.length > 0) break
 
-        // CMS ë°ì´í° íì´ì§ì JSON API ì§ì  í¸ì¶
+        // CMS 데이터 페이지의 JSON API 직접 호출
         const directUrl = `https://data.cms.gov/summary-statistics-on-use-and-payments/medicare-medicaid-spending-by-drug/medicare-part-d-spending-by-drug/data?query=${encodeURIComponent(term)}&size=50`
         usedEndpoint = directUrl
 
@@ -310,7 +310,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
     }
   }
 
-  // ââ ì ëµ 3: ë ê±°ì Socrata í¸í (ì¼ë¶ ë°ì´í°ìì ìì§ ìëí  ì ìì) ââ
+  // ── 전략 3: 레거시 Socrata 호환 (일부 데이터셋은 아직 작동할 수 있음) ──
   if (drugSpending.length === 0) {
     try {
       console.log(`[CMS API] Strategy 3: Legacy Socrata compatible`)
@@ -321,7 +321,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
         const whereClause = encodeURIComponent(
           `upper(brnd_name) like '%${term}%' OR upper(gnrc_name) like '%${term}%'`
         )
-        // ê¸°ì¡´ yvpj-pmj2 ëì  ìµì  ë°ì´í°ì ID ìë
+        // 기존 yvpj-pmj2 대신 최신 데이터셋 ID 시도
         const endpoints = [
           `https://data.cms.gov/resource/yvpj-pmj2.json?$where=${whereClause}&$limit=50&$order=tot_spndng DESC`,
           `https://data.cms.gov/resource/77gb-8z53.json?$where=${whereClause}&$limit=50`,
@@ -334,7 +334,7 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
           const res = await safeFetch(endpoint, {}, 8000)
           if (res?.ok) {
             const data = await res.json()
-            // deprecated ìëµ ì²´í¬
+            // deprecated 응답 체크
             if (data?.code === 'deprecated' || data?.error === true) {
               console.warn(`[CMS API] Socrata endpoint deprecated: ${endpoint}`)
               continue
@@ -357,11 +357,11 @@ async function fetchCMSMedicareData(drugName: string): Promise<CMSMedicareData> 
     drugSpending,
     source: 'CMS Medicare Part D Drug Spending (data.cms.gov)',
     endpoint: usedEndpoint,
-    success: true, // API í¸ì¶ ìë ìì²´ë ì±ê³µ (ê²°ê³¼ 0ê±´ì´ì´ë)
+    success: true, // API 호출 시도 자체는 성공 (결과 0건이어도)
   }
 }
 
-/** CMS ìëµ ë°ì´í°ë¥¼ íµí© íìì¼ë¡ ë³í */
+/** CMS 응답 데이터를 통합 형식으로 변환 */
 function mapCMSDataPoint(item: any): CMSMedicareDataPoint {
   return {
     drugName: item.Brnd_Name || item.brnd_name || item.brand_name || item.drug_name || '',
@@ -375,17 +375,17 @@ function mapCMSDataPoint(item: any): CMSMedicareDataPoint {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 // 2. PBS Australia
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 
 /**
- * PBS í¸ì£¼ ì½ë¬¼ ë°ì´í° ì¡°í
+ * PBS 호주 약물 데이터 조회
  *
- * ì ëµ:
- * 1ì°¨: ì health.gov.au PBS API v3 (2025ë ë§ì´ê·¸ë ì´ì)
- * 2ì°¨: data.pbs.gov.au v3 API (items ìëí¬ì¸í¸)
- * 3ì°¨: PBS ê³µê° ê²ì API
+ * 전략:
+ * 1차: 새 health.gov.au PBS API v3 (2025년 마이그레이션)
+ * 2차: data.pbs.gov.au v3 API (items 엔드포인트)
+ * 3차: PBS 공개 검색 API
  */
 async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData> {
   const emptyResult: PBSAustraliaData = {
@@ -405,11 +405,11 @@ async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData
 
   console.log(`[PBS API] Searching for: ${drugName}`)
 
-  // ââ ì ëµ 1: ì health.gov.au PBS API v3 ââ
+  // ── 전략 1: 새 health.gov.au PBS API v3 ──
   try {
     console.log(`[PBS API] Strategy 1: health.gov.au PBS API v3`)
 
-    // ì ìëí¬ì¸í¸: data-api.health.gov.au/pbs/api/v3/items
+    // 새 엔드포인트: data-api.health.gov.au/pbs/api/v3/items
     const endpoints = [
       `https://data-api.health.gov.au/pbs/api/v3/items?filter=${encodeURIComponent(searchTerm)}&format=json`,
       `https://data-api.health.gov.au/pbs/api/v3/item-overview?filter=${encodeURIComponent(searchTerm)}&format=json`,
@@ -436,7 +436,7 @@ async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData
     console.warn(`[PBS API] Strategy 1 failed:`, e instanceof Error ? e.message : e)
   }
 
-  // ââ ì ëµ 2: data.pbs.gov.au v3 API ââ
+  // ── 전략 2: data.pbs.gov.au v3 API ──
   if (items.length === 0) {
     try {
       console.log(`[PBS API] Strategy 2: data.pbs.gov.au v3`)
@@ -462,7 +462,7 @@ async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData
               console.log(`[PBS API] Strategy 2 found ${items.length} items`)
             }
           } else if (contentType.includes('xml')) {
-            // XML ìëµ íì±
+            // XML 응답 파싱
             const text = await res.text()
             items = parsePBSXml(text)
             if (items.length > 0) {
@@ -476,7 +476,7 @@ async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData
     }
   }
 
-  // ââ ì ëµ 3: PBS ê²ì API ââ
+  // ── 전략 3: PBS 검색 API ──
   if (items.length === 0) {
     try {
       console.log(`[PBS API] Strategy 3: PBS search API`)
@@ -517,7 +517,7 @@ async function fetchPBSAustraliaData(drugName: string): Promise<PBSAustraliaData
   }
 }
 
-/** PBS API ìëµìì items ë°°ì´ ì¶ì¶ (ë¤ìí ìëµ êµ¬ì¡° ëì) */
+/** PBS API 응답에서 items 배열 추출 (다양한 응답 구조 대응) */
 function extractPBSItems(data: any): any[] {
   if (Array.isArray(data)) return data
   if (data?.data && Array.isArray(data.data)) return data.data
@@ -528,7 +528,7 @@ function extractPBSItems(data: any): any[] {
   return []
 }
 
-/** PBS ë°ì´í°ë¥¼ íµí© íìì¼ë¡ ë³í */
+/** PBS 데이터를 통합 형식으로 변환 */
 function mapPBSItem(item: any): PBSItem {
   return {
     itemCode: item.pbs_code || item.item_code || item.code || item.pbs_item_code || '',
@@ -542,7 +542,7 @@ function mapPBSItem(item: any): PBSItem {
   }
 }
 
-/** PBS XML ìëµìì ê¸°ë³¸ ì ë³´ ì¶ì¶ */
+/** PBS XML 응답에서 기본 정보 추출 */
 function parsePBSXml(xmlText: string): PBSItem[] {
   const items: PBSItem[] = []
   if (!xmlText || xmlText.length < 200) return items
@@ -566,13 +566,13 @@ function parsePBSXml(xmlText: string): PBSItem[] {
   return items
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 // 3. NHS UK (OpenPrescribing.net)
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
 
 /**
- * NHS UK ì²ë°© ë°ì´í° ì¡°í
- * OpenPrescribing.net API â BNF ì½ë ê²ì â ì²ë°© íµê³
+ * NHS UK 처방 데이터 조회
+ * OpenPrescribing.net API → BNF 코드 가색 → 처방 통계
  */
 async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
   const emptyResult: NHSUKData = {
@@ -591,7 +591,7 @@ async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
 
   console.log(`[NHS API] Searching for: ${searchTerm}`)
 
-  // ìë 1: OpenPrescribing.net BNF ì½ë ê²ì â ì²ë°© íµê³
+  // 시도 1: OpenPrescribing.net BNF 코드 검색 → 처방 통계
   try {
     const encodedTerm = encodeURIComponent(searchTerm.toLowerCase())
     const searchEndpoint = `https://openprescribing.net/api/1.0/bnf_code/?q=${encodedTerm}&format=json`
@@ -626,14 +626,14 @@ async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
           }
         }
 
-        // BNF ê²ìì ì±ê³µíì§ë§ ì²ë°© ë°ì´í°ê° ìì¼ë©´
+        // BNF 검색은 성공했지만 처방 데이터가 없으면
         if (prescriptionSummary.length === 0) {
           prescriptionSummary = results.slice(0, 20).map((item: any) => ({
             chemicalSubstance: item.name || item.title || '',
             totalItems: 0,
             totalQuantity: 0,
             totalNetIngredientCost: 0,
-            period: 'BNF ë±ì¬ íì¸',
+            period: 'BNF 등재 확인',
           }))
         }
       }
@@ -642,7 +642,7 @@ async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
     console.warn(`[NHS API] OpenPrescribing failed:`, e instanceof Error ? e.message : e)
   }
 
-  // ìë 2: NHSBSA CKAN datastore_search (fallback)
+  // 시도 2: NHSBSA CKAN datastore_search (fallback)
   if (prescriptionSummary.length === 0) {
     try {
       const encodedTerm = encodeURIComponent(searchTerm)
@@ -680,17 +680,17 @@ async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
   }
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
-// 4. FDA OpenFDA (ì ê·)
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
+// 4. FDA OpenFDA (신규)
+// ═══════════════════════════════════════════
 
 /**
- * FDA OpenFDA ì½ë¬¼ ë°ì´í° ì¡°í
+ * FDA OpenFDA 약물 데이터 조회
  *
- * 3ê°ì§ ìëí¬ì¸í¸ ë³ë ¬ í¸ì¶:
- * 1. drug/label - ì½ë¬¼ ë¼ë²¨ ì ë³´ (í¨ë¥, ë¶ìì©, ì©ë² ë±)
- * 2. drug/event - ë¶ìì© ë³´ê³  ì§ê³
- * 3. drug/drugsfda - ì½ë¬¼ ì¹ì¸ ì ë³´
+ * 3가지 엔듘포인트 병렬 호출:
+ * 1. drug/label - 약물 라벨 정보 (효능, 부작용, 용법 등)
+ * 2. drug/event - 부작용 보고 집계
+ * 3. drug/drugsfda - 약물 승인 정보
  */
 async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
   const emptyResult: FDAOpenFDAData = {
@@ -714,7 +714,7 @@ async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
   let approvals: FDADrugApproval[] = []
   let usedEndpoint = ''
 
-  // ë³ë ¬ í¸ì¶: ë¼ë²¨, ë¶ìì©, ì¹ì¸ ì ë³´
+  // 병렬 호출: 라벨, 부작용, 승인 정보
   const [labelResult, eventResult, approvalResult] = await Promise.allSettled([
     fetchFDALabels(searchTerm),
     fetchFDAAdverseEvents(searchTerm),
@@ -750,7 +750,7 @@ async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
   }
 }
 
-/** FDA ì½ë¬¼ ë¼ë²¨ ì¡°í */
+/** FDA 약물 라벨 조회 */
 async function fetchFDALabels(searchTerm: string): Promise<FDADrugLabel[]> {
   const url = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"+openfda.brand_name:"${encodeURIComponent(searchTerm)}"&limit=10`
 
@@ -776,7 +776,7 @@ async function fetchFDALabels(searchTerm: string): Promise<FDADrugLabel[]> {
   })
 }
 
-/** FDA ë¶ìì© ë³´ê³  ì§ê³ ì¡°í */
+/** FDA 부작용 보고 집계 조회 */
 async function fetchFDAAdverseEvents(searchTerm: string): Promise<FDAAdverseEvent[]> {
   const url = `https://api.fda.gov/drug/event.json?search=patient.drug.openfda.generic_name:"${encodeURIComponent(searchTerm)}"&count=patient.reaction.reactionmeddrapt.exact&limit=20`
 
@@ -792,7 +792,7 @@ async function fetchFDAAdverseEvents(searchTerm: string): Promise<FDAAdverseEven
   }))
 }
 
-/** FDA ì½ë¬¼ ì¹ì¸ ì ë³´ ì¡°í */
+/** FDA 약물 승인 정보 조회 */
 async function fetchFDAApprovals(searchTerm: string): Promise<FDADrugApproval[]> {
   const url = `https://api.fda.gov/drug/drugsfda.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"&limit=10`
 
@@ -824,20 +824,20 @@ async function fetchFDAApprovals(searchTerm: string): Promise<FDADrugApproval[]>
   })
 }
 
-/** ê¸´ íì¤í¸ë¥¼ ìì íê² ìë¥´ê¸° */
+/** 긴 텍스트를 안전하게 자르기 */
 function truncateText(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text || ''
   return text.substring(0, maxLength) + '...'
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââ
-// íµí© ë°ì´í° ì¡°í í¨ì
-// âââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════
+// 통합 데이터 조회 함수
+// ═══════════════════════════════════════════
 
 /**
- * ëª¨ë  ê¸ë¡ë² ìë£ ë°ì´í° API ë³ë ¬ í¸ì¶
- * @param drugName - ì½ë¬¼ëª (íêµ­ì´/ìì´)
- * @param indication - ì ìì¦ (íêµ­ì´/ìì´)
+ * 모든 글로벌 의료 데이터 API 병렬 호출
+ * @param drugName - 약물명 (한국어/영어)
+ * @param indication - 적응증 (한국어/영어)
  */
 export async function fetchGlobalMedicalData(
   drugName: string,
@@ -846,12 +846,12 @@ export async function fetchGlobalMedicalData(
   console.log('[Global Medical APIs] Starting fetch...')
   console.log(`[Global Medical APIs] Drug: ${drugName}, Indication: ${indication}`)
 
-  // íêµ­ì´âìì´ ë²ì­
+  // 한국어→영어 번역
   const terms = getInternationalSearchTerms(drugName || '', indication || '')
   const drugNameEn = terms.drugNameEn
   const indicationEn = terms.indicationEn
 
-  // íêµ­ì´ê° ìë ê²ìì´ë§ ì¶ì¶
+  // 한국어가 아닌 검색岴만 추출
   const allSearchTerms = terms.searchTerms.filter(t => !/[\uac00-\ud7af]/.test(t))
   const primarySearchTerm = allSearchTerms[0] || drugNameEn || indicationEn
 
@@ -876,7 +876,7 @@ export async function fetchGlobalMedicalData(
 
   const startTime = Date.now()
 
-  // 4ê° API ë³ë ¬ í¸ì¶
+  // 4개 API 병렬 호출
   const [cmsData, pbsData, nhsData, fdaData] = await Promise.all([
     fetchCMSMedicareData(primarySearchTerm).catch(err => {
       console.error('[Global Medical APIs] CMS error:', err)
@@ -921,7 +921,7 @@ export async function fetchGlobalMedicalData(
 }
 
 /**
- * í¹ì  APIë§ ë¨ë í¸ì¶
+ * 특정 API만 단독 호출
  */
 export async function fetchFromSpecificAPI(
   apiName: 'cms' | 'pbs' | 'nhs' | 'fda',
@@ -940,38 +940,38 @@ export async function fetchFromSpecificAPI(
 }
 
 /**
- * API ë°ì´í°ì ì ë³´
+ * API 데이터셋 정보
  */
 export const API_DATASETS = {
   cms: {
     name: 'CMS Medicare',
     country: 'USA',
     datasets: [
-      { id: 'part-d-spending', name: 'Medicare Part D Drug Spending', description: 'ì½ë¬¼ë³ ì§ì¶ ë°ì´í°' },
+      { id: 'part-d-spending', name: 'Medicare Part D Drug Spending', description: '약문별 지출 데이터' },
     ],
   },
   pbs: {
     name: 'PBS Australia',
     country: 'Australia',
     datasets: [
-      { id: 'items', name: 'PBS Drug Items', description: 'PBS ë±ì¬ ì½ë¬¼ ì ë³´' },
+      { id: 'items', name: 'PBS Drug Items', description: 'PBS 등재 약물 정보' },
     ],
   },
   nhs: {
     name: 'NHS UK',
     country: 'United Kingdom',
     datasets: [
-      { id: 'openprescribing', name: 'OpenPrescribing', description: 'NHS ì²ë°© íµê³' },
-      { id: 'nhsbsa', name: 'NHSBSA Open Data', description: 'NHSBSA ê³µê° ë°ì´í°' },
+      { id: 'openprescribing', name: 'OpenPrescribing', description: 'NHS 처방 통계' },
+      { id: 'nhsbsa', name: 'NHSBSA Open Data', description: 'NHSBSA 공개 데이터' },
     ],
   },
   fda: {
     name: 'FDA OpenFDA',
     country: 'USA',
     datasets: [
-      { id: 'drug-label', name: 'Drug Labels', description: 'ì½ë¬¼ ë¼ë²¨ (í¨ë¥/ë¶ìì©/ì©ë²)' },
-      { id: 'drug-event', name: 'Adverse Events', description: 'ë¶ìì© ë³´ê³  ë°ì´í°' },
-      { id: 'drug-approval', name: 'Drug Approvals', description: 'FDA ì½ë¬¼ ì¹ì¸ ì ë³´' },
+      { id: 'drug-label', name: 'Drug Labels', description: '약물 라벨 (효능/부작용/용법)' },
+      { id: 'drug-event', name: 'Adverse Events', description: '부작용 보고 데이터' },
+      { id: 'drug-approval', name: 'Drug Approvals', description: 'FDA 약물 승인 정보' },
     ],
   },
 } as const
