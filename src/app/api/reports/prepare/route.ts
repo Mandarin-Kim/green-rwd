@@ -99,6 +99,13 @@ export async function POST(request: NextRequest) {
       const existingData = (catalog as any).hiraData;
       const cacheValid = !forceRefresh && isCacheValid(syncedAt, existingData);
       const result = await getHiraData(slug, cacheValid ? existingData : undefined, catalog.indication || undefined)
+      // 새로 수집한 데이터를 DB에 명시적으로 저장 (fire-and-forget 방지)
+      if (result.rawData && (!cacheValid || !existingData)) {
+        await prisma.reportCatalog.updateMany({
+          where: { slug },
+          data: { hiraData: result.rawData as any, dataSyncedAt: new Date() }
+        })
+      }
       return NextResponse.json({
         success: true,
         step: 1,
