@@ -20,7 +20,6 @@ export async function GET() {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
 
-    // Common queries for all roles
     const [
       activeCampaigns,
       totalSentData,
@@ -30,39 +29,34 @@ export async function GET() {
       prevCostData,
       recentCampaignsRaw,
       pendingApprovalsRaw,
+      totalReports,
+      totalSegments,
+      totalPatients,
+      recentReports,
     ] = await Promise.all([
-      // Active campaign count
       prisma.campaign.count({
-        where: {
-          status: { in: ['EXECUTING', 'SCHEDULED', 'APPROVED'] },
-        },
+        where: { status: { in: ['EXECUTING', 'SCHEDULED', 'APPROVED'] } },
       }),
-      // Total sent (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _sum: { totalSent: true },
       }),
-      // Avg conversion rate (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _avg: { conversionRate: true },
       }),
-      // Total cost (last 30 days)
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: thirtyDaysAgo } },
         _sum: { totalCost: true },
       }),
-      // Previous period sent
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
         _sum: { totalSent: true },
       }),
-      // Previous period cost
       prisma.campaignAnalytics.aggregate({
         where: { updatedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
         _sum: { totalCost: true },
       }),
-      // Recent campaigns with analytics
       prisma.campaign.findMany({
         take: 5,
         orderBy: { updatedAt: 'desc' },
@@ -79,12 +73,34 @@ export async function GET() {
           },
         },
       }),
-      // Pending approvals
       prisma.campaign.findMany({
         where: { status: 'PENDING_APPROVAL' },
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { name: true } } },
+      }),
+      // 보고서 총 개수
+      prisma.marketReport.count(),
+      // 세그먼트 총 개수
+      prisma.segment.count({ where: { status: 'active' } }),
+      // 총 환자 풀
+      prisma.segment.aggregate({
+        where: { status: 'active' },
+        _sum: { patientCount: true },
+      }),
+      // 최근 보고섞 (5개)
+      prisma.marketReport.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          category: true,
+          marketSize: true,
+          patientPool: true,
+          createdAt: true,
+        },
       }),
     ])
 
@@ -110,6 +126,12 @@ export async function GET() {
           monthCost: costTrend.change,
         },
       },
+      // 플랫폼 통계 (보고섰/세그먼트)
+      platformStats: {
+        totalReports,
+        totalSegments,
+        totalPatients: totalPatients._sum.patientCount || 0,
+      },
       recentCampaigns: recentCampaignsRaw.map((c) => ({
         id: c.id,
         name: c.name,
@@ -119,6 +141,15 @@ export async function GET() {
         conversionRate: c.analytics?.conversionRate || 0,
         totalCost: c.analytics?.totalCost || 0,
         status: c.status,
+      })),
+      recentReports: recentReports.map((r) => ({
+        id: r.id,
+        title: r.title,
+        slug: r.slug,
+        category: r.category,
+        marketSize: r.marketSize,
+        patientPool: r.patientPool,
+        createdAt: r.createdAt.toISOString(),
       })),
       pendingApprovals: pendingApprovalsRaw.map((a) => ({
         id: a.id,
