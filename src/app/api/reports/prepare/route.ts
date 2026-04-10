@@ -474,7 +474,7 @@ export async function GET(request: NextRequest) {
     const hiraData = (catalog as any).hiraData
     const clinicalTrialsData = (catalog as any).clinicalTrialsData
     const pubMedData = (catalog as any).pubMedData
-    const globalMedicalData = (catalog as any).globalMedicamData
+    const globalMedicalData = (catalog as any).globalMedicalData
     const completedOrder = await prisma.reportOrder.findFirst({
       where: { catalogId: catalog.id, status: 'COMPLETED' },
       orderBy: { completedAt: 'desc' },
