@@ -256,10 +256,13 @@ export async function POST(request: NextRequest) {
           catalog.drugName || '',
           catalog.indication || ''
         );
-        await prisma.reportCatalog.updateMany({
-          where: { slug },
+        // DB에 캐시 저장 (update by primary key)
+        console.log(`[Step 4 DB] Saving globalData, catalog.id=${catalog.id}`)
+        const updateResult = await prisma.reportCatalog.update({
+          where: { id: catalog.id },
           data: { globalMedicalData: globalData as any, dataSyncedAt: new Date() },
-        });
+        })
+        console.log(`[Step 4 DB] Saved OK, dataSyncedAt=${updateResult.dataSyncedAt}`)
         const cmsCount = globalData.cms?.drugSpending?.length || 0;
         const pbsCount = globalData.pbs?.items?.length || 0;
         const nhsCount = globalData.nhs?.prescriptionSummary?.length || 0;
