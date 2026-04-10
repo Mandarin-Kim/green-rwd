@@ -258,11 +258,19 @@ export async function POST(request: NextRequest) {
         );
         // DB에 캐시 저장 (update by primary key)
         console.log(`[Step 4 DB] Saving globalData, catalog.id=${catalog.id}`)
-        const updateResult = await prisma.reportCatalog.update({
-          where: { id: catalog.id },
-          data: { globalMedicalData: globalData as any, dataSyncedAt: new Date() },
-        })
-        console.log(`[Step 4 DB] Saved OK, dataSyncedAt=${updateResult.dataSyncedAt}`)
+        // DB에 캐시 저장 (Raw SQL - Neon PgBouncer JSON 호환)
+        try {
+          const gJson = JSON.stringify(globalData);
+          console.log(`[Step4DB] saving id=${catalog.id} size=${gJson.length}`);
+          await prisma.$executeRawUnsafe(
+            `UPDATE "ReportCatalog" SET "globalMedicalData"=$1::jsonb,"dataSyncedAt"=NOW() WHERE id=$2`,
+            gJson,
+            catalog.id
+          );
+          console.log(`[Step4DB] raw SQL ok id=${catalog.id}`);
+        } catch (dbErr) {
+          console.error(`[Step4DB] fail:`, dbErr);
+        }
         const cmsCount = globalData.cms?.drugSpending?.length || 0;
         const pbsCount = globalData.pbs?.items?.length || 0;
         const nhsCount = globalData.nhs?.prescriptionSummary?.length || 0;
