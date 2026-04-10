@@ -80,7 +80,7 @@ export async function GET() {
         include: { user: { select: { name: true } } },
       }),
       // 보고서 총 개수
-      prisma.marketReport.count(),
+      prisma.reportCatalog.count({ where: { isActive: true } }),
       // 세그먼트 총 개수
       prisma.segment.count({ where: { status: 'active' } }),
       // 총 환자 풀
@@ -88,16 +88,17 @@ export async function GET() {
         where: { status: 'active' },
         _sum: { patientCount: true },
       }),
-      // 최근 보고섞 (5개)
-      prisma.marketReport.findMany({
+      // 최근 보고서 (5개)
+      prisma.reportCatalog.findMany({
         take: 5,
+        where: { isActive: true },
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           title: true,
           slug: true,
-          category: true,
-          marketSize: true,
+          categories: true,
+          marketSizeKrw: true,
           patientPool: true,
           createdAt: true,
         },
@@ -126,7 +127,7 @@ export async function GET() {
           monthCost: costTrend.change,
         },
       },
-      // 플랫폼 통계 (보고섰/세그먼트)
+      // 플랫폼 통계 (보고서/세그먼트)
       platformStats: {
         totalReports,
         totalSegments,
@@ -146,9 +147,9 @@ export async function GET() {
         id: r.id,
         title: r.title,
         slug: r.slug,
-        category: r.category,
-        marketSize: r.marketSize,
-        patientPool: r.patientPool,
+        category: r.categories?.[0] || '',
+        marketSize: r.marketSizeKrw ? `${(Number(r.marketSizeKrw) / 100000000).toFixed(0)}억원` : '',
+        patientPool: r.patientPool ? `${r.patientPool.toLocaleString()}명` : '',
         createdAt: r.createdAt.toISOString(),
       })),
       pendingApprovals: pendingApprovalsRaw.map((a) => ({
