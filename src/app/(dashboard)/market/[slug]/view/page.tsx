@@ -97,6 +97,7 @@ function parseMarkdownTables(content: string): { tables: ParsedTable[], position
 // Table → Chart Candidate 변환
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function extractNumber(str: string): number | null {
+  if (!str) return null
   const cleaned = str.replace(/,/g, '').replace(/명|원|%|건|억|만|조|개/g, '').trim()
   const num = parseFloat(cleaned)
   return isNaN(num) ? null : num
@@ -303,8 +304,9 @@ function ModernTable({ table }: { table: ParsedTable }) {
 // Content Renderer (테이블→차트 자동변환 포함)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function SectionContent({ content }: { content: string }) {
+  const safeContent = content || ''
   const { segments, tables, charts } = useMemo(() => {
-    const { tables: parsedTables, positions } = parseMarkdownTables(content)
+    const { tables: parsedTables, positions } = parseMarkdownTables(safeContent)
     const charts: ChartCandidate[] = []
     const tableList: ParsedTable[] = parsedTables
 
@@ -319,24 +321,25 @@ function SectionContent({ content }: { content: string }) {
 
     positions.forEach((pos, idx) => {
       if (pos.start > lastEnd) {
-        segments.push({ type: 'text', content: content.slice(lastEnd, pos.start) })
+        segments.push({ type: 'text', content: safeContent.slice(lastEnd, pos.start) })
       }
       segments.push({ type: 'table', content: '', tableIdx: idx })
       lastEnd = pos.end
     })
 
-    if (lastEnd < content.length) {
-      segments.push({ type: 'text', content: content.slice(lastEnd) })
+    if (lastEnd < safeContent.length) {
+      segments.push({ type: 'text', content: safeContent.slice(lastEnd) })
     }
 
     if (positions.length === 0) {
-      segments.push({ type: 'text', content })
+      segments.push({ type: 'text', safeContent })
     }
 
     return { segments, tables: tableList, charts }
-  }, [content])
+  }, [safeContent])
 
   const renderText = (text: string) => {
+    if (!text) return ''
     let html = text
       .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold mt-6 mb-2 text-slate-800">$1</h3>')
       .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-7 mb-3 text-slate-900">$1</h2>')
@@ -1232,7 +1235,7 @@ export default function ReportViewPage() {
               </h2>
               <SectionContent content={section.content} />
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-300">
-                <span>{section.wordCount.toLocaleString()}자</span>
+                <span>{(section.wordCount || 0).toLocaleString()}자</span>
                 <span>Green-RWD AI Report Engine</span>
               </div>
             </div>
