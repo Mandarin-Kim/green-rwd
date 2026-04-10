@@ -264,7 +264,9 @@ export async function searchDiseases(keyword: string): Promise<DiseaseInfo[]> {
 
 /** 질병별 성별·입원/외래 현황 (Swagger 필드: sex, inpatOpat, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
 export async function fetchDiseaseGenderStats(sickCd: string, year = '2023'): Promise<DiseaseGenderStats[]> {
-  const { items } = await getDissByHsptlzFrgnStats1(sickCd, year);
+  const sickType = sickCd.includes('.') ? '2' : '1';
+  const apiCode = sickCd.replace('.', '');
+  const { items } = await getDissByHsptlzFrgnStats1(apiCode, year, { sickType });
 
   // 입원/외래 × 성별로 데이터가 옴 → 성별 기준으로 집계
   const genderMap = new Map<string, DiseaseGenderStats>();
@@ -305,7 +307,9 @@ export async function fetchDiseaseGenderStats(sickCd: string, year = '2023'): Pr
 
 /** 질병별 성별·연령대별 현황 (Swagger 필드: sex, age, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
 export async function fetchDiseaseAgeStats(sickCd: string, year = '2023'): Promise<DiseaseAgeStats[]> {
-  const { items } = await getDissByGenderAgeStats1(sickCd, year);
+  const sickType = sickCd.includes('.') ? '2' : '1';
+  const apiCode = sickCd.replace('.', '');
+  const { items } = await getDissByGenderAgeStats1(apiCode, year, { sickType });
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || ''),
@@ -321,7 +325,9 @@ export async function fetchDiseaseAgeStats(sickCd: string, year = '2023'): Promi
 
 /** 질병별 의료기관종별 현황 (Swagger 필드: grade, ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
 export async function fetchDiseaseInstitutionStats(sickCd: string, year = '2023'): Promise<DiseaseInstitutionStats[]> {
-  const { items } = await getDissByClassesStats1(sickCd, year);
+  const sickType = sickCd.includes('.') ? '2' : '1';
+  const apiCode = sickCd.replace('.', '');
+  const { items } = await getDissByClassesStats1(apiCode, year, { sickType });
   return items.map(i => ({
     diseaseCode: sickCd,
     diseaseName: String(i.sickNm || ''),
@@ -336,7 +342,9 @@ export async function fetchDiseaseInstitutionStats(sickCd: string, year = '2023'
 
 /** 질병별 지역별 현황 (Swagger 필드: lcName(지역명), ptntCnt, vstDdcnt, specCnt, rvdRpeTamtAmt, rvdInsupBrdnAmt) */
 export async function fetchDiseaseAreaStats(sickCd: string, year = '2023'): Promise<DiseaseAreaStats[]> {
-  const { items } = await getDissByAreaStats1(sickCd, year);
+  const sickType = sickCd.includes('.') ? '2' : '1';
+  const apiCode = sickCd.replace('.', '');
+  const { items } = await getDissByAreaStats1(apiCode, year, { sickType });
   const total = items.reduce((s, i) => s + Number(i.ptntCnt || 0), 0);
   return items.map(i => {
     const cnt = Number(i.ptntCnt || 0);
