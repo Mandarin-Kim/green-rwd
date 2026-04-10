@@ -92,10 +92,10 @@ export async function fetchHiraDataForReport(slug: string, indication?: string):
     const allInstitution: Map<string, number> = new Map();
     const allRegion: Map<string, number> = new Map();
 
-    // year: HIRA에서 가장 최근 데이터가 있는 연도 사용
-    // 자동으로 가장 최근 데이터 연도 사용 (HIRA는 보통 전년도까지 데이터 보유)
+    // HIRA 통계는 보통 1-2년 지연 발표 → 최신 안정 데이터 연도를 사용
+    // 2026년 기준: 2024년 미발표 가능 → 2023 기준, 향후 자동 업데이트
     const currentYear = new Date().getFullYear();
-    const year = String(currentYear - 1); // 전년도 데이터가 가장 최신
+    const year = String(Math.min(currentYear - 1, 2023)); // HIRA 최신 안정 연도 (최대 2023)
 
     for (const code of mapping.diseaseCodes) {
       console.log(`[HIRA Enricher] ${slug}: 질병코드 ${code} 데이터 조회 시작`);
