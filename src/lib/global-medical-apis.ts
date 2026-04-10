@@ -692,7 +692,7 @@ async function fetchNHSUKData(searchTerm: string): Promise<NHSUKData> {
  * 2. drug/event - 부작용 보고 집계
  * 3. drug/drugsfda - 약물 승인 정보
  */
-async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
+async function fetchFDAOpenFDAData(drugName: string, indicationTerm?: string): Promise<FDAOpenFDAData> {
   const emptyResult: FDAOpenFDAData = {
     labels: [],
     adverseEvents: [],
@@ -707,7 +707,7 @@ async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
   }
 
   const searchTerm = drugName.toLowerCase().trim()
-  console.log(`[FDA API] Searching for: ${searchTerm}`)
+  console.log(`[FDA API] Searching for: ${searchTerm}, indication: ${indicationTerm || '없음'}`)
 
   let labels: FDADrugLabel[] = []
   let adverseEvents: FDAAdverseEvent[] = []
@@ -715,8 +715,9 @@ async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
   let usedEndpoint = ''
 
   // 병렬 호출: 라벨, 부작용, 승인 정보
+  // 라벨은 indicationTerm도 전달 (indications_and_usage 폴백 검색 용)
   const [labelResult, eventResult, approvalResult] = await Promise.allSettled([
-    fetchFDALabels(searchTerm),
+    fetchFDALabels(searchTerm, indicationTerm),
     fetchFDAAdverseEvents(searchTerm),
     fetchFDAApprovals(searchTerm),
   ])
@@ -751,16 +752,8 @@ async function fetchFDAOpenFDAData(drugName: string): Promise<FDAOpenFDAData> {
 }
 
 /** FDA 약물 라벨 조회 */
-async function fetchFDALabels(searchTerm: string): Promise<FDADrugLabel[]> {
-  const url = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"+openfda.brand_name:"${encodeURIComponent(searchTerm)}"&limit=10`
-
-  const res = await safeFetch(url, {}, 12000)
-  if (!res?.ok) return []
-
-  const data = await res.json()
-  const results = data?.results || []
-
-  return results.slice(0, 10).map((item: any) => {
+async function fetchFDALabels(searchTerm: string, indicationTerm?: string): Promise<FDADrugLabel[]> {
+  const mapLabel = (item: any): FDADrugLabel => {
     const openfda = item.openfda || {}
     return {
       brandName: (openfda.brand_name || [])[0] || '',
@@ -773,7 +766,30 @@ async function fetchFDALabels(searchTerm: string): Promise<FDADrugLabel[]> {
       dosage: truncateText(item.dosage_and_administration?.[0] || '', 500),
       applicationNumber: (openfda.application_number || [])[0] || '',
     }
-  })
+  }
+
+  // 1차: 약물명(generic_name / brand_name)으로 검색
+  const url1 = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(searchTerm)}"+openfda.brand_name:"${encodeURIComponent(searchTerm)}"&limit=10`
+  const res1 = await safeFetch(url1, {}, 12000)
+  if (res1?.ok) {
+    const data1 = await res1.json()
+    const results1 = data1?.results || []
+    if (results1.length > 0) {
+      console.log(`[FDA API] Labels (drug name search): ${results1.length} records`)
+      return results1.slice(0, 10).map(mapLabel)
+    }
+  }
+
+  // 2차 fallback: indications_and_usage 필드로 검색 (질환명이 검색어인 경우 대응)
+  const fallback = (indicationTerm || searchTerm).toLowerCase()
+  const url2 = `https://api.fda.gov/drug/label.json?search=indications_and_usage:"${encodeURIComponent(fallback)}"&limit=10`
+  console.log(`[FDA API] Label fallback (indications_and_usage): ${fallback}`)
+  const res2 = await safeFetch(url2, {}, 12000)
+  if (!res2?.ok) return []
+  const data2 = await res2.json()
+  const results2 = data2?.results || []
+  console.log(`[FDA API] Labels (indication search): ${results2.length} records`)
+  return results2.slice(0, 10).map(mapLabel)
 }
 
 /** FDA 부작용 보고 집계 조회 */
@@ -872,25 +888,28 @@ export async function fetchGlobalMedicalData(
     }
   }
 
-  console.log(`[Global Medical APIs] Primary search term: ${primarySearchTerm}`)
+  // CMS/PBS/NHS는 약물명으로 검색 → indicationEn을 제외하고 실제 약물명 우선 사용
+  const drugSearchTerm = allSearchTerms.find(t => t.toLowerCase() !== indicationEn.toLowerCase()) || primarySearchTerm
+  // FDA 라벨 검색: 약물명 + indicationEn 폴백 함께 사용
+  console.log(`[Global Medical APIs] Primary term: ${primarySearchTerm}, Drug term: ${drugSearchTerm}, IndicationEn: ${indicationEn}`)
 
   const startTime = Date.now()
 
   // 4개 API 병렬 호출
   const [cmsData, pbsData, nhsData, fdaData] = await Promise.all([
-    fetchCMSMedicareData(primarySearchTerm).catch(err => {
+    fetchCMSMedicareData(drugSearchTerm).catch(err => {
       console.error('[Global Medical APIs] CMS error:', err)
       return { drugSpending: [], source: 'CMS Medicare', endpoint: '', success: false, error: 'Fetch failed' } as CMSMedicareData
     }),
-    fetchPBSAustraliaData(primarySearchTerm).catch(err => {
+    fetchPBSAustraliaData(drugSearchTerm).catch(err => {
       console.error('[Global Medical APIs] PBS error:', err)
       return { items: [], source: 'PBS Australia', endpoint: '', success: false, error: 'Fetch failed' } as PBSAustraliaData
     }),
-    fetchNHSUKData(primarySearchTerm).catch(err => {
+    fetchNHSUKData(drugSearchTerm).catch(err => {
       console.error('[Global Medical APIs] NHS error:', err)
       return { prescriptionSummary: [], source: 'NHS UK', endpoint: '', success: false, error: 'Fetch failed' } as NHSUKData
     }),
-    fetchFDAOpenFDAData(primarySearchTerm).catch(err => {
+    fetchFDAOpenFDAData(drugSearchTerm, indicationEn || primarySearchTerm).catch(err => {
       console.error('[Global Medical APIs] FDA error:', err)
       return { labels: [], adverseEvents: [], approvals: [], source: 'FDA OpenFDA', endpoint: '', success: false, error: 'Fetch failed' } as FDAOpenFDAData
     }),
