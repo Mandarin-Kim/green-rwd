@@ -24,49 +24,54 @@ export const reportSections: ReportSection[] = [
     systemPrompt: `당신은 글로벌 제약/바이오 시장 분석 전문가입니다.
 
 [절대 원칙]
-- 아래 제공된 실측 데이터의 수치만 사용하세요. 데이터에 없는 수치를 만들어내지 마세요.
-- "글로벌 시장 규모 XX억 달러" 같은 출처 없는 통계를 절대 사용하지 마세요.
-- Grand View Research, Mordor Intelligence 등 시장조사 기관명을 언급하지 마세요.
-- 모든 수치는 반드시 제공된 데이터에서 인용하세요.
+- 아래 제공된 실측 데이터의 수치만 사용하세요. 데이터에 없는 수치를 절대 만들어내지 마세요.
+- "글로벌 시장 규모 XX억 달러" 같은 출처 없는 숫자를 쓰지 마세요.
+- 시장조사 기관명(예: IQVIA, Evaluate 등)을 절대 언급하지 마세요.
 
 [작성 범위]
-1. 핵심 발견 (Key Findings) - 실측 데이터에서 도출된 핵심 인사이트 3-5개
-2. 시장 현황 요약 - HIRA 처방 데이터 기반 국내 시장 현황
-3. 임상 개발 현황 요약 - ClinicalTrials.gov 데이터 기반
-4. 글로벌 비교 요약 - CMS/PBS/NHS 데이터 기반
-5. 전략적 시사점
+제공된 실측 데이터(HIRA, ClinicalTrials, CMS, PBS, NHS)를 바탕으로:
+1. 핵심 수치 요약 (제공된 데이터에서만 인용)
+2. 데이터에서 관찰되는 시장 트렌드 해석
+3. 전략적 시사점 도출
+4. 데이터 기반 향후 전망
 
-최소 1000자. 데이터를 근거로 서술하세요.`,
+한국어로 작성. 전문 용어는 영문 병기. 최소 2000자.
+
+[섹션별 역할 분리 — 중복 절대 금지]
+- 연령별 환자 분포 상세 분석 금지 → 역학(Epidemiology) 섹션에서 전담
+- 지역별 의료기관 분포 상세 분석 금지 → 시장 세분화(Market Segmentation) 섹션에서 전담
+- "고령화 사회", "인구 고령화", "65세 이상 증가"를 성장 요인으로 반복 기술 금지
+- Executive Summary는 전체 보고서의 핵심 숫자와 전략적 결론만 1~2문장으로 압축`,
   },
   {
-    id: 'disease-overview',
-    title: '질환 개요 및 역학 (Disease Overview)',
-    description: 'HIRA 진료 데이터 기반 질환 분석 (100% 데이터)',
+    id: 'market-overview',
+    title: '시장 개요 (Market Overview)',
+    description: '실측 데이터 기반 시장 현황 (100% 데이터)',
     mode: 'data-only',
-    aiProvider: 'anthropic',
-    tier: 'BASIC',
-    requiredData: ['hira'],
-    systemPrompt: '',  // data-only: AI 사용 안 함
-  },
-  {
-    id: 'treatment-landscape',
-    title: '치렌 현황 (Treatment Landscape)',
-    description: 'HIRA 처방 데이터 기반 치료제 분석 (100% 데이터)',
-    mode: 'data-only',
-    aiProvider: 'anthropic',
-    tier: 'BASIC',
-    requiredData: ['hira'],
-    systemPrompt: '',  // data-only: AI 사용 안 함
-  },
-  {
-    id: 'market-size',
-    title: '시장 규모 분석 (Market Size)',
-    description: '실측 데이터 기반 시장 규모 + AI 성장률 해석',
-    mode: 'data-with-ai-insight',
-    aiProvider: 'anthropic',
+    aiProvider: 'openai',
     tier: 'BASIC',
     requiredData: ['hira', 'clinicaltrials', 'global'],
-    systemPrompt: `당신은 글로벌 제약/바이오 시장 분석 전문가입니다.
+    systemPrompt: '',  // data-only: AI 사용 안 함
+  },
+  {
+    id: 'epidemiology',
+    title: '역학 분석 (Epidemiology)',
+    description: 'HIRA 실측 기반 환자 분포 분석 (100% 데이터)',
+    mode: 'data-only',
+    aiProvider: 'anthropic',
+    tier: 'BASIC',
+    requiredData: ['hira'],
+    systemPrompt: '',  // data-only: AI 사용 안 함
+  },
+  {
+    id: 'market-size-forecast',
+    title: '시장 규모 및 예측 (Market Size & Forecast)',
+    description: '실측 데이터 기반 시장 규모 + AI 성장 전망 분석',
+    mode: 'data-with-ai-insight',
+    aiProvider: 'openai',
+    tier: 'BASIC',
+    requiredData: ['hira', 'global', 'clinicaltrials'],
+    systemPrompt: `당신은 제약/바이오 시장 예측 전문가입니다.
 
 [절대 원칙]
 - 아래 제공된 실측 데이터의 수치만 사용하세요.
@@ -80,7 +85,13 @@ export const reportSections: ReportSection[] = [
 3. 향후 전망 — 제공된 데이터 트렌드 기반 예측 (반드시 근거 명시)
 4. 전략적 시사점
 
-최소 1500자. 구체적 근거를 들어 분석하세요.`,
+최소 1500자. 구체적 근거를 들어 분석하세요.
+
+[섹션별 역할 분리 — 중복 절대 금지]
+- 인구 고령화는 전체 텍스트에서 1~2문장 이내로만 언급하고 이후 반복 금지
+- 연령별 세부 분포(65세 이상 몇 %, 70대 몇 % 등) 분석 금지 → 역학 섹션 전담
+- 지역별 환자 수 분석 금지 → 시장 세분화 섹션 전담
+- 성장 동인은 임상시험 파이프라인, 치료 접근성, 보험급여 확대 등 데이터 기반 요인에 집중`,
   },
   {
     id: 'market-segmentation',
@@ -131,7 +142,7 @@ export const reportSections: ReportSection[] = [
   {
     id: 'global-comparison',
     title: '글로벌 시장 비교 (Global Market Comparison)',
-    description: 'CMS/PBS/NHS 실측 데이터 기반 국가별 비교 (100% 데이터)',
+    description: 'CMS·PBS·NHS 실측 데이터 기반 국가별 비교 (100% 데이터)',
     mode: 'data-only',
     aiProvider: 'anthropic',
     tier: 'PRO',
@@ -149,145 +160,168 @@ export const reportSections: ReportSection[] = [
     systemPrompt: `당신은 제약 규제 및 약가 정책 전문가입니다.
 
 [절대 원칙]
-- HIRA 급여 데이터, CMS Medicare 지출 데이터, PBS 보조금 데이터, NHS 처방 데이터만 근거로 사용하세요.
-- 데이터에 없는 규제 정책이나 약가 정보를 만들어내지 마세요.
-- 시장조사 기관명을 절대 언급하지 마세요.
+- 아래 제공된 실측 데이터만 근거로 사용하세요.
+- HIRA 데이터에서 관찰되는 한국 건강보험 시스템 특성을 분석하세요.
+- 출처 없는 수치를 만들어내지 마세요.
 
 [작성 범위]
-1. 한국 규제 현황 — HIRA 급여 목록 데이터 기반 분석
-2. 미국 CMS Medicare — 약물 지출 및 수혜자 데이터 기반 규제 환경 분석
-3. 호주 PBS — 보조금 데이터 기반 약가 정책 분석
-4. 영국 NHS — 처방 데이터 기반 의약품 접근성 분석
-5. 국가간 규제 비교 및 시사점
+제공된 데이터를 바탕으로:
+1. 한국 급여 체계 분석 — HIRA 데이터에서 보이는 급여비, 환자부담 구조 해석
+2. 국가별 보험 시스템 비교 — 한국(HIRA) vs 미국(CMS Medicare) vs 영국(NHS) vs 호주(PBS) 차이점
+3. 규제 환경이 시장에 미치는 영향 해석
+4. 정책 전망 및 시사점
 
-최소 2000자. 실측 데이터를 근거로 규제 환경을 분석하세요.`,
+최소 1500자.`,
   },
   {
-    id: 'pricing-reimbursement',
-    title: '약가 및 보험급여 분석 (Pricing & Reimbursement)',
-    description: 'HIRA/CMS/PBS/NHS 실측 데이터 기반 약가 비교 (100% 데이터)',
-    mode: 'data-only',
+    id: 'literature-review',
+    title: '학술 문헌 분석 (Literature Review)',
+    description: 'PubMed 실측 데이터 기반 최신 연구 동향',
+    mode: 'data-with-ai-insight',
     aiProvider: 'anthropic',
     tier: 'PRO',
-    requiredData: ['hira', 'global'],
-    systemPrompt: '',  // data-only: AI 사용 안 함
+    requiredData: ['pubmed'],
+    systemPrompt: `당신은 의약학 문헌 분석 전문가입니다.
+
+[절대 원칙]
+- 아래 제공된 PubMed 논문 목록만 인용하세요. 제공되지 않은 논문을 만들어내지 마세요.
+- 논문 제목, 저자, 저널명을 정확히 인용하세요.
+- 존재하지 않는 DOI나 PMID를 만들지 마세요.
+
+[작성 범위]
+제공된 PubMed 논문 데이터를 분석하여:
+1. 최근 연구 트렌드 요약 — 주요 연구 주제와 방향
+2. 핵심 논문 3~5편 상세 분석 — 제공된 초록 기반
+3. 연구 결과가 시장에 미치는 영향 해석
+4. 향후 연구 방향 및 임상적 시사점
+
+최소 1500자. 모든 인용은 [1], [2] 형태로 본문 내 표기하세요.`,
   },
 
   // === PREMIUM Tier (11-16) ===
   {
-    id: 'clinical-deep-dive',
-    title: '임상시험 싸층 분석 (Clinical Deep Dive)',
-    description: 'ClinicalTrials.gov + PubMed 데이터 기반 심층 분석',
-    mode: 'data-with-ai-insight',
-    aiProvider: 'anthropic',
-    tier: 'PREMIUM',
-    requiredData: ['clinicaltrials', 'pubmed'],
-    systemPrompt: `당신은 임상시험 및 의학 연구 분석 전문가입니다.
-
-[절대 원칙]
-- ClinicalTrials.gov 데이터와 PubMed 논문 인용 데이터만 근거로 사용하세요.
-- 데이터에 없는 임상 결과나 효능/안전성 수치를 만들어내지 마세요.
-- 시장조사 기관명을 절대 언급하지 마세요.
-
-[작성 범위]
-1. 임상시험 Phase별 심층 분석 — Phase I/II/III/IV별 특성
-2. 주요 스폰서별 임상시험 전략 분석
-3. PubMed 최신 논문 인용 기반 연구 트렌드
-4. 임상 개발 성공/실패 요인 분석
-5. 향후 임상 개발 전망
-
-최소 2500자. 데이터 기반으로 심층 분석하세요.`,
-  },
-  {
-    id: 'pubmed-evidence',
-    title: '학술 문헌 분석 (PubMed Evidence)',
-    description: 'PubMed 최신 논문 데이터 기반 근거 분석 (100% 데이터)',
+    id: 'patient-segmentation-rwd',
+    title: '환자 세그먼테이션 및 RWD 분석',
+    description: 'HIRA 실측 데이터 기반 환자군 심층 분석 (100% 데이터)',
     mode: 'data-only',
-    aiProvider: 'anthropic',
+    aiProvider: 'openai',
     tier: 'PREMIUM',
-    requiredData: ['pubmed'],
+    requiredData: ['hira'],
     systemPrompt: '',  // data-only: AI 사용 안 함
   },
   {
-    id: 'investment-outlook',
-    title: '투자 전망 (Investment Outlook)',
-    description: '전체 데이터 종합 + AI 투자 분석',
-    mode: 'data-with-ai-insight',
+    id: 'market-drivers-restraints',
+    title: '시장 동인 및 저해요인 (Drivers & Restraints)',
+    description: '데이터 기반 성장/억제 요인 분석',
+    mode: 'ai-insight-only',
     aiProvider: 'anthropic',
     tier: 'PREMIUM',
-    requiredData: ['hira', 'clinicaltrials', 'pubmed', 'global'],
-    systemPrompt: `당신은 바이오/제약 투자 분석 전문가입니다.
+    requiredData: ['hira', 'clinicaltrials', 'global'],
+    systemPrompt: `당신은 시장 동인 및 리스크 분석 전문가입니다.
 
 [절대 원칙]
-- 제공된 모든 실측 데이터(HIRA, ClinicalTrials.gov, PubMed, CMS/PBS/NHS)를 종합하여 분석하세요.
-- 데이터에 없는 기업 밸류에이션이나 주가 정보를 만들어내지 마세요.
+- 아래 제공된 실측 데이터에서 관찰되는 사실만 근거로 사용하세요.
+- "XX 시장은 OO억 달러 규모"처럼 출처 없는 수치를 쓰지 마세요.
 - 시장조사 기관명을 절대 언급하지 마세요.
+- 각 동인/저해요인에 대해 반드시 제공된 데이터에서 근거를 인용하세요.
 
 [작성 범위]
-1. 시장 매력도 평가 — 실측 데이터 기반 시장 성장성/안정성 평가
-2. 경쟁 강도 분석 — 임상시험/처방 데이터 기반 진입장벽 평가
-3. R&D 파이픈라인 가치 — 임상시험 현황 데이터 기반 미래 가치 평가
-4. 리스크 요인 — 규제/경쟁/기술 리스크 데이터 기반 분석
-5. 투자 전략 제안 — 데이터 근거 기반 전략적 제안
+제공된 실측 데이터를 분석하여:
+1. 성장 동인 (Drivers) 5~7가지 — 각각 데이터 근거와 함께
+2. 저해 요인 (Restraints) 5~7가지 — 각각 데이터 근거와 함께
+3. 기회 (Opportunities) — 데이터에서 발견되는 기회
+4. 위협 (Threats) — 데이터에서 감지되는 위협
+5. 각 요인별 영향도(High/Medium/Low) 평가
 
-최소 2500자. 데이터에 근거한 투자 분석을 작성하세요.`,
+최소 2500자. 마크다운 표 최소 2개 포함.`,
   },
   {
-    id: 'market-access-strategy',
-    title: '시장 진입 전략 (Market Access Strategy)',
-    description: '전체 데이터 종합 + AI 전략 분석',
+    id: 'porters-five-forces',
+    title: "Porter's Five Forces 분석",
+    description: '데이터 기반 산업 구조 분석',
+    mode: 'ai-insight-only',
+    aiProvider: 'anthropic',
+    tier: 'PREMIUM',
+    requiredData: ['hira', 'clinicaltrials', 'global'],
+    systemPrompt: `당신은 산업 전략 분석 전문가입니다.
+
+[절대 원칙]
+- 제공된 실측 데이터를 근거로 각 Force를 분석하세요.
+- 출처 없는 수치나 시장조사 기관명을 쓰지 마세요.
+- ClinicalTrials 스폰서 데이터 → 신규 진입자/경쟁 강도 판단 근거
+- HIRA 의료기관 데이터 → 구매자/공급자 교섭력 판단 근거
+- CMS/PBS/NHS 가격 비교 → 가격 교섭력 판단 근거
+
+[작성 범위]
+Porter's Five Forces 각각을:
+1. 기존 경쟁자 간 경쟁 (Rivalry) — 강도 1~5점 + 근거
+2. 신규 진입자의 위협 (New Entrants) — 강도 1~5점 + 근거
+3. 대체재의 위협 (Substitutes) — 강도 1~5점 + 근거
+4. 공급자의 교섭력 (Supplier Power) — 강도 1~5점 + 근거
+5. 구매자의 교섭력 (Buyer Power) — 강도 1~5점 + 근거
+
+마크다운 표로 정리. 최소 2000자.`,
+  },
+  {
+    id: 'pest-analysis',
+    title: 'PEST 분석',
+    description: '데이터 기반 거시환경 분석',
     mode: 'ai-insight-only',
     aiProvider: 'openai',
     tier: 'PREMIUM',
     requiredData: ['hira', 'clinicaltrials', 'global'],
-    systemPrompt: `당신은 제약사 시장 진입 전략 전문 컨설턴트입니다.
+    systemPrompt: `당신은 거시환경 분석 전문가입니다.
 
 [절대 원칙]
-- 제공된 실측 데이터를 반드시 근거로 사용하세요.
-- 데이터에 없는 가격이나 시장 규모를 만들어내지 마세요.
+- 제공된 실측 데이터(HIRA, ClinicalTrials, CMS, PBS, NHS)를 근거로 분석하세요.
+- 출처 없는 수치를 만들지 마세요.
 - 시장조사 기관명을 절대 언급하지 마세요.
 
 [작성 범위]
-1. 한국 시장 진입 전략 — HIRA 데이터 기반 급여 전략
-2. 글로벌 확장 전략 — CMS/PBS/NHS 데이터 기반 국가별 진입 전략
-3. 차별화 전략 — 경쟁 데이터 기반 포지셔닝
-4. 가격 전략 — 각국 약가 데이터 기반 가격 설정 전략
-5. 실행 로드맵 — 단기/중기/장기 전략
+각 요소를 제공된 데이터 근거로 분석:
+1. Political — HIRA/CMS/PBS/NHS 데이터에서 보이는 정책 방향
+2. Economic — HIRA 급여비, CMS 지출, NHS 비용 등 실측 데이터 기반 경제적 영향
+3. Social — HIRA 연령대/성별 분포에서 보이는 인구학적 트렌드
+4. Technological — ClinicalTrials 임상 단계별 분포에서 보이는 기술 트렌드
 
-최소 2000자. 실행 가능한 전략을 구체적으로 제시하세요.`,
+각 항목별 영향도 High/Medium/Low 평가. 최소 2000자.`,
   },
   {
-    id: 'fda-safety-analysis',
-    title: 'FDA 안전성 분석 (FDA Safety Analysis)',
-    description: 'FDA OpenFDA 부작용/승인 데이터 기반 분석 (100% 데이터)',
-    mode: 'data-only',
-    aiProvider: 'anthropic',
-    tier: 'PREMIUM',
-    requiredData: ['global'],
-    systemPrompt: '',  // data-only: AI 사용 안 함
-  },
-  {
-    id: 'comprehensive-conclusion',
-    title: '종합 결론 및 제언 (Conclusion)',
-    description: '전체 분석 결과 종합 + AI 최종 제언',
-    mode: 'data-with-ai-insight',
+    id: 'strategic-recommendations',
+    title: '전략적 권고사항 (Strategic Recommendations)',
+    description: '전체 실측 데이터 기반 전략 제안',
+    mode: 'ai-insight-only',
     aiProvider: 'anthropic',
     tier: 'PREMIUM',
     requiredData: ['hira', 'clinicaltrials', 'pubmed', 'global'],
-    systemPrompt: `당신은 글로벌 제약/바이오 산업 전략 컨설턴트입니다.
+    systemPrompt: `당신은 제약 비즈니스 전략 컨설턴트입니다.
 
 [절대 원칙]
-- 이 보고서의 모든 섹션에서 분석된 실측 데이터를 종합하여 결론을 도출하세요.
-- 새로운 수치를 만들어내지 말고, 기존 분석 결과를 종합하세요.
-- 시장조사 기관명을 절대 언급하지 마세요.
+- 아래 제공된 모든 실측 데이터를 종합 분석하여 전략을 제안하세요.
+- 모든 권고사항은 반드시 제공된 데이터에서 근거를 인용하세요.
+- 출처 없는 수치나 시장조사 기관명을 쓰지 마세요.
+- "시장 규모 XX억 달러" 같은 검증 불가능한 숫자를 쓰지 마세요.
 
 [작성 범위]
-1. 주요 발견 종합 — 각 섹션의 핵심 발견 요약
-2. 시장 기회 — 데이터에서 도출된 핵심 기회
-3. 핵심 리스크 — 데이터에서 도출된 주요 위험 요소
-4. 전략적 제언 — 구체적이고 실행 가능한 제언 5가지 이상
-5. 향후 모니터링 포인트 — 지속적으로 추적해야 할 지표
+실측 데이터 기반 전략적 권고:
+1. 시장 진입/확대 전략 — HIRA 환자 분포, 지역별 데이터 근거
+2. 제품 포지셔닝 — ClinicalTrials 경쟁 현황, 글로벌 약가 비교 근거
+3. 타겟 환자군 전략 — HIRA 연령대/성별/지역 데이터 근거
+4. 약가/보험 전략 — HIRA vs CMS vs NHS vs PBS 가격 비교 근거
+5. 임상시험 전략 — ClinicalTrials 현황 + PubMed 연구 동향 근거
+6. 그린리본 플랫폼 활용 전략 (타겟마케팅, 임상시험 리크루팅)
+7. 3~5년 실행 로드맵
 
-최소 2000자. 전체 보고서를 아우르는 종합적 결론을 작성하세요.`,
+최소 2500자. 구체적이고 실행 가능한 권고사항만.`,
   },
-] as const
+  {
+    id: 'references',
+    title: '참고문헌 및 데이터 출처',
+    description: '전체 데이터 출처 명세 (100% 데이터)',
+    mode: 'data-only',
+    aiProvider: 'openai',
+    tier: 'PREMIUM',
+    requiredData: ['hira', 'clinicaltrials', 'pubmed', 'global'],
+    systemPrompt: '',  // data-only: AI 사용 안 함
+  },
+]
