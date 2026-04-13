@@ -1217,6 +1217,51 @@ export default function ReportViewPage() {
             </div>
           </div>
 
+          {/* ─── 출력 전용 목차 페이지 (화면에서는 숨김) ─── */}
+          <div className="hidden print:block" style={{ pageBreakAfter: 'always', minHeight: '100vh', padding: '60px 80px' }}>
+            {/* 표지 */}
+            <div style={{ borderBottom: '3px solid #4f46e5', paddingBottom: '32px', marginBottom: '40px' }}>
+              <p style={{ fontSize: '12px', color: '#6366f1', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px' }}>
+                GREEN RIBBON · 글로벌 시장 보고서
+              </p>
+              <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#1e1b4b', lineHeight: 1.3, marginBottom: '12px' }}>
+                {report.title}
+              </h1>
+              <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+                {report.drug} · {report.indication}
+              </p>
+              <p style={{ fontSize: '12px', color: '#94a3b8' }}>
+                생성일: {report.createdAt ? new Date(report.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}
+              </p>
+            </div>
+
+            {/* 목차 */}
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1e1b4b', marginBottom: '24px', letterSpacing: '1px' }}>
+              목 차 (Table of Contents)
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {report.sections.map((section, idx) => (
+                <div key={section.id} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#6366f1', minWidth: '28px' }}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span style={{ fontSize: '14px', color: '#1e293b', fontWeight: 500, flex: 1 }}>
+                    {section.title}
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    p.{idx + 3}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '48px', padding: '16px', background: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #6366f1' }}>
+              <p style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.6 }}>
+                본 보고서는 HIRA(건강보험심사평가원), ClinicalTrials.gov, CMS Medicare, NHS BSA, PBS Australia 실측 데이터를 기반으로 GREEN RIBBON 플랫폼이 자동 생성하였습니다.
+              </p>
+            </div>
+          </div>
+
           {/* Sections */}
           {report.sections.map((section, index) => (
             <div
