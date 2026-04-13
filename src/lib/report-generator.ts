@@ -595,7 +595,7 @@ ${ct ? `| Phase 3 임상시험 | ${ct.phaseBreakdown['PHASE3'] || 0}건 | Clinic
 
 ${area} 시장의 성장을 이끄는 주요 동인은 다음과 같습니다:
 
-**1. 고령화에 따른 환자 수 증가**: 한국의 65세 이상 인구 비율이 2025년 약 20%를 넘어서면서 ${indication} 환자 수가 지속적으로 증가하고 있습니다.${hira?.ageDistribution?.length > 0 ? ` HIRA 데이터에 따르면 ${hira.ageDistribution[hira.ageDistribution.length - 1]?.ageGroup || '고령'} 연령대의 환자 비율이 ${hira.ageDistribution[hira.ageDistribution.length - 1]?.ratio || 0}%로 가장 높습니다.` : ''}
+**1. 환자 기반 성장**: ${hira?.patientCount > 0 ? `HIRA 실측 기준 ${fmtNum(hira.patientCount)}명의 ${indication} 환자가 등록되어 있으며,` : `${indication} 환자 풀은`} 진단 기술 향상 및 치료 접근성 개선으로 꾸준히 확대되고 있습니다. (연령별 분포는 역학 분석 섹션 참조)
 
 **2. 활발한 신약 개발**: ClinicalTrials.gov 기준 ${drug} 관련 임상시험이 ${ct ? `총 ${fmtNum(ct.totalCount)}건` : '다수'} 진행 중이며, 새로운 작용기전의 치료제가 지속 출시되고 있습니다.
 
@@ -846,7 +846,7 @@ ${koreaMarketBillion > 0 ? `
 
 ## 성장 동인 분석
 
-**1. 환자 풀(Patient Pool) 확대**: ${patientCount > 0 ? `현재 ${fmtNum(patientCount)}명의 환자 기반에서` : ''} 고령화와 진단률 향상에 따라 연간 3~5% 환자 수 증가 예상
+**1. 환자 풀(Patient Pool) 확대**: ${patientCount > 0 ? `현재 HIRA 기준 ${fmtNum(patientCount)}명의 환자 기반에서` : ''} 진단율 향상 및 치료 접근성 개선에 따라 꾸준한 환자 수 증가 예상 (연령별 분포는 역학 섹션 참조)
 
 **2. 신약 출시 효과**: ${ct ? `현재 ${fmtNum(ct.totalCount)}건의 임상시험 진행 중이며, Phase 3 ${ct.phaseBreakdown?.['PHASE3'] || 0}건에서 향후 신약 출시 기대` : '다수의 글로벌 임상시험에서 신약 출시 기대'}
 
@@ -900,12 +900,6 @@ ${hira.institutionStats.map((i: any) => `| ${i.institutionType} | ${fmtNum(i.cou
 
 **시사점**: ${hira.institutionStats[0]?.institutionType || '상급종합병원'}이 환자 비율 ${hira.institutionStats[0]?.ratio || 0}%로 가장 높아, ${indication} 치료는 주로 전문의료기관에서 이루어지고 있습니다.
 ` : '*(HIRA 데이터 동기화 후 자동 업데이트)*'}
-
-## 지역별 세분화
-${getRegionTable(hira) || '*(HIRA 데이터 동기화 후 자동 업데이트)*'}
-
-## 연령대별 세분화
-${getAgeTable(hira) || '*(HIRA 데이터 동기화 후 자동 업데이트)*'}
 
 ## 지불자별 세분화
 
