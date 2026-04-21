@@ -54,9 +54,9 @@ const USER_TYPE_OPTIONS    = [{ value: 'patient', label: '환자 (patient)' }, {
 const PARTNER_TYPE_OPTIONS = [{ value: 'standard', label: '일반 회원' }, { value: 'premium', label: '프리미엄' }, { value: 'trial', label: '체험 회원' }, { value: 'vip', label: 'VIP' }]
 const CHANNEL_OPTIONS      = [{ value: 'app', label: '앱' }, { value: 'web', label: '웹사이트' }, { value: 'partner', label: '파트너사' }, { value: 'event', label: '이벤트' }, { value: 'referral', label: '지인 추천' }, { value: 'ads', label: '광고' }]
 const GENDER_OPTIONS       = [{ value: '남', label: '남성' }, { value: '여', label: '여성' }]
-const REGION_OPTIONS       = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'].map(r => ({ value: r, label: r }))
-
-/* ─────────── 토글 행 컴포넌트 ─────────── */
+const USER_TYPE_OPTIONS    = [{ value: 'INSURED_PERSON', label: '피보험자' }, { value: 'CLAIM_ADJUSTER', label: '손해사정인' }, { value: 'ADMIN', label: '관리자' }, { value: 'SUPER_ADMIN', label: '슈퍼관리자' }]
+const PARTNER_TYPE_OPTIONS  = [{ value: 'BASIC', label: '기본' }, { value: 'EASY', label: '간편' }, { value: 'BANK', label: '은행' }, { value: 'CHANGE', label: '전환' }, { value: 'KYOBO_DAITJI_REGISTER', label: '교보대이지 가입' }, { value: 'KYOBO_DAITJI_LOGIN', label: '교보대이지 로그인' }]
+const CHANNEL_OPTIONS       = [{ value: 'None', label: '오가닉(직접)' }, { value: 'OrganicIOS', label: 'iOS 오가닉' }, { value: 'direct_payment', label: '직접결제' }, { value: '보험청구', label: '보험청구' }, { value: '실손보험', label: '실손보험' }, { value: '숨은보험찾기', label: '숨은보험찾기' }, { value: '휴면보험금', label: '휴면보험금' }, { value: 'toss', label: '토스' }, { value: 'woori', label: '우리은행' }, { value: 'kyobodaitji', label: '교보대이지' }, { value: 'kwangju', label: '광주은행' }, { value: 'NPL', label: 'NPL' }, { value: 'google', label: '구글검색' }, { value: 'googleads', label: '구글광고' }, { value: 'naverG', label: '네이버' }, { value: 'naverpower2', label: '네이버파워링크' }, { value: 'instagram2', label: '인스타그램' }, { value: 'meta_간편하게수십_app', label: '메타광고(앱)' }, { value: 'meta_간편하게20_web', label: '메타광고(웹)' }]
 function FilterRow({ label, enabled, onToggle, children }: { label: string; enabled: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <div className={`rounded-xl border transition-all ${enabled ? 'border-primary/30 bg-primary/5' : 'border-slate-200 bg-slate-50'}`}>
