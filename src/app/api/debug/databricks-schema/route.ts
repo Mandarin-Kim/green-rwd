@@ -33,9 +33,12 @@ async function runSQL(sql: string) {
 
   const text = await res.text()
 
-  // HTML 응답이면 원문 반환
+  // HTML 응답이면 앞부분 포함해서 반환 (진단용)
   if (text.trim().startsWith('<')) {
-    throw new Error(`Databricks가 HTML을 반환했습니다 (HTTP ${res.status}). URL: ${url}, HOST: "${HOST}"`)
+    throw new Error(
+      `Databricks HTML응답 (HTTP ${res.status}) URL:${url} ` +
+      `응답앞200자: ${text.trim().substring(0, 200).replace(/\n/g, ' ')}`
+    )
   }
 
   const data = JSON.parse(text)
