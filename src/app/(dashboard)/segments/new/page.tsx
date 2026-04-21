@@ -30,26 +30,41 @@ const DEFAULT_FILTERS: FilterState = {
 
 /* ── 선택지 목록 (Databricks 실제 컬럼 값 기준) ── */
 const USER_TYPE_OPTIONS = [
-  { value: 'patient',   label: '환자 (patient)' },
-  { value: 'caregiver', label: '보호자 (caregiver)' },
-  { value: 'hcp',       label: '의료인 (hcp)' },
-  { value: 'other',     label: '기타 (other)' },
+  { value: 'INSURED_PERSON', label: '피보험자 (INSURED_PERSON)' },
+  { value: 'CLAIM_ADJUSTER', label: '손해사정인 (CLAIM_ADJUSTER)' },
+  { value: 'ADMIN',          label: '관리자 (ADMIN)' },
+  { value: 'SUPER_ADMIN',    label: '슈퍼관리자 (SUPER_ADMIN)' },
 ]
 
 const PARTNER_TYPE_OPTIONS = [
-  { value: 'standard', label: '일반 회원 (standard)' },
-  { value: 'premium',  label: '프리미엄 회원 (premium)' },
-  { value: 'trial',    label: '체험 회원 (trial)' },
-  { value: 'vip',      label: 'VIP 회원 (vip)' },
+  { value: 'BASIC',                  label: '기본 (BASIC)' },
+  { value: 'EASY',                   label: '간편 (EASY)' },
+  { value: 'BANK',                   label: '은행 (BANK)' },
+  { value: 'CHANGE',                 label: '전환 (CHANGE)' },
+  { value: 'KYOBO_DAITJI_REGISTER',  label: '교보대이지 가입' },
+  { value: 'KYOBO_DAITJI_LOGIN',     label: '교보대이지 로그인' },
 ]
 
 const CHANNEL_OPTIONS = [
-  { value: 'app',      label: '앱 (app)' },
-  { value: 'web',      label: '웹 사이트 (web)' },
-  { value: 'partner',  label: '파트너사 (partner)' },
-  { value: 'event',    label: '이벤트 (event)' },
-  { value: 'referral', label: '지인 추천 (referral)' },
-  { value: 'ads',      label: '광고 (ads)' },
+  { value: 'None',                    label: '오가닉 (직접)' },
+  { value: 'OrganicIOS',             label: 'iOS 오가닉' },
+  { value: 'direct_payment',         label: '직접 결제' },
+  { value: '보험청구',               label: '보험청구' },
+  { value: '실손보험',               label: '실손보험' },
+  { value: '숨은보험찾기',           label: '숨은보험찾기' },
+  { value: '휴면보험금',             label: '휴면보험금' },
+  { value: 'toss',                   label: '토스' },
+  { value: 'woori',                  label: '우리은행' },
+  { value: 'kyobodaitji',            label: '교보대이지' },
+  { value: 'kwangju',                label: '광주은행' },
+  { value: 'NPL',                    label: 'NPL' },
+  { value: 'google',                 label: '구글 검색' },
+  { value: 'googleads',              label: '구글 광고' },
+  { value: 'naverG',                 label: '네이버' },
+  { value: 'naverpower2',            label: '네이버 파워링크' },
+  { value: 'instagram2',             label: '인스타그램' },
+  { value: 'meta_간편하게수십_app',  label: '메타 광고 (앱)' },
+  { value: 'meta_간편하게20_web',    label: '메타 광고 (웹)' },
 ]
 
 const GENDER_OPTIONS = [
