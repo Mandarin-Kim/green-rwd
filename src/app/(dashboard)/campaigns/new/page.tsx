@@ -50,9 +50,6 @@ const DEFAULT_DB_FILTER: DatabricksFilter = {
   incomingChannel:   { enabled: false, value: '' },
 }
 
-const USER_TYPE_OPTIONS    = [{ value: 'patient', label: '환자 (patient)' }, { value: 'caregiver', label: '보호자 (caregiver)' }, { value: 'hcp', label: '의료인 (hcp)' }, { value: 'other', label: '기타 (other)' }]
-const PARTNER_TYPE_OPTIONS = [{ value: 'standard', label: '일반 회원' }, { value: 'premium', label: '프리미엄' }, { value: 'trial', label: '체험 회원' }, { value: 'vip', label: 'VIP' }]
-const CHANNEL_OPTIONS      = [{ value: 'app', label: '앱' }, { value: 'web', label: '웹사이트' }, { value: 'partner', label: '파트너사' }, { value: 'event', label: '이벤트' }, { value: 'referral', label: '지인 추천' }, { value: 'ads', label: '광고' }]
 const GENDER_OPTIONS       = [{ value: '남', label: '남성' }, { value: '여', label: '여성' }]
 const USER_TYPE_OPTIONS    = [{ value: 'INSURED_PERSON', label: '피보험자' }, { value: 'CLAIM_ADJUSTER', label: '손해사정인' }, { value: 'ADMIN', label: '관리자' }, { value: 'SUPER_ADMIN', label: '슈퍼관리자' }]
 const PARTNER_TYPE_OPTIONS  = [{ value: 'BASIC', label: '기본' }, { value: 'EASY', label: '간편' }, { value: 'BANK', label: '은행' }, { value: 'CHANGE', label: '전환' }, { value: 'KYOBO_DAITJI_REGISTER', label: '교보대이지 가입' }, { value: 'KYOBO_DAITJI_LOGIN', label: '교보대이지 로그인' }]
