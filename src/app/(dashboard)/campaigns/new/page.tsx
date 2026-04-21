@@ -51,6 +51,7 @@ const DEFAULT_DB_FILTER: DatabricksFilter = {
 }
 
 const GENDER_OPTIONS       = [{ value: '남', label: '남성' }, { value: '여', label: '여성' }]
+const REGION_OPTIONS        = [{ value: 'seoul', label: 'seoul' }]
 const USER_TYPE_OPTIONS    = [{ value: 'INSURED_PERSON', label: '피보험자' }, { value: 'CLAIM_ADJUSTER', label: '손해사정인' }, { value: 'ADMIN', label: '관리자' }, { value: 'SUPER_ADMIN', label: '슈퍼관리자' }]
 const PARTNER_TYPE_OPTIONS  = [{ value: 'BASIC', label: '기본' }, { value: 'EASY', label: '간편' }, { value: 'BANK', label: '은행' }, { value: 'CHANGE', label: '전환' }, { value: 'KYOBO_DAITJI_REGISTER', label: '교보대이지 가입' }, { value: 'KYOBO_DAITJI_LOGIN', label: '교보대이지 로그인' }]
 const CHANNEL_OPTIONS       = [{ value: 'None', label: '오가닉(직접)' }, { value: 'OrganicIOS', label: 'iOS 오가닉' }, { value: 'direct_payment', label: '직접결제' }, { value: '보험청구', label: '보험청구' }, { value: '실손보험', label: '실손보험' }, { value: '숨은보험찾기', label: '숨은보험찾기' }, { value: '휴면보험금', label: '휴면보험금' }, { value: 'toss', label: '토스' }, { value: 'woori', label: '우리은행' }, { value: 'kyobodaitji', label: '교보대이지' }, { value: 'kwangju', label: '광주은행' }, { value: 'NPL', label: 'NPL' }, { value: 'google', label: '구글검색' }, { value: 'googleads', label: '구글광고' }, { value: 'naverG', label: '네이버' }, { value: 'naverpower2', label: '네이버파워링크' }, { value: 'instagram2', label: '인스타그램' }, { value: 'meta_간편하게수십_app', label: '메타광고(앱)' }, { value: 'meta_간편하게20_web', label: '메타광고(웹)' }]
