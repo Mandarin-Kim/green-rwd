@@ -11,14 +11,18 @@ import type { SegmentFilter } from '@/lib/databricks'
 
 /* ── 필터 상태 타입 ── */
 interface FilterState {
-  age: { enabled: boolean; min: string; max: string }
-  userType: { enabled: boolean; value: string }
+  age:               { enabled: boolean; min: string; max: string }
+  gender:            { enabled: boolean; value: string }
+  region:            { enabled: boolean; value: string }
+  userType:          { enabled: boolean; value: string }
   partnerMemberType: { enabled: boolean; value: string }
-  incomingChannel: { enabled: boolean; value: string }
+  incomingChannel:   { enabled: boolean; value: string }
 }
 
 const DEFAULT_FILTERS: FilterState = {
   age:               { enabled: false, min: '', max: '' },
+  gender:            { enabled: false, value: '' },
+  region:            { enabled: false, value: '' },
   userType:          { enabled: false, value: '' },
   partnerMemberType: { enabled: false, value: '' },
   incomingChannel:   { enabled: false, value: '' },
@@ -33,20 +37,30 @@ const USER_TYPE_OPTIONS = [
 ]
 
 const PARTNER_TYPE_OPTIONS = [
-  { value: 'standard',  label: '일반 회원 (standard)' },
-  { value: 'premium',   label: '프리미엄 회원 (premium)' },
-  { value: 'trial',     label: '체험 회원 (trial)' },
-  { value: 'vip',       label: 'VIP 회원 (vip)' },
+  { value: 'standard', label: '일반 회원 (standard)' },
+  { value: 'premium',  label: '프리미엄 회원 (premium)' },
+  { value: 'trial',    label: '체험 회원 (trial)' },
+  { value: 'vip',      label: 'VIP 회원 (vip)' },
 ]
 
 const CHANNEL_OPTIONS = [
-  { value: 'app',     label: '앱 (app)' },
-  { value: 'web',     label: '웹 사이트 (web)' },
-  { value: 'partner', label: '파트너사 (partner)' },
-  { value: 'event',   label: '이벤트 (event)' },
-  { value: 'referral',label: '지인 추천 (referral)' },
-  { value: 'ads',     label: '광고 (ads)' },
+  { value: 'app',      label: '앱 (app)' },
+  { value: 'web',      label: '웹 사이트 (web)' },
+  { value: 'partner',  label: '파트너사 (partner)' },
+  { value: 'event',    label: '이벤트 (event)' },
+  { value: 'referral', label: '지인 추천 (referral)' },
+  { value: 'ads',      label: '광고 (ads)' },
 ]
+
+const GENDER_OPTIONS = [
+  { value: '남', label: '남성' },
+  { value: '여', label: '여성' },
+]
+
+const REGION_OPTIONS = [
+  '서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산',
+  '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
+].map(r => ({ value: r, label: r }))
 
 /* ── 토글 행 컴포넌트 ── */
 function FilterRow({
@@ -114,6 +128,10 @@ export default function NewSegmentPage() {
       if (filters.age.min) f.ageMin = parseInt(filters.age.min)
       if (filters.age.max) f.ageMax = parseInt(filters.age.max)
     }
+    if (filters.gender.enabled && filters.gender.value)
+      f.gender = filters.gender.value
+    if (filters.region.enabled && filters.region.value)
+      f.region = filters.region.value
     if (filters.userType.enabled && filters.userType.value)
       f.userType = filters.userType.value
     if (filters.partnerMemberType.enabled && filters.partnerMemberType.value)
@@ -249,6 +267,62 @@ export default function NewSegmentPage() {
                 )}
               </FilterRow>
 
+              {/* 성별 */}
+              <FilterRow
+                label="성별"
+                description="회원 성별 (gender)"
+                enabled={filters.gender.enabled}
+                onToggle={() => toggle('gender')}
+              >
+                <div className="flex gap-2">
+                  {GENDER_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setVal('gender', 'value', opt.value)}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-[13px] transition-all ${
+                        filters.gender.value === opt.value
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-primary/40'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {filters.gender.value && (
+                  <p className="text-xs text-primary mt-2">→ gender = &apos;{filters.gender.value}&apos; 조회</p>
+                )}
+              </FilterRow>
+
+              {/* 거주 지역 */}
+              <FilterRow
+                label="거주 지역"
+                description="회원 거주 지역 (region)"
+                enabled={filters.region.enabled}
+                onToggle={() => toggle('region')}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {REGION_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setVal('region', 'value', opt.value)}
+                      className={`px-3 py-1.5 rounded-lg border text-[12px] transition-all ${
+                        filters.region.value === opt.value
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'border-slate-200 bg-white text-slate-500 hover:border-primary/40'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {filters.region.value && (
+                  <p className="text-xs text-primary mt-2">→ region LIKE &apos;%{filters.region.value}%&apos; 조회</p>
+                )}
+              </FilterRow>
+
               {/* 유저 유형 */}
               <FilterRow
                 label="유저 유형"
@@ -371,6 +445,12 @@ export default function NewSegmentPage() {
                 <p className="font-medium text-slate-600 mb-1">설정된 조건</p>
                 {filters.age.enabled && (filters.age.min || filters.age.max) && (
                   <p>• 연령: {filters.age.min || '0'}세 ~ {filters.age.max || '무제한'}세</p>
+                )}
+                {filters.gender.enabled && filters.gender.value && (
+                  <p>• 성별: {GENDER_OPTIONS.find(o => o.value === filters.gender.value)?.label}</p>
+                )}
+                {filters.region.enabled && filters.region.value && (
+                  <p>• 지역: {filters.region.value}</p>
                 )}
                 {filters.userType.enabled && filters.userType.value && (
                   <p>• 유저 유형: {USER_TYPE_OPTIONS.find(o => o.value === filters.userType.value)?.label}</p>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/layout/Header'
 import Card from '@/components/ui/Card'
@@ -9,7 +9,11 @@ import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Select from '@/components/ui/Select'
 import Stepper from '@/components/ui/Stepper'
-import { ArrowLeft, ArrowRight, Check, Megaphone, Target, FileText, Calendar, ClipboardCheck, Loader2, Sparkles, Plus } from 'lucide-react'
+import {
+  ArrowLeft, ArrowRight, Check, Megaphone, Target, FileText, Calendar,
+  ClipboardCheck, Loader2, Sparkles, Plus, Users, ToggleLeft, ToggleRight,
+  ChevronDown, ChevronUp, Database,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useApi, useMutation } from '@/hooks/use-api'
 
@@ -27,17 +31,77 @@ interface Segment {
   patientCount: number
 }
 
+/* ─────────── Databricks 필터 타입 ─────────── */
+interface DatabricksFilter {
+  age:               { enabled: boolean; min: string; max: string }
+  gender:            { enabled: boolean; value: string }
+  region:            { enabled: boolean; value: string }
+  userType:          { enabled: boolean; value: string }
+  partnerMemberType: { enabled: boolean; value: string }
+  incomingChannel:   { enabled: boolean; value: string }
+}
+
+const DEFAULT_DB_FILTER: DatabricksFilter = {
+  age:               { enabled: false, min: '', max: '' },
+  gender:            { enabled: false, value: '' },
+  region:            { enabled: false, value: '' },
+  userType:          { enabled: false, value: '' },
+  partnerMemberType: { enabled: false, value: '' },
+  incomingChannel:   { enabled: false, value: '' },
+}
+
+const USER_TYPE_OPTIONS    = [{ value: 'patient', label: '환자 (patient)' }, { value: 'caregiver', label: '보호자 (caregiver)' }, { value: 'hcp', label: '의료인 (hcp)' }, { value: 'other', label: '기타 (other)' }]
+const PARTNER_TYPE_OPTIONS = [{ value: 'standard', label: '일반 회원' }, { value: 'premium', label: '프리미엄' }, { value: 'trial', label: '체험 회원' }, { value: 'vip', label: 'VIP' }]
+const CHANNEL_OPTIONS      = [{ value: 'app', label: '앱' }, { value: 'web', label: '웹사이트' }, { value: 'partner', label: '파트너사' }, { value: 'event', label: '이벤트' }, { value: 'referral', label: '지인 추천' }, { value: 'ads', label: '광고' }]
+const GENDER_OPTIONS       = [{ value: '남', label: '남성' }, { value: '여', label: '여성' }]
+const REGION_OPTIONS       = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'].map(r => ({ value: r, label: r }))
+
+/* ─────────── 토글 행 컴포넌트 ─────────── */
+function FilterRow({ label, enabled, onToggle, children }: { label: string; enabled: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className={`rounded-xl border transition-all ${enabled ? 'border-primary/30 bg-primary/5' : 'border-slate-200 bg-slate-50'}`}>
+      <button type="button" onClick={onToggle} className="w-full flex items-center justify-between p-3 text-left">
+        <p className={`font-medium text-[13px] ${enabled ? 'text-navy' : 'text-slate-500'}`}>{label}</p>
+        {enabled ? <ToggleRight size={20} className="text-primary shrink-0" /> : <ToggleLeft size={20} className="text-slate-300 shrink-0" />}
+      </button>
+      {enabled && <div className="px-3 pb-3">{children}</div>}
+    </div>
+  )
+}
+
+/* ─────────── 선택 버튼 그룹 ─────────── */
+function OptionButtons({ options, value, onChange }: { options: {value: string; label: string}[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(value === opt.value ? '' : opt.value)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${value === opt.value ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function NewCampaignPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState('objective')
   const [submitting, setSubmitting] = useState(false)
+  const [showDbFilter, setShowDbFilter] = useState(false)
+  const [dbFilter, setDbFilter] = useState<DatabricksFilter>(DEFAULT_DB_FILTER)
+  const [dbQueryState, setDbQueryState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [dbCount, setDbCount] = useState<number | null>(null)
+  const [dbError, setDbError] = useState('')
   const [form, setForm] = useState({
-    name: '', objective: '', channelType: 'SMS', segmentId: '',
+    name: '', objective: '', channelType: 'KAKAO', segmentId: '',
     contentTitle: '', contentBody: '',
     scheduledDate: '', sendingTime: '09:00',
   })
 
-  // API에서 세그먼트 목록 로드
   const { data: segments } = useApi<Segment[]>('/api/segments')
   const { mutate: createCampaign } = useMutation<{ id: string }>('post')
 
@@ -47,8 +111,42 @@ export default function NewCampaignPage() {
   const canPrev = stepIndex > 0
 
   const update = (data: Partial<typeof form>) => setForm(prev => ({ ...prev, ...data }))
+  const updateDbFilter = useCallback(<K extends keyof DatabricksFilter>(key: K, val: Partial<DatabricksFilter[K]>) => {
+    setDbFilter(prev => ({ ...prev, [key]: { ...prev[key], ...val } }))
+    setDbQueryState('idle')
+    setDbCount(null)
+  }, [])
 
   const selectedSegment = segmentList.find(s => s.id === form.segmentId)
+
+  /* ── Databricks 대상자 수 조회 ── */
+  const queryDatabricks = async () => {
+    setDbQueryState('loading')
+    setDbError('')
+    try {
+      const body: Record<string, any> = {}
+      if (dbFilter.age.enabled && dbFilter.age.min)    body.ageMin = parseInt(dbFilter.age.min)
+      if (dbFilter.age.enabled && dbFilter.age.max)    body.ageMax = parseInt(dbFilter.age.max)
+      if (dbFilter.gender.enabled && dbFilter.gender.value)              body.gender = dbFilter.gender.value
+      if (dbFilter.region.enabled && dbFilter.region.value)              body.region = dbFilter.region.value
+      if (dbFilter.userType.enabled && dbFilter.userType.value)          body.userType = dbFilter.userType.value
+      if (dbFilter.partnerMemberType.enabled && dbFilter.partnerMemberType.value) body.partnerMemberType = dbFilter.partnerMemberType.value
+      if (dbFilter.incomingChannel.enabled && dbFilter.incomingChannel.value)     body.incomingChannel = dbFilter.incomingChannel.value
+
+      const res = await fetch('/api/segments/query-databricks?mode=count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || '조회 실패')
+      setDbCount(data.count)
+      setDbQueryState('done')
+    } catch (err: any) {
+      setDbError(err.message)
+      setDbQueryState('error')
+    }
+  }
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -56,36 +154,43 @@ export default function NewCampaignPage() {
       ? `${form.scheduledDate}T${form.sendingTime}:00`
       : undefined
 
+    // 활성화된 DB 필터만 추출
+    const activeDatabricksFilter: Record<string, any> = {}
+    if (dbFilter.age.enabled) { activeDatabricksFilter.ageMin = parseInt(dbFilter.age.min) || undefined; activeDatabricksFilter.ageMax = parseInt(dbFilter.age.max) || undefined }
+    if (dbFilter.gender.enabled && dbFilter.gender.value)              activeDatabricksFilter.gender = dbFilter.gender.value
+    if (dbFilter.region.enabled && dbFilter.region.value)              activeDatabricksFilter.region = dbFilter.region.value
+    if (dbFilter.userType.enabled && dbFilter.userType.value)          activeDatabricksFilter.userType = dbFilter.userType.value
+    if (dbFilter.partnerMemberType.enabled && dbFilter.partnerMemberType.value) activeDatabricksFilter.partnerMemberType = dbFilter.partnerMemberType.value
+    if (dbFilter.incomingChannel.enabled && dbFilter.incomingChannel.value)     activeDatabricksFilter.incomingChannel = dbFilter.incomingChannel.value
+
     const result = await createCampaign('/api/campaigns', {
       name: form.name,
       objective: form.objective,
       channelType: form.channelType,
       segmentId: form.segmentId || undefined,
-      content: {
-        title: form.contentTitle,
-        body: form.contentBody,
-      },
+      content: { title: form.contentTitle, body: form.contentBody },
       scheduledAt,
+      targetCount: dbCount ?? selectedSegment?.patientCount,
+      databricksFilter: Object.keys(activeDatabricksFilter).length > 0 ? activeDatabricksFilter : undefined,
     })
 
     setSubmitting(false)
-    if (result.success) {
-      router.push('/campaigns')
-    }
+    if (result.success) router.push('/campaigns')
   }
+
+  const activeFilterCount = Object.values(dbFilter).filter(f => f.enabled).length
 
   return (
     <div className="p-8">
       <Header title="새 캠페인 만들기" description="5단계로 캠페인을 생성하세요" />
 
-      {/* Stepper */}
       <Card className="mb-6">
         <Stepper steps={steps} currentStep={currentStep} onStepClick={setCurrentStep} />
       </Card>
 
-      {/* Step Content */}
       <Card className="mb-6">
         <div className="min-h-[400px]">
+
           {/* Step 1: 목표 설정 */}
           {currentStep === 'objective' && (
             <div className="space-y-6 max-w-2xl">
@@ -93,14 +198,14 @@ export default function NewCampaignPage() {
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Megaphone size={20} className="text-primary" /></div>
                 <div><h2 className="font-semibold text-navy">캠페인 목표 설정</h2><p className="text-sm text-slate-500">캠페인의 기본 정보와 목표를 입력하세요</p></div>
               </div>
-              <Input label="캠페인명" placeholder="예: 심부전 Entresto Phase III 모집" value={form.name} onChange={e => update({ name: e.target.value })} />
+              <Input label="캠페인명" placeholder="예: 고지혈증 임상시험 리크루팅 2026 Q2" value={form.name} onChange={e => update({ name: e.target.value })} />
               <Textarea label="캠페인 목표" placeholder="이 캠페인의 목적과 기대 효과를 작성하세요..." rows={4} value={form.objective} onChange={e => update({ objective: e.target.value })} />
               <Select
                 label="발송 채널"
                 options={[
+                  { value: 'KAKAO', label: '카카오 알림톡 (권장)' },
                   { value: 'SMS', label: 'SMS (단문)' },
                   { value: 'LMS', label: 'LMS (장문)' },
-                  { value: 'KAKAO', label: '카카오 알림톡' },
                   { value: 'EMAIL', label: '이메일' },
                 ]}
                 value={form.channelType}
@@ -109,70 +214,142 @@ export default function NewCampaignPage() {
             </div>
           )}
 
-          {/* Step 2: 타겟 선택 */}
+          {/* Step 2: 타겟 선택 + Databricks 조건 + 대상자 추출 */}
           {currentStep === 'target' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Target size={20} className="text-primary" /></div>
-                <div><h2 className="font-semibold text-navy">타겟 세그먼트 선택</h2><p className="text-sm text-slate-500">캠페인 대상 세그먼트를 선택하세요</p></div>
+                <div><h2 className="font-semibold text-navy">타겟 세그먼트 선택</h2><p className="text-sm text-slate-500">세그먼트를 선택하고 추가 조건을 설정하세요</p></div>
               </div>
+
+              {/* 세그먼트 선택 */}
               {segmentList.length === 0 ? (
-                <div className="space-y-6">
-                  {/* 추천 세그먼트 */}
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles size={16} className="text-amber-500" />
-                      <p className="font-medium text-amber-800">추천 세그먼트</p>
-                    </div>
-                    <div className="space-y-2">
-                      {[
-                        { name: '심부전 HFrEF 40~80세', desc: '연령 40-80, ICD-10: I50.x', count: '약 4,200명' },
-                        { name: '제2형 당뇨 메트포르민 복용', desc: '진단: E11, ATC: A10BA02', count: '약 8,500명' },
-                        { name: '고혈압 50세 이상 서울/경기', desc: '진단: I10, 연령 50+, 지역: 서울/경기', count: '약 12,300명' },
-                      ].map((rec, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100">
-                          <div>
-                            <p className="text-sm font-medium text-navy">{rec.name}</p>
-                            <p className="text-xs text-slate-500">{rec.desc} · {rec.count}</p>
-                          </div>
-                          <Link href={`/segments/new`}>
-                            <Button size="sm" variant="outline">생성하기</Button>
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {/* 직접 만들기 */}
-                  <div className="text-center">
-                    <p className="text-slate-500 mb-3">또는 직접 세그먼트를 만들 수 있습니다</p>
-                    <Link href="/segments/new">
-                      <Button variant="outline"><Plus size={16} />세그먼트 만들러 가기</Button>
-                    </Link>
-                  </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="flex items-center gap-2 mb-3"><Sparkles size={16} className="text-amber-500" /><p className="font-medium text-amber-800">저장된 세그먼트 없음</p></div>
+                  <p className="text-sm text-amber-700 mb-3">아래에서 직접 Databricks 조건을 설정해 대상자를 추출하거나, 먼저 세그먼트를 만드세요.</p>
+                  <Link href="/segments/new"><Button size="sm" variant="outline"><Plus size={14} />세그먼트 만들러 가기</Button></Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {segmentList.map(seg => (
-                    <button
-                      key={seg.id}
-                      onClick={() => update({ segmentId: seg.id })}
-                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left ${
-                        form.segmentId === seg.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div>
-                        <p className="font-medium text-navy">{seg.name}</p>
-                        <p className="text-sm text-slate-500">{(seg.patientCount || 0).toLocaleString()}명</p>
-                      </div>
-                      {form.segmentId === seg.id && (
-                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                          <Check size={14} className="text-white" />
+                <div>
+                  <p className="text-xs font-medium text-slate-500 mb-2">기본 세그먼트 선택 (선택사항)</p>
+                  <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto pr-1">
+                    {segmentList.map(seg => (
+                      <button
+                        key={seg.id}
+                        onClick={() => update({ segmentId: form.segmentId === seg.id ? '' : seg.id })}
+                        className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${form.segmentId === seg.id ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'}`}
+                      >
+                        <div>
+                          <p className="font-medium text-navy text-sm">{seg.name}</p>
+                          <p className="text-xs text-slate-400">{(seg.patientCount || 0).toLocaleString()}명 (기존 집계)</p>
                         </div>
+                        {form.segmentId === seg.id && <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center"><Check size={12} className="text-white" /></div>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Databricks 조건 설정 토글 */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDbFilter(v => !v)}
+                  className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Database size={16} className="text-primary" />
+                    <span className="font-medium text-sm text-navy">Databricks 대상자 조건 설정</span>
+                    {activeFilterCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-primary text-white text-xs">{activeFilterCount}개 조건</span>
+                    )}
+                  </div>
+                  {showDbFilter ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                </button>
+
+                {showDbFilter && (
+                  <div className="p-4 space-y-3">
+                    <p className="text-xs text-slate-500 mb-3">실제 그린리본 데이터에서 조건에 맞는 대상자를 추출합니다. 조건을 켜고 값을 선택하세요.</p>
+
+                    {/* 연령 */}
+                    <FilterRow label="연령 범위" enabled={dbFilter.age.enabled} onToggle={() => updateDbFilter('age', { enabled: !dbFilter.age.enabled })}>
+                      <div className="flex items-center gap-2">
+                        <input type="number" placeholder="최소 나이" value={dbFilter.age.min} onChange={e => updateDbFilter('age', { min: e.target.value })}
+                          className="w-24 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-center" min={0} max={120} />
+                        <span className="text-slate-400 text-sm">~</span>
+                        <input type="number" placeholder="최대 나이" value={dbFilter.age.max} onChange={e => updateDbFilter('age', { max: e.target.value })}
+                          className="w-24 px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-center" min={0} max={120} />
+                        <span className="text-slate-400 text-xs">세</span>
+                      </div>
+                    </FilterRow>
+
+                    {/* 성별 */}
+                    <FilterRow label="성별" enabled={dbFilter.gender.enabled} onToggle={() => updateDbFilter('gender', { enabled: !dbFilter.gender.enabled })}>
+                      <OptionButtons options={GENDER_OPTIONS} value={dbFilter.gender.value} onChange={v => updateDbFilter('gender', { value: v })} />
+                    </FilterRow>
+
+                    {/* 지역 */}
+                    <FilterRow label="거주 지역" enabled={dbFilter.region.enabled} onToggle={() => updateDbFilter('region', { enabled: !dbFilter.region.enabled })}>
+                      <OptionButtons options={REGION_OPTIONS} value={dbFilter.region.value} onChange={v => updateDbFilter('region', { value: v })} />
+                    </FilterRow>
+
+                    {/* 유저 유형 */}
+                    <FilterRow label="유저 유형" enabled={dbFilter.userType.enabled} onToggle={() => updateDbFilter('userType', { enabled: !dbFilter.userType.enabled })}>
+                      <OptionButtons options={USER_TYPE_OPTIONS} value={dbFilter.userType.value} onChange={v => updateDbFilter('userType', { value: v })} />
+                    </FilterRow>
+
+                    {/* 파트너 회원 유형 */}
+                    <FilterRow label="파트너 회원 유형" enabled={dbFilter.partnerMemberType.enabled} onToggle={() => updateDbFilter('partnerMemberType', { enabled: !dbFilter.partnerMemberType.enabled })}>
+                      <OptionButtons options={PARTNER_TYPE_OPTIONS} value={dbFilter.partnerMemberType.value} onChange={v => updateDbFilter('partnerMemberType', { value: v })} />
+                    </FilterRow>
+
+                    {/* 유입 채널 */}
+                    <FilterRow label="유입 채널" enabled={dbFilter.incomingChannel.enabled} onToggle={() => updateDbFilter('incomingChannel', { enabled: !dbFilter.incomingChannel.enabled })}>
+                      <OptionButtons options={CHANNEL_OPTIONS} value={dbFilter.incomingChannel.value} onChange={v => updateDbFilter('incomingChannel', { value: v })} />
+                    </FilterRow>
+
+                    {/* 대상자 조회 버튼 */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <Button
+                          onClick={queryDatabricks}
+                          disabled={dbQueryState === 'loading' || activeFilterCount === 0}
+                          className="flex-1"
+                        >
+                          {dbQueryState === 'loading'
+                            ? <><Loader2 size={15} className="animate-spin" />조회 중...</>
+                            : <><Database size={15} />Databricks 대상자 수 조회</>
+                          }
+                        </Button>
+                        {dbQueryState === 'done' && dbCount !== null && (
+                          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
+                            <Users size={15} className="text-green-600" />
+                            <span className="font-bold text-green-700">{dbCount.toLocaleString()}명</span>
+                          </div>
+                        )}
+                      </div>
+                      {dbQueryState === 'error' && (
+                        <p className="text-xs text-red-500 mt-2">⚠ {dbError}</p>
                       )}
-                    </button>
-                  ))}
+                      {activeFilterCount === 0 && (
+                        <p className="text-xs text-slate-400 mt-2">조건을 하나 이상 켜야 조회할 수 있습니다</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 대상자 요약 */}
+              {(form.segmentId || dbQueryState === 'done') && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-xs font-medium text-blue-700 mb-2">현재 설정된 대상자</p>
+                  {selectedSegment && <p className="text-sm text-blue-800">세그먼트: <strong>{selectedSegment.name}</strong></p>}
+                  {dbQueryState === 'done' && dbCount !== null && (
+                    <p className="text-sm text-blue-800 mt-1">Databricks 실시간 조회: <strong className="text-green-700">{dbCount.toLocaleString()}명</strong></p>
+                  )}
+                  {!form.segmentId && dbQueryState !== 'done' && (
+                    <p className="text-sm text-slate-500">세그먼트 선택 또는 Databricks 조건을 설정하세요</p>
+                  )}
                 </div>
               )}
             </div>
@@ -186,10 +363,16 @@ export default function NewCampaignPage() {
                 <div><h2 className="font-semibold text-navy">메시지 콘텐츠 작성</h2><p className="text-sm text-slate-500">발송할 메시지 내용을 작성하세요</p></div>
               </div>
               <Input label="제목" placeholder="메시지 제목" value={form.contentTitle} onChange={e => update({ contentTitle: e.target.value })} />
-              <Textarea label="본문" placeholder={'메시지 본문을 작성하세요. 변수: {이름}, {병원명}, {날짜}'} rows={8} value={form.contentBody} onChange={e => update({ contentBody: e.target.value })} />
+              <Textarea
+                label="본문"
+                placeholder={'메시지 본문을 작성하세요.\n\n변수: {이름}, {병원명}, {날짜}\n\n예시:\n안녕하세요 {이름}님,\n임상시험 참여 기회를 안내드립니다...'}
+                rows={8}
+                value={form.contentBody}
+                onChange={e => update({ contentBody: e.target.value })}
+              />
               <div className="p-4 bg-slate-50 rounded-xl">
                 <p className="text-xs font-medium text-slate-500 mb-2">미리보기</p>
-                <div className="bg-white rounded-lg p-4 border border-slate-200 text-sm text-navy whitespace-pre-wrap">
+                <div className="bg-white rounded-lg p-4 border border-slate-200 text-sm text-navy whitespace-pre-wrap min-h-[80px]">
                   {form.contentBody || '메시지 내용이 여기에 표시됩니다...'}
                 </div>
               </div>
@@ -205,6 +388,9 @@ export default function NewCampaignPage() {
               </div>
               <Input label="발송 예정일" type="date" value={form.scheduledDate} onChange={e => update({ scheduledDate: e.target.value })} />
               <Input label="발송 시간" type="time" value={form.sendingTime} onChange={e => update({ sendingTime: e.target.value })} />
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-xs text-amber-700">⚠ 발송 전 반드시 승인 절차가 필요합니다. 설정 시간보다 최소 24시간 전에 제출하세요.</p>
+              </div>
             </div>
           )}
 
@@ -226,13 +412,29 @@ export default function NewCampaignPage() {
                 </div>
                 <div className="p-4 bg-slate-50 rounded-xl">
                   <p className="text-xs font-medium text-slate-500 mb-1">타겟 세그먼트</p>
-                  <p className="text-sm font-medium text-navy">{selectedSegment?.name || '-'}</p>
-                  <p className="text-xs text-slate-400">{selectedSegment ? `${selectedSegment.patientCount.toLocaleString()}명` : ''}</p>
+                  <p className="text-sm font-medium text-navy">{selectedSegment?.name || (dbQueryState === 'done' ? 'Databricks 조건 대상자' : '-')}</p>
+                  {dbQueryState === 'done' && dbCount !== null
+                    ? <p className="text-xs text-green-600 font-medium mt-0.5">Databricks 실시간 {dbCount.toLocaleString()}명</p>
+                    : <p className="text-xs text-slate-400 mt-0.5">{selectedSegment ? `${selectedSegment.patientCount.toLocaleString()}명` : ''}</p>
+                  }
                 </div>
                 <div className="p-4 bg-slate-50 rounded-xl">
                   <p className="text-xs font-medium text-slate-500 mb-1">발송 일시</p>
-                  <p className="text-sm font-medium text-navy">{form.scheduledDate} {form.sendingTime}</p>
+                  <p className="text-sm font-medium text-navy">{form.scheduledDate ? `${form.scheduledDate} ${form.sendingTime}` : '미설정'}</p>
                 </div>
+                {activeFilterCount > 0 && (
+                  <div className="col-span-2 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <p className="text-xs font-medium text-blue-700 mb-2">Databricks 조건 ({activeFilterCount}개)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {dbFilter.age.enabled && (dbFilter.age.min || dbFilter.age.max) && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">연령 {dbFilter.age.min || '?'}~{dbFilter.age.max || '?'}세</span>}
+                      {dbFilter.gender.enabled && dbFilter.gender.value && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{dbFilter.gender.value}성</span>}
+                      {dbFilter.region.enabled && dbFilter.region.value && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{dbFilter.region.value}</span>}
+                      {dbFilter.userType.enabled && dbFilter.userType.value && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{dbFilter.userType.value}</span>}
+                      {dbFilter.partnerMemberType.enabled && dbFilter.partnerMemberType.value && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{dbFilter.partnerMemberType.value}</span>}
+                      {dbFilter.incomingChannel.enabled && dbFilter.incomingChannel.value && <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{dbFilter.incomingChannel.value}</span>}
+                    </div>
+                  </div>
+                )}
                 <div className="col-span-2 p-4 bg-slate-50 rounded-xl">
                   <p className="text-xs font-medium text-slate-500 mb-1">메시지 내용</p>
                   <p className="text-sm text-navy whitespace-pre-wrap">{form.contentBody || '-'}</p>
