@@ -52,6 +52,26 @@ async function runSQL(sql: string) {
   return { columns, rows: rows.map(r => Object.fromEntries(columns.map((c, i) => [c, r[i]]))) }
 }
 
+async function testConnection() {
+  // 간단한 GET 요청으로 인증/연결 테스트
+  const url = `https://${HOST}/api/2.0/sql/warehouses`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  const text = await res.text()
+  const isHtml = text.trim().startsWith('<')
+  return {
+    status: res.status,
+    isHtml,
+    preview: text.substring(0, 300),
+    parsed: isHtml ? null : JSON.parse(text),
+  }
+}
+
 export async function GET() {
   // 환경변수 진단 정보 항상 포함
   const envInfo = {
@@ -66,6 +86,23 @@ export async function GET() {
     if (!HOST || !TOKEN) {
       return NextResponse.json({
         error: 'Databricks 환경변수 없음 — Vercel 대시보드에서 확인하세요',
+        envInfo,
+      }, { status: 500 })
+    }
+
+    // 0. 연결 테스트 (GET /api/2.0/sql/warehouses)
+    const connTest = await testConnection()
+    if (connTest.isHtml) {
+      return NextResponse.json({
+        error: `연결테스트 실패: HOST(${HOST})에서 HTML 반환. 토큰이 만료됐거나 HOST가 잘못되었습니다.`,
+        connectionTest: connTest,
+        envInfo,
+      }, { status: 500 })
+    }
+    if (connTest.status !== 200) {
+      return NextResponse.json({
+        error: `연결테스트 실패 (HTTP ${connTest.status})`,
+        connectionTest: connTest,
         envInfo,
       }, { status: 500 })
     }
